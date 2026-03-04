@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from database import engine
 from models import Base
 from routers import public
+from routers import admin
 
 load_dotenv()
 
@@ -40,6 +41,7 @@ app.add_middleware(
 
 # Routers
 app.include_router(public.router)
+app.include_router(admin.router)
 
 @app.get("/health", tags=["health"])
 async def health_check():
