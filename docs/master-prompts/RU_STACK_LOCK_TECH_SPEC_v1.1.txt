@@ -1,0 +1,46 @@
+RU_STACK_LOCK_TECH_SPEC_v1.1.txt
+Role: Subordinate to MASTER_PROMPT_RU_STACK_v1.3.3.
+Purpose: Fix stack/tooling defaults and standard verify targets to reduce errors and “invented commands”.
+Jurisdiction: РФ (152-ФЗ). Runtime: NO CDN; self-hosted assets.
+External services must be self-hosted or located in РФ unless ADR says otherwise.
+
+A) Stack Lock (Default)
+Frontend: TypeScript 5.x strict; React 18+; Next.js 14+ App Router; Tailwind 3+; pnpm.
+Backend: Python 3.12+; FastAPI; Pydantic v2; SQLAlchemy 2+; Alembic; Pytest.
+Data: Postgres 15+; Redis 7+ only if required by scope (ADR).
+Infra: Linux VPS РФ; Docker/Compose; Nginx + TLS.
+
+B) Environment Pinning (Mandatory)
+Pin runtime versions in repo (Node + Python) and use lockfiles. CI must match pinned versions.
+
+C) Editor/Agent (Preferred)
+- Preferred editor: VS Code.
+- Preferred agent: Codex VS Code extension (sign in with ChatGPT Plus).
+- Preferred verification: VS Code Tasks (.vscode/tasks.json) when available.
+
+D) Tooling Lock (Default)
+Frontend: ESLint + Prettier; Vitest; Playwright only if present/required.
+Backend: Ruff; Black only if present; mypy only if present/ADR; Pytest.
+Security audit: only via repo-defined verify gates.
+
+E) Verify Gates (Standard Targets)
+When creating/normalizing repo, define docs/verify-gates.md and/or scripts so these targets exist (names may vary, but must be documented then used):
+- web:lint
+- web:typecheck
+- web:test
+- web:e2e (if used)
+- api:lint
+- api:test
+- api:migrate-check
+- docker:build (release phase)
+
+Rule: Assistant must only run commands that exist in repo or docs/verify-gates.md. No invented commands.
+
+F) No External Runtime
+No CDN fonts/scripts. Local fonts/images.
+Trackers/analytics disabled by default; enable only via ADR and (if PDn) explicit consent + privacy policy update.
+
+G) Dependency License Policy
+Allowed by default: MIT/Apache-2.0/BSD/OFL. GPL/AGPL only via ADR + explicit approval.
+
+End.
