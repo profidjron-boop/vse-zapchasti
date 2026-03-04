@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from typing import List, Optional
-import uuid
+from sqlalchemy import select
+from typing import List
 
 from database import get_db
-from models import Product, Category, AuditLog, User
+from models import Product, Category, AuditLog
 from schemas import ProductCreate, ProductUpdate, ProductResponse
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
