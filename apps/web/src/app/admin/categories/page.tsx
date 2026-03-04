@@ -46,7 +46,7 @@ export default async function AdminCategoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
-              {categories.map((cat: any) => (
+              {categories.map((cat: { id: number; name: string; slug: string; sort_order: number; is_active: boolean; }) => (
                 <tr key={cat.id} className="hover:bg-neutral-50">
                   <td className="py-3 px-4 text-sm">{cat.id}</td>
                   <td className="py-3 px-4 text-sm font-medium">{cat.name}</td>

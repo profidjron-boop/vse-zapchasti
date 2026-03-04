@@ -244,9 +244,46 @@ export default function Page() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
+      <footer className="border-t border-neutral-200 bg-neutral-50 py-12">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+            <div>
+              <h3 className="text-lg font-bold text-[#1F3B73]">Все запчасти</h3>
+              <p className="mt-2 text-sm text-neutral-600">
+                Оригинальные запчасти и профессиональный автосервис в Красноярске
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-neutral-800">Навигация</h4>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li><Link href="/" className="text-neutral-600 hover:text-[#1F3B73]">Главная</Link></li>
+                <li><Link href="/parts" className="text-neutral-600 hover:text-[#1F3B73]">Запчасти</Link></li>
+                <li><Link href="/service" className="text-neutral-600 hover:text-[#1F3B73]">Автосервис</Link></li>
+                <li><Link href="/contacts" className="text-neutral-600 hover:text-[#1F3B73]">Контакты</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-neutral-800">Документы</h4>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li><Link href="/privacy" className="text-neutral-600 hover:text-[#1F3B73]">Политика конфиденциальности</Link></li>
+                <li><Link href="/offer" className="text-neutral-600 hover:text-[#1F3B73]">Публичная оферта</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-neutral-800">Контакты</h4>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li className="text-neutral-600">Проспект Котельникова, 11Б/1 пос. Солонцы, Красноярск, 660015</li>
+                <li className="text-neutral-600">+7 (391) 218‒01‒02</li>
+                <li className="text-neutral-600">+7 (391) 219‒01‒03</li>
+                <li className="text-neutral-600">info@avm-24.ru</li>
+              </ul>
+<li className="text-neutral-600">+7 (391) 219‒01‒03</li>
+<li className="text-neutral-600">info@avm-24.ru</li>
+            </div>
+          </div>
+          <div className="mt-8 border-t border-neutral-200 pt-8 text-center text-xs text-neutral-500">
+            © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
+          </div>
         </div>
       </footer>
     </main>
