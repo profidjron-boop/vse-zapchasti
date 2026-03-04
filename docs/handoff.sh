@@ -18,6 +18,8 @@ echo
 
 echo "== docs presence =="
 for f in \
+  docs/project-header.md \
+  docs/requirements.md \
   docs/stack.md \
   docs/verify-gates.md \
   docs/design-system.md \
