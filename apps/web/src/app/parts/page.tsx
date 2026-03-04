@@ -1,36 +1,52 @@
 import Link from "next/link";
 
-export default function PartsPage({
+export default async function PartsPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams: Promise<{ q?: string }>;
 }) {
-  const qRaw = searchParams?.q;
-  const q = Array.isArray(qRaw) ? qRaw[0] : qRaw;
-  const query = (q ?? "").trim();
+  const params = await searchParams;
+  const query = params.q?.trim() ?? "";
 
   return (
-    <main className="min-h-dvh bg-neutral-950 text-neutral-50">
+    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+      {/* Header */}
+      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+            <nav className="hidden items-center gap-8 md:flex">
+              <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
+              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+            </nav>
+            <div className="flex items-center gap-3">
+              <button className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]">
+                Для дилеров
+              </button>
+              <button className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20">
+                Заказать звонок
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#1F3B73]/20 bg-[#1F3B73]/5 px-3 py-1 text-xs font-medium text-[#1F3B73]">
             Запчасти · Поиск · Подбор
           </div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#1F3B73] sm:text-4xl">
             Подбор запчастей
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-base">
-            Ищите по артикулу/OEM или названию. Если не уверены — оставьте VIN-заявку,
-            менеджер подберёт совместимость.
+          <p className="mt-2 max-w-2xl text-base leading-relaxed text-neutral-600">
+            Ищите по артикулу/OEM или названию. Если не уверены — оставьте VIN-заявку, менеджер подберёт совместимость.
           </p>
         </div>
 
-        <form
-          action="/parts"
-          method="get"
-          className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
-        >
-          <label className="block text-sm font-semibold text-white/90">
+        <form action="/parts" method="get" className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-lg">
+          <label className="block text-sm font-semibold text-neutral-700">
             Поиск по артикулу или OEM
           </label>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -38,54 +54,52 @@ export default function PartsPage({
               name="q"
               defaultValue={query}
               placeholder="Например: 06A905161B"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white placeholder:text-white/35 outline-none ring-0 focus:border-white/20 focus:bg-black/40"
+              className="h-12 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-neutral-900 focus:border-[#1F3B73] focus:outline-none"
             />
             <button
               type="submit"
-              className="h-12 shrink-0 rounded-2xl bg-white px-5 text-sm font-semibold text-neutral-950 transition hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/40"
+              className="h-12 shrink-0 rounded-2xl bg-[#1F3B73] px-6 text-sm font-medium text-white transition hover:bg-[#14294F]"
             >
               Найти
             </button>
           </div>
-
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Link
               href="/parts/vin"
-              className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="text-sm font-medium text-[#FF7A00] hover:underline"
             >
-              Оставить VIN-заявку
+              Оставить VIN-заявку →
             </Link>
-            <div className="text-xs text-white/50">
+            <div className="text-xs text-neutral-500">
               Красноярск · Ответ менеджера в рабочее время
             </div>
           </div>
         </form>
 
-        <div className="mt-8 rounded-3xl border border-white/10 bg-black/20 p-6">
+        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6">
           {query === "" ? (
             <>
-              <div className="text-sm font-semibold">Начните с поиска</div>
-              <div className="mt-1 text-sm text-white/60">
+              <div className="text-sm font-semibold text-[#1F3B73]">Начните с поиска</div>
+              <div className="mt-1 text-sm text-neutral-600">
                 Введите артикул/OEM или название — покажем результаты.
               </div>
             </>
           ) : (
             <>
-              <div className="text-sm font-semibold">Результаты</div>
-              <div className="mt-1 text-sm text-white/60">
-                По запросу <span className="text-white/80">“{query}”</span> пока нет
-                данных в витрине. Оставьте VIN-заявку или запрос менеджеру.
+              <div className="text-sm font-semibold text-[#1F3B73]">Результаты</div>
+              <div className="mt-1 text-sm text-neutral-600">
+                По запросу <span className="font-medium text-[#1F3B73]">&quot;{query}&quot;</span> пока нет данных в витрине. Оставьте VIN-заявку или запрос менеджеру.
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
                   href="/parts/vin"
-                  className="inline-flex items-center justify-center rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/40"
+                  className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00]"
                 >
                   Оставить VIN-заявку
                 </Link>
                 <Link
                   href="/"
-                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+                  className="rounded-2xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-50"
                 >
                   На главную
                 </Link>
@@ -94,6 +108,12 @@ export default function PartsPage({
           )}
         </div>
       </div>
+
+      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
+        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
+        </div>
+      </footer>
     </main>
   );
 }

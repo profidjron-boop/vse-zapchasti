@@ -76,9 +76,12 @@ export default function Page() {
                   placeholder="Например: 06A905161B"
                   className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm focus:border-[#1F3B73] focus:outline-none"
                 />
-                <button className="rounded-2xl bg-[#1F3B73] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#14294F]">
+                <Link
+                  href="/parts"
+                  className="rounded-2xl bg-[#1F3B73] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#14294F]"
+                >
                   Найти
-                </button>
+                </Link>
               </div>
               <Link href="/parts/vin" className="mt-4 inline-block text-sm font-medium text-[#FF7A00] hover:underline">
                 Оставить VIN-заявку →
@@ -112,9 +115,12 @@ export default function Page() {
               ))}
             </div>
             <div className="mt-8">
-              <button className="rounded-2xl border-2 border-[#FF7A00] px-6 py-3 font-medium text-[#FF7A00] transition hover:bg-[#FF7A00] hover:text-white">
+              <Link
+                href="/service"
+                className="inline-block rounded-2xl border-2 border-[#FF7A00] px-6 py-3 font-medium text-[#FF7A00] transition hover:bg-[#FF7A00] hover:text-white"
+              >
                 Записаться
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -132,10 +138,14 @@ export default function Page() {
             "Ходовая часть",
             "Автоэлектрика",
           ].map((cat) => (
-            <div key={cat} className="rounded-2xl border border-neutral-200 bg-white p-4 text-center transition hover:shadow-md">
+            <Link
+              key={cat}
+              href={`/parts?category=${cat.toLowerCase().replace(/\s+/g, '-')}`}
+              className="rounded-2xl border border-neutral-200 bg-white p-4 text-center transition hover:shadow-md"
+            >
               <div className="mx-auto h-12 w-12 rounded-xl bg-[#1F3B73]/10" />
               <div className="mt-3 text-sm font-medium text-neutral-700">{cat}</div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
@@ -153,15 +163,22 @@ export default function Page() {
                   "Ремонт и обслуживание",
                   "Шиномонтаж и автоэлектрика",
                 ].map((work) => (
-                  <div key={work} className="flex items-center justify-between rounded-2xl border border-neutral-200 p-4">
+                  <Link
+                    key={work}
+                    href={`/service#${work.toLowerCase().replace(/\s+/g, '-')}`}
+                    className="flex items-center justify-between rounded-2xl border border-neutral-200 p-4 transition hover:border-[#FF7A00] hover:shadow-md"
+                  >
                     <span className="font-medium text-neutral-700">{work}</span>
                     <span className="text-[#FF7A00]">→</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
-              <button className="mt-8 rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-[#FF7A00]/20">
+              <Link
+                href="/service#form"
+                className="mt-8 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-[#FF7A00]/20 transition hover:bg-[#e66e00]"
+              >
                 Оставить заявку
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -176,9 +193,12 @@ export default function Page() {
               <p className="mt-2 text-white/80">
                 Закажите обратный звонок — мы подберём и привезём
               </p>
-              <button className="mt-6 rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-black/20">
+              <Link
+                href="/parts/vin"
+                className="mt-6 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-black/20 transition hover:bg-[#e66e00]"
+              >
                 Оставьте заявку
-              </button>
+              </Link>
             </div>
             <div className="h-48 rounded-2xl bg-white/10" />
           </div>
@@ -196,21 +216,24 @@ export default function Page() {
                   <span className="text-[#FF7A00]">📍</span>
                   <div>
                     <div className="font-medium">Адрес</div>
-                    <div className="text-neutral-600">г. Красноярск, пр. Металлургов, 2В</div>
+                    <div className="text-neutral-600">Проспект Котельникова, 11Б/1 пос. Солонцы, Красноярск, 660015</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[#FF7A00]">🕒</span>
                   <div>
                     <div className="font-medium">Время работы</div>
-                    <div className="text-neutral-600">Пн–Пт 9:00–19:00, Сб 10:00–17:00, Вс выходной</div>
+                    <div className="text-neutral-600">Сегодня c 09:00 до 17:00</div>
+                    <div className="text-neutral-600">Закрыто. Откроется завтра в 09:00</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[#FF7A00]">📞</span>
                   <div>
                     <div className="font-medium">Телефон</div>
-                    <div className="text-neutral-600">+7 (391) 258-95-00</div>
+                    <div className="text-neutral-600">+7 (391) 218‒01‒02</div>
+                    <div className="text-neutral-600">+7 (391) 219‒01‒03</div>
+                    <div className="text-neutral-600">info@avm-24.ru</div>
                   </div>
                 </div>
               </div>

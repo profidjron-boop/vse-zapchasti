@@ -1,9 +1,86 @@
 import Link from "next/link";
 
-export default function ServicePage() {
+export default async function ServicePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const params = await searchParams;
+  const vehicleType = params.type === 'truck' ? 'truck' : 'passenger';
+
+  // Услуги для легковых и грузовых
+  const services = {
+    passenger: [
+      {
+        title: "Диагностика и ТО",
+        desc: "Полная диагностика, плановое ТО, замена жидкостей",
+        icon: "🔧"
+      },
+      {
+        title: "Ремонт двигателя",
+        desc: "Капитальный ремонт, замена ГРМ, диагностика",
+        icon: "⚙️"
+      },
+      {
+        title: "Ремонт КПП",
+        desc: "Автомат, механика, вариатор — любой сложности",
+        icon: "🔄"
+      },
+      {
+        title: "Ходовая часть",
+        desc: "Замена амортизаторов, рычагов, сайлентблоков",
+        icon: "🛞"
+      },
+      {
+        title: "Автоэлектрика",
+        desc: "Диагностика электрики, ремонт генератора, стартера",
+        icon: "⚡"
+      },
+      {
+        title: "Шиномонтаж",
+        desc: "Сезонная замена, балансировка, ремонт проколов",
+        icon: "🔩"
+      }
+    ],
+    truck: [
+      {
+        title: "Диагностика грузовых",
+        desc: "Компьютерная диагностика, проверка систем",
+        icon: "🔧"
+      },
+      {
+        title: "Ремонт ДВС",
+        desc: "Капитальный ремонт двигателей грузовиков",
+        icon: "⚙️"
+      },
+      {
+        title: "Ремонт КПП",
+        desc: "Ремонт коробок передач ZF, Eaton и др.",
+        icon: "🔄"
+      },
+      {
+        title: "Ходовая часть",
+        desc: "Замена рессор, сайлентблоков, амортизаторов",
+        icon: "🛞"
+      },
+      {
+        title: "Электрика",
+        desc: "Ремонт электропроводки, диагностика CAN-шин",
+        icon: "⚡"
+      },
+      {
+        title: "ТО грузовиков",
+        desc: "Плановое ТО, замена масел и фильтров",
+        icon: "🔩"
+      }
+    ]
+  };
+
+  const currentServices = services[vehicleType];
+
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      {/* Header (такой же как на главной) */}
+      {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
@@ -33,7 +110,7 @@ export default function ServicePage() {
         <div className="relative mx-auto max-w-6xl px-6">
           <h1 className="text-4xl font-bold text-white">Автосервис в Красноярске</h1>
           <p className="mt-4 max-w-2xl text-lg text-white/80">
-            Профессиональный ремонт и обслуживание легковых и грузовых автомобилей
+            Профессиональный ремонт и обслуживание {vehicleType === 'passenger' ? 'легковых' : 'грузовых'} автомобилей
           </p>
         </div>
       </section>
@@ -41,65 +118,53 @@ export default function ServicePage() {
       {/* Переключатель легковые/грузовые */}
       <section className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex gap-4 rounded-2xl bg-white p-2 shadow-sm">
-          <button className="flex-1 rounded-xl bg-[#1F3B73] py-3 font-medium text-white">
+          <Link 
+            href="/service?type=passenger" 
+            className={`flex-1 rounded-xl py-3 text-center font-medium transition ${
+              vehicleType === 'passenger' 
+                ? 'bg-[#1F3B73] text-white' 
+                : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
             Легковые
-          </button>
-          <button className="flex-1 rounded-xl py-3 font-medium text-neutral-600 hover:bg-neutral-100">
+          </Link>
+          <Link 
+            href="/service?type=truck" 
+            className={`flex-1 rounded-xl py-3 text-center font-medium transition ${
+              vehicleType === 'truck' 
+                ? 'bg-[#1F3B73] text-white' 
+                : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
             Грузовые
-          </button>
+          </Link>
         </div>
       </section>
 
       {/* Виды работ */}
       <section className="mx-auto max-w-6xl px-6 py-8">
-        <h2 className="text-2xl font-bold text-[#1F3B73]">Направления работ</h2>
+        <h2 className="text-2xl font-bold text-[#1F3B73]">
+          {vehicleType === 'passenger' ? 'Легковые автомобили' : 'Грузовые автомобили'}
+        </h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            {
-              title: "Диагностика и ТО",
-              desc: "Полная диагностика, плановое ТО, замена жидкостей",
-              icon: "🔧"
-            },
-            {
-              title: "Ремонт двигателя",
-              desc: "Капитальный ремонт, замена ГРМ, диагностика",
-              icon: "⚙️"
-            },
-            {
-              title: "Ремонт КПП",
-              desc: "Автомат, механика, вариатор — любой сложности",
-              icon: "🔄"
-            },
-            {
-              title: "Ходовая часть",
-              desc: "Замена амортизаторов, рычагов, сайлентблоков",
-              icon: "🛞"
-            },
-            {
-              title: "Автоэлектрика",
-              desc: "Диагностика электрики, ремонт генератора, стартера",
-              icon: "⚡"
-            },
-            {
-              title: "Шиномонтаж",
-              desc: "Сезонная замена, балансировка, ремонт проколов",
-              icon: "🔩"
-            }
-          ].map((work) => (
+          {currentServices.map((work) => (
             <div key={work.title} className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-lg">
               <div className="text-4xl">{work.icon}</div>
               <h3 className="mt-4 text-lg font-semibold text-[#1F3B73]">{work.title}</h3>
               <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
-              <button className="mt-4 text-sm font-medium text-[#FF7A00] hover:underline">
+              <Link 
+                href={`/service#form`}
+                className="mt-4 inline-block text-sm font-medium text-[#FF7A00] hover:underline"
+              >
                 Подробнее →
-              </button>
+              </Link>
             </div>
           ))}
         </div>
       </section>
 
       {/* Форма заявки */}
-      <section className="bg-white py-16">
+      <section id="form" className="bg-white py-16 scroll-mt-20">
         <div className="mx-auto max-w-3xl px-6">
           <h2 className="text-center text-2xl font-bold text-[#1F3B73]">Заявка на обслуживание</h2>
           <p className="mt-2 text-center text-neutral-600">
@@ -112,17 +177,17 @@ export default function ServicePage() {
                 <label className="text-sm font-medium text-neutral-700">Вид работ *</label>
                 <select className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
                   <option>Выберите направление</option>
-                  <option>Диагностика и ТО</option>
-                  <option>Ремонт двигателя</option>
-                  <option>Ремонт КПП</option>
-                  <option>Ходовая часть</option>
-                  <option>Автоэлектрика</option>
-                  <option>Шиномонтаж</option>
+                  {currentServices.map(s => (
+                    <option key={s.title}>{s.title}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-neutral-700">Тип авто *</label>
-                <select className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+                <select 
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
+                  defaultValue={vehicleType === 'passenger' ? 'Легковой' : 'Грузовой'}
+                >
                   <option>Легковой</option>
                   <option>Грузовой</option>
                 </select>
@@ -141,7 +206,11 @@ export default function ServicePage() {
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Марка и модель авто</label>
-              <input type="text" placeholder="Например: Volvo FH" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3" />
+              <input 
+                type="text" 
+                placeholder={vehicleType === 'passenger' ? "Например: Toyota Camry" : "Например: Volvo FH"} 
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3" 
+              />
             </div>
 
             <div>
