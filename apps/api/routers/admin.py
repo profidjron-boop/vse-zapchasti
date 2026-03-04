@@ -5,6 +5,7 @@ from typing import List
 
 from database import get_db
 from models import Product, Category, AuditLog
+from schemas import CategoryCreate, CategoryUpdate, CategoryResponse
 from schemas import ProductCreate, ProductUpdate, ProductResponse
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -162,3 +163,112 @@ async def admin_get_service_requests(
     query = select(ServiceRequest).order_by(ServiceRequest.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
+
+# ---------- Categories CRUD ----------
+@router.post("/categories", response_model=CategoryResponse, status_code=201)
+async def admin_create_category(
+    category: CategoryCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create new category"""
+    # Check if slug exists
+    existing = await db.execute(select(Category).where(Category.slug == category.slug))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Slug already exists")
+    
+    db_category = Category(**category.model_dump())
+    db.add(db_category)
+    await db.commit()
+    await db.refresh(db_category)
+    
+    # Audit log
+    audit = AuditLog(
+        action="create",
+        entity_type="category",
+        entity_id=db_category.id,
+        new_values=category.model_dump()
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return db_category
+
+@router.get("/categories/{category_id}", response_model=CategoryResponse)
+async def admin_get_category(category_id: int, db: AsyncSession = Depends(get_db)):
+    """Get category by ID"""
+    query = select(Category).where(Category.id == category_id)
+    result = await db.execute(query)
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
+
+@router.put("/categories/{category_id}", response_model=CategoryResponse)
+async def admin_update_category(
+    category_id: int,
+    category_update: CategoryUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update category"""
+    query = select(Category).where(Category.id == category_id)
+    result = await db.execute(query)
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Store old values for audit
+    old_values = {
+        "name": category.name,
+        "slug": category.slug,
+        "is_active": category.is_active
+    }
+    
+    # Update only provided fields
+    update_data = category_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(category, field, value)
+    
+    await db.commit()
+    await db.refresh(category)
+    
+    # Audit log
+    audit = AuditLog(
+        action="update",
+        entity_type="category",
+        entity_id=category_id,
+        old_values=old_values,
+        new_values=update_data
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return category
+
+@router.delete("/categories/{category_id}", status_code=204)
+async def admin_delete_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete category"""
+    query = select(Category).where(Category.id == category_id)
+    result = await db.execute(query)
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    await db.delete(category)
+    await db.commit()
+    
+    # Audit log
+    audit = AuditLog(
+        action="delete",
+        entity_type="category",
+        entity_id=category_id
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return None
