@@ -8,6 +8,55 @@ export default function NewCategoryPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [manualSlug, setManualSlug] = useState(false);
+
+  // Функция для транслитерации русского текста в латиницу
+  function transliterate(text: string): string {
+    const ru = {
+      'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+      'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+      'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+      'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '',
+      'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+      'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
+      'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+      'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+      'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch', 'Ъ': '',
+      'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
+    };
+    
+    return text
+      .split('')
+      .map(char => ru[char as keyof typeof ru] || char)
+      .join('')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setName(newName);
+    if (!manualSlug) {
+      setSlug(transliterate(newName));
+    }
+  };
+
+  const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSlug(e.target.value);
+    setManualSlug(true);
+  };
+
+  const handleSlugBlur = () => {
+    if (slug.trim() === '') {
+      setManualSlug(false);
+      setSlug(transliterate(name));
+    }
+  };
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -16,8 +65,8 @@ export default function NewCategoryPage() {
 
     const formData = new FormData(event.currentTarget);
     const data = {
-      name: formData.get("name"),
-      slug: formData.get("slug"),
+      name: name,
+      slug: slug || transliterate(name),
       parent_id: formData.get("parent_id") ? parseInt(formData.get("parent_id") as string) : null,
       sort_order: parseInt(formData.get("sort_order") as string) || 0,
       is_active: formData.get("is_active") === "on",
@@ -72,6 +121,8 @@ export default function NewCategoryPage() {
           <input
             type="text"
             name="name"
+            value={name}
+            onChange={handleNameChange}
             required
             className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
           />
@@ -79,17 +130,19 @@ export default function NewCategoryPage() {
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Slug *
+            Slug (часть URL) {manualSlug ? '(изменён вручную)' : '(автоматически из названия)'}
           </label>
           <input
             type="text"
             name="slug"
-            required
-            placeholder="например: zapchasti"
+            value={slug}
+            onChange={handleSlugChange}
+            onBlur={handleSlugBlur}
+            placeholder="автоматически создастся из названия"
             className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
           />
           <p className="mt-1 text-xs text-neutral-500">
-            Уникальный идентификатор для URL (только латиница, цифры, дефис)
+            Если нужно изменить slug, просто введите свой вариант
           </p>
         </div>
 
