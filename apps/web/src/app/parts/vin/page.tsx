@@ -1,9 +1,95 @@
+'use client';
+
 import Link from "next/link";
+import { useState } from "react";
 
 export default function VinRequestPage() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+
+    const formData = new FormData(event.currentTarget);
+    const data = {
+      type: "vin",
+      name: formData.get("name") || undefined,
+      phone: formData.get("phone"),
+      email: formData.get("email") || undefined,
+      vin: formData.get("vin"),
+      message: formData.get("message") || undefined,
+      consent_given: formData.get("consent") === "on",
+    };
+
+    try {
+      const response = await fetch("http://localhost:8000/api/public/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error("Ошибка при отправке заявки");
+      }
+
+      setIsSuccess(true);
+      event.currentTarget.reset();
+    } catch (err) {
+      setError("Не удалось отправить заявку. Попробуйте позже.");
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isSuccess) {
+    return (
+      <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+        <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
+          <div className="mx-auto max-w-6xl px-6 py-4">
+            <div className="flex items-center justify-between">
+              <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+              <nav className="hidden items-center gap-8 md:flex">
+                <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
+                <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+                <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+              </nav>
+            </div>
+          </div>
+        </header>
+
+        <section className="mx-auto max-w-3xl px-6 py-16">
+          <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
+            <div className="text-6xl mb-4">✅</div>
+            <h1 className="text-2xl font-bold text-[#1F3B73]">Заявка отправлена!</h1>
+            <p className="mt-2 text-neutral-600">
+              Менеджер свяжется с вами в рабочее время для уточнения деталей.
+            </p>
+            <Link
+              href="/"
+              className="mt-6 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white hover:bg-[#e66e00]"
+            >
+              Вернуться на главную
+            </Link>
+          </div>
+        </section>
+
+        <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
+          <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+            © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+          </div>
+        </footer>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
@@ -13,19 +99,10 @@ export default function VinRequestPage() {
               <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
               <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
             </nav>
-            <div className="flex items-center gap-3">
-              <button className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]">
-                Для дилеров
-              </button>
-              <button className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20">
-                Заказать звонок
-              </button>
-            </div>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-[#1F3B73] to-[#14294F] py-16">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
@@ -38,54 +115,80 @@ export default function VinRequestPage() {
         </div>
       </section>
 
-      {/* Форма VIN-заявки */}
       <section className="mx-auto max-w-3xl px-6 py-16">
         <div className="rounded-3xl bg-white p-8 shadow-xl">
-          <form className="space-y-6">
+          {error && (
+            <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+              {error}
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="text-sm font-medium text-neutral-700">VIN-номер *</label>
               <input 
                 type="text" 
+                name="vin"
+                required
                 placeholder="Например: XTA210930Y1234567" 
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm"
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm focus:border-[#1F3B73] focus:outline-none"
               />
               <p className="mt-1 text-xs text-neutral-500">VIN обычно состоит из 17 символов</p>
             </div>
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Ваше имя</label>
-              <input type="text" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3" />
+              <input 
+                type="text" 
+                name="name"
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Телефон *</label>
-              <input type="tel" placeholder="+7 (___) ___-__-__" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3" />
+              <input 
+                type="tel" 
+                name="phone"
+                required
+                placeholder="+7 (___) ___-__-__" 
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Email</label>
-              <input type="email" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3" />
+              <input 
+                type="email" 
+                name="email"
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Что нужно найти?</label>
               <textarea 
+                name="message"
                 rows={4} 
                 placeholder="Опишите деталь, которую ищете, или укажите дополнительные пожелания"
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
               />
             </div>
 
             <div className="flex items-start gap-2">
-              <input type="checkbox" id="consent" className="mt-1" />
+              <input type="checkbox" name="consent" id="consent" className="mt-1" required />
               <label htmlFor="consent" className="text-xs text-neutral-600">
                 Согласен на обработку персональных данных в соответствии с политикой конфиденциальности
               </label>
             </div>
 
             <div className="flex gap-4">
-              <button type="submit" className="flex-1 rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20">
-                Отправить заявку
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="flex-1 rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e66e00] transition"
+              >
+                {isSubmitting ? "Отправка..." : "Отправить заявку"}
               </button>
               <Link 
                 href="/parts" 
@@ -108,10 +211,9 @@ export default function VinRequestPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
+          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
         </div>
       </footer>
     </main>
