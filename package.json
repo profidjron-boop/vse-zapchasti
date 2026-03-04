@@ -1,0 +1,10 @@
+{
+  "name": "vse-zapchasti",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "web:lint": "pnpm --dir apps/web run lint",
+    "web:typecheck": "pnpm --dir apps/web run typecheck",
+    "web:test": "pnpm --dir apps/web run test"
+  }
+}
