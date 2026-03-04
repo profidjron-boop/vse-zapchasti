@@ -20,3 +20,7 @@ build/
 .vscode/
 *.pyc
 .env
+*.log
+*.tmp
+*.bak
+*.swp
