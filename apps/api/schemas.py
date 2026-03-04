@@ -174,3 +174,24 @@ class HealthResponse(BaseModel):
     status: str
     database: str
     timestamp: datetime
+
+# ---------- Site Content Schemas ----------
+class SiteContentBase(BaseModel):
+    key: str
+    value: Optional[str] = None
+    type: str = "text"
+    description: Optional[str] = None
+
+class SiteContentCreate(SiteContentBase):
+    pass
+
+class SiteContentUpdate(BaseModel):
+    value: Optional[str] = None
+    type: Optional[str] = None
+    description: Optional[str] = None
+
+class SiteContentResponse(SiteContentBase):
+    id: int
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)

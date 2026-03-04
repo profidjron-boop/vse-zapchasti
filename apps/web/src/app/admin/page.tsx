@@ -1,10 +1,28 @@
 import Link from "next/link";
+import { cookies } from 'next/headers';
 
 async function getStats() {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin_token')?.value;
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     const [leadsRes, serviceRes] = await Promise.all([
-      fetch("http://localhost:8000/api/public/leads?limit=1", { cache: 'no-store' }),
-      fetch("http://localhost:8000/api/public/service-requests?limit=1", { cache: 'no-store' })
+      fetch("http://localhost:8000/api/admin/leads?limit=1", { 
+        cache: 'no-store',
+        headers 
+      }),
+      fetch("http://localhost:8000/api/admin/service-requests?limit=1", { 
+        cache: 'no-store',
+        headers 
+      })
     ]);
     
     return {

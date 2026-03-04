@@ -1,7 +1,8 @@
 'use client';
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function AdminLayout({
   children,
@@ -9,6 +10,41 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('admin_token');
+      
+      if (!token && pathname !== '/admin/login') {
+        router.push('/admin/login');
+        setIsAuthenticated(false);
+      } else {
+        setIsAuthenticated(true);
+      }
+      setIsLoading(false);
+    };
+    
+    checkAuth();
+  }, [pathname, router]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-dvh bg-[#F5F7FA] flex items-center justify-center">
+        <div className="text-[#1F3B73]">Загрузка...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && pathname !== '/admin/login') {
+    return null;
+  }
+
+  if (pathname === '/admin/login') {
+    return children;
+  }
 
   const navItems = [
     { href: "/admin", label: "Дашборд" },
@@ -18,6 +54,12 @@ export default function AdminLayout({
     { href: "/admin/categories", label: "Категории" },
   ];
 
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    router.push('/admin/login');
+    router.refresh();
+  };
+
   return (
     <div className="min-h-dvh bg-[#F5F7FA]">
       <header className="border-b border-neutral-200 bg-white">
@@ -26,9 +68,17 @@ export default function AdminLayout({
             <Link href="/admin" className="text-xl font-bold text-[#1F3B73]">
               Админ-панель
             </Link>
-            <Link href="/" className="text-sm text-neutral-600 hover:text-[#1F3B73]">
-              ← На сайт
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-sm text-neutral-600 hover:text-[#1F3B73]">
+                ← На сайт
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:text-red-700"
+              >
+                Выйти
+              </button>
+            </div>
           </div>
         </div>
       </header>
