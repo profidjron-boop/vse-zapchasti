@@ -1,29 +1,32 @@
 # Verify Gates — Все запчасти
 
-**Правило:** ассистент запускает только команды, которые:
-1) существуют в репозитории (package.json scripts / pyproject / Makefile / docs/handoff.sh), или
-2) прямо задокументированы в этом файле.
+## Корень проекта
+- `pnpm web:lint` — линтинг Next.js (из apps/web)
+- `pnpm web:typecheck` — проверка типов TypeScript
+- `pnpm web:test` — тесты Vitest (TODO: настроить)
+- `pnpm web:build` — сборка Next.js
 
-Если таргета нет — сначала добавляем его (отдельным CHANGE), затем используем.
+## API (apps/api)
+cd apps/api
+make lint        # ruff check
+make format      # ruff format
+make test        # pytest (TODO)
+make migrate     # alembic upgrade head
+make migrate-check # проверка миграций (alembic check)
+make dev         # запуск dev сервера
 
-## Web (Next.js) — root scripts
-Команды запускаются из корня репо:
+## Docker (инфра)
+- `docker-compose build` — сборка образов
+- `docker-compose up -d` — запуск
+- `docker-compose down` — остановка
 
-- `pnpm web:lint`
-- `pnpm web:typecheck`
-- `pnpm web:test` (появится вместе с тестовым фреймворком)
+## Release gates (перед публикацией)
+1. `pnpm web:lint && pnpm web:typecheck && pnpm web:build`
+2. `cd apps/api && make lint && make migrate-check`
+3. `docker-compose build`
+4. `bash docs/backup.sh` (TODO) — бэкап БД
+5. Smoke-тесты вручную: главная, поиск, форма заявки
 
-## API (FastAPI) — Makefile targets
-Команды запускаются из `apps/api`:
-
-- `make lint` (ruff)
-- `make test` (pytest)
-- `make migrate-check` (появится после подключения Alembic)
-
-## Release / Infra (позже, при подготовке релиза)
-- `docker:build` (будет задокументировано после появления compose)
-
-## Bootstrap docs
-- `docs/handoff.sh` существует и исполняемый
-- `docs/*.md` (source of truth) присутствуют
-
+## Запрещено
+- Запускать команды, не описанные здесь или в package.json/Makefile
+- Придумывать свои таргеты
