@@ -1,4 +1,26 @@
 import Link from "next/link";
+type Product = {
+  id: number;
+  name: string;
+  sku: string;
+  oem: string | null;
+  brand: string | null;
+  price: number | null;
+  description: string | null;
+  stock_quantity: number;
+};
+
+async function searchProducts(query: string) {
+  if (!query) return [];
+  
+  const res = await fetch(
+    `http://localhost:8000/api/public/products?search=${encodeURIComponent(query)}&limit=10`,
+    { cache: 'no-store' }
+  );
+  
+  if (!res.ok) return [];
+  return res.json();
+}
 
 export default async function PartsPage({
   searchParams,
@@ -7,10 +29,10 @@ export default async function PartsPage({
 }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
+  const products = query ? await searchProducts(query) : [];
 
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
@@ -20,14 +42,6 @@ export default async function PartsPage({
               <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
               <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
             </nav>
-            <div className="flex items-center gap-3">
-              <button className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]">
-                Для дилеров
-              </button>
-              <button className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20">
-                Заказать звонок
-              </button>
-            </div>
           </div>
         </div>
       </header>
@@ -84,11 +98,12 @@ export default async function PartsPage({
                 Введите артикул/OEM или название — покажем результаты.
               </div>
             </>
-          ) : (
+          ) : products.length === 0 ? (
             <>
-              <div className="text-sm font-semibold text-[#1F3B73]">Результаты</div>
+              <div className="text-sm font-semibold text-[#1F3B73]">Ничего не найдено</div>
               <div className="mt-1 text-sm text-neutral-600">
-                По запросу <span className="font-medium text-[#1F3B73]">&quot;{query}&quot;</span> пока нет данных в витрине. Оставьте VIN-заявку или запрос менеджеру.
+                По запросу <span className="font-medium text-[#1F3B73]">&quot;{query}&quot;</span> ничего не найдено. Оставьте VIN-заявку — мы подберём запчасти вручную.
+                Оставьте VIN-заявку — мы подберём запчасти вручную.
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
@@ -105,13 +120,44 @@ export default async function PartsPage({
                 </Link>
               </div>
             </>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-[#1F3B73]">
+                  Найдено {products.length} товаров
+                </div>
+              </div>
+              <div className="grid gap-4">
+                {products.map((product: Product) => (
+                  <div key={product.id} className="flex items-start justify-between rounded-2xl border border-neutral-200 p-4 hover:shadow-md transition">
+                    <div>
+                      <div className="font-medium text-[#1F3B73]">{product.name}</div>
+                      <div className="mt-1 text-sm text-neutral-600">
+                        Артикул: {product.sku} | OEM: {product.oem || "—"} | Бренд: {product.brand || "—"}
+                      </div>
+                      {product.price && (
+                        <div className="mt-2 text-lg font-semibold text-[#FF7A00]">
+                          {product.price.toLocaleString()} ₽
+                        </div>
+                      )}
+                    </div>
+                    <Link
+                      href={`/parts/${product.id}`}
+                      className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm text-white hover:bg-[#14294F] transition"
+                    >
+                      Подробнее
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
+          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
         </div>
       </footer>
     </main>
