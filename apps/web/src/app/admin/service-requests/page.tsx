@@ -1,4 +1,23 @@
-import { ServiceRequest } from "./types";
+type ServiceRequest = {
+  id: number;
+  uuid: string;
+  status: string;
+  vehicle_type: string;
+  service_type: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: number | null;
+  vin: string | null;
+  mileage: number | null;
+  description: string | null;
+  preferred_date: string | null;
+  consent_given: boolean;
+  created_at: string;
+};
+
 import Link from "next/link";
 
 async function getServiceRequests() {

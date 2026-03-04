@@ -1,4 +1,22 @@
-import { Lead } from "./types";
+type Lead = {
+  id: number;
+  uuid: string;
+  type: string;
+  status: string;
+  name: string | null;
+  phone: string;
+  email: string | null;
+  message: string | null;
+  vin: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: number | null;
+  product_id: number | null;
+  product_sku: string | null;
+  consent_given: boolean;
+  created_at: string;
+};
+
 import Link from "next/link";
 
 async function getLeads() {

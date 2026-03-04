@@ -1,4 +1,17 @@
-import { Product } from "./types";
+type Product = {
+  id: number;
+  sku: string;
+  oem: string | null;
+  brand: string | null;
+  name: string;
+  description: string | null;
+  price: number | null;
+  stock_quantity: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 import Link from "next/link";
 
 async function getProducts() {
