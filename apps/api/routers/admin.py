@@ -1,20 +1,30 @@
-from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from datetime import datetime, timedelta
+from pathlib import Path
+import shutil
 from typing import List, Optional
 import uuid
-from schemas import ProductCreate, ProductUpdate, ProductResponse, CategoryCreate, CategoryUpdate, CategoryResponse, TokenResponse, UserResponse, SiteContentCreate, SiteContentUpdate, SiteContentResponse
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import Product, Category, AuditLog, User
+from models import AuditLog, Category, Lead, Product, ServiceRequest, SiteContent, User
 from schemas import (
-    ProductCreate, ProductUpdate, ProductResponse,
-    CategoryCreate, CategoryUpdate, CategoryResponse,
-    TokenResponse, UserResponse
+    CategoryCreate,
+    CategoryResponse,
+    CategoryUpdate,
+    ProductCreate,
+    ProductResponse,
+    ProductUpdate,
+    SiteContentCreate,
+    SiteContentResponse,
+    SiteContentUpdate,
+    TokenResponse,
+    UserResponse,
 )
 
 # JWT settings
@@ -74,6 +84,8 @@ async def get_admin_user(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+UPLOAD_DIR = Path("/home/greka/vse-zapchasti/apps/web/public/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------- Authentication ----------
 @router.post("/auth/token", response_model=TokenResponse)
@@ -356,20 +368,6 @@ async def admin_delete_category(
     
     return None
 
-# ---------- Leads ----------
-@router.get("/leads")
-async def admin_get_leads(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
-):
-    """Get all leads"""
-    from models import Lead
-    query = select(Lead).order_by(Lead.created_at.desc()).offset(skip).limit(limit)
-    result = await db.execute(query)
-    return result.scalars().all()
-
 # ---------- Service Requests ----------
 @router.get("/service-requests")
 async def admin_get_service_requests(
@@ -379,7 +377,6 @@ async def admin_get_service_requests(
     current_user: User = Depends(get_admin_user)
 ):
     """Get all service requests"""
-    from models import ServiceRequest
     query = select(ServiceRequest).order_by(ServiceRequest.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
@@ -391,7 +388,6 @@ async def admin_get_content(
     current_user: User = Depends(get_admin_user)
 ):
     """Get all site content blocks"""
-    from models import SiteContent
     query = select(SiteContent).order_by(SiteContent.key)
     result = await db.execute(query)
     return result.scalars().all()
@@ -403,7 +399,6 @@ async def admin_get_content_by_key(
     current_user: User = Depends(get_admin_user)
 ):
     """Get site content by key"""
-    from models import SiteContent
     query = select(SiteContent).where(SiteContent.key == key)
     result = await db.execute(query)
     content = result.scalar_one_or_none()
@@ -419,7 +414,6 @@ async def admin_create_content(
     current_user: User = Depends(get_admin_user)
 ):
     """Create new content block"""
-    from models import SiteContent
     # Check if key exists
     existing = await db.execute(select(SiteContent).where(SiteContent.key == content.key))
     if existing.scalar_one_or_none():
@@ -450,7 +444,6 @@ async def admin_update_content(
     current_user: User = Depends(get_admin_user)
 ):
     """Update content block"""
-    from models import SiteContent
     query = select(SiteContent).where(SiteContent.key == key)
     result = await db.execute(query)
     content = result.scalar_one_or_none()
@@ -481,3 +474,162 @@ async def admin_update_content(
     await db.commit()
     
     return content
+
+@router.post("/upload")
+async def admin_upload_file(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Upload a file (image, etc.)"""
+    # Проверяем расширение
+    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp'}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail="File type not allowed")
+    
+    # Генерируем уникальное имя
+    filename = f"{uuid.uuid4()}{ext}"
+    file_path = UPLOAD_DIR / filename
+    
+    # Сохраняем файл
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Возвращаем URL для доступа к файлу
+    file_url = f"/uploads/{filename}"
+    
+    # Аудит
+    audit = AuditLog(
+        action="upload",
+        entity_type="file",
+        new_values={"filename": filename, "url": file_url}
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return {"url": file_url, "filename": filename}
+
+# ---------- Leads ----------
+@router.get("/leads", response_model=List[dict])
+async def admin_get_leads(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    type: Optional[str] = Query(None, description="Filter by lead type"),
+    search: Optional[str] = Query(None, min_length=2, description="Search in phone, name, email"),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Get all leads with filters"""
+    query = select(Lead)
+    
+    if status:
+        query = query.where(Lead.status == status)
+    if type:
+        query = query.where(Lead.type == type)
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            or_(
+                Lead.phone.ilike(search_pattern),
+                Lead.name.ilike(search_pattern),
+                Lead.email.ilike(search_pattern),
+                Lead.vin.ilike(search_pattern)
+            )
+        )
+    if date_from:
+        query = query.where(Lead.created_at >= date_from)
+    if date_to:
+        query = query.where(Lead.created_at <= date_to + " 23:59:59")
+    
+    query = query.order_by(Lead.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+@router.get("/leads/{lead_id}", response_model=dict)
+async def admin_get_lead(
+    lead_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Get single lead by ID"""
+    query = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(query)
+    lead = result.scalar_one_or_none()
+    
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return lead
+
+@router.put("/leads/{lead_id}/status")
+async def admin_update_lead_status(
+    lead_id: int,
+    status: str,
+    comment: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Update lead status"""
+    query = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(query)
+    lead = result.scalar_one_or_none()
+    
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    old_status = lead.status
+    lead.status = status
+    lead.updated_at = datetime.utcnow()
+    
+    await db.commit()
+    
+    # Audit log
+    audit = AuditLog(
+        action="update_status",
+        entity_type="lead",
+        entity_id=lead_id,
+        old_values={"status": old_status},
+        new_values={"status": status, "comment": comment}
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return {"status": "updated", "new_status": status}
+
+@router.delete("/leads/{lead_id}", status_code=204)
+async def admin_delete_lead(
+    lead_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Delete lead"""
+    query = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(query)
+    lead = result.scalar_one_or_none()
+    
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    await db.delete(lead)
+    await db.commit()
+    
+    # Audit log
+    audit = AuditLog(
+        action="delete",
+        entity_type="lead",
+        entity_id=lead_id
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return None
+
+@router.get("/leads/statuses", response_model=List[str])
+async def admin_get_lead_statuses(
+    current_user: User = Depends(get_admin_user)
+):
+    """Get all possible lead statuses"""
+    return ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]

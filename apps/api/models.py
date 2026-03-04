@@ -162,3 +162,13 @@ class AuditLog(Base):
     
     # Relationships
     user = relationship("User")
+
+class SiteContent(Base):
+    __tablename__ = "site_content"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=True)
+    type = Column(String(50), default="text")  # text, image, html
+    description = Column(String(255), nullable=True)  # описание для админки
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

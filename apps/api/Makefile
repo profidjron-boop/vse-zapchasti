@@ -1,10 +1,13 @@
 .PHONY: lint test migrate-check
 
+UV := ./.venv/bin/uv
+UV_CACHE_DIR := ./.uv-cache
+
 lint:
-	uv run ruff check .
+	UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) run ruff check .
 
 test:
-	uv run pytest -q
+	UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) run pytest -q
 
 migrate-check:
-	DATABASE_URL="postgresql+psycopg://vsez:vsez_dev_password_change_me@localhost:5433/vsez" uv run alembic current
+	UV_CACHE_DIR=$(UV_CACHE_DIR) DATABASE_URL="postgresql+psycopg://vsez:vsez_dev_password_change_me@localhost:5433/vsez" $(UV) run alembic current
