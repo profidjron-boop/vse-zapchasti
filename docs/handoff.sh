@@ -1,39 +1,31 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
-echo "== whoami =="
-whoami || true
-echo
+echo "=== Текущее состояние проекта ==="
 
-echo "== pwd =="
-pwd
-echo
+# Web (repo-defined scripts)
+(pnpm web:lint --version 2>/dev/null) || echo "web:lint не настроен"
+(pnpm web:typecheck --version 2>/dev/null) || echo "web:typecheck не настроен"
 
-echo "== git =="
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 && {
-  git --no-pager status -sb || true
-  git --no-pager log --oneline -n 5 || true
-} || echo "not a git repo"
-echo
-
-echo "== docs presence =="
-for f in \
-  docs/project-header.md \
-  docs/requirements.md \
-  docs/stack.md \
-  docs/verify-gates.md \
-  docs/design-system.md \
-  docs/ui-direction.md \
-  docs/ux-copy.md \
-  docs/deploy.md
-do
-  if [ -f "$f" ]; then
-    echo "OK $f"
+# API (apps/api)
+if [ -d apps/api ]; then
+  if command -v make >/dev/null 2>&1; then
+    ver="$(make --version 2>/dev/null | head -n 1 || true)"
+    if [ -n "$ver" ]; then echo "$ver"; fi
   else
-    echo "MISSING $f"
+    echo "make не найден"
   fi
-done
-echo
 
-echo "== tree (top) =="
-ls -la
+  (cd apps/api && make -n lint >/dev/null 2>&1 && echo "api:lint target OK" || echo "api:lint не настроен")
+  (cd apps/api && make -n test >/dev/null 2>&1 && echo "api:test target OK" || echo "api:test не настроен")
+  (cd apps/api && make -n migrate-check >/dev/null 2>&1 && echo "api:migrate-check target OK" || echo "api:migrate-check не настроен")
+else
+  echo "apps/api не найден"
+fi
+
+echo "=== Структура ==="
+if command -v tree >/dev/null 2>&1; then
+  tree -L 2 -I "node_modules|venv|.venv|__pycache__|.git|.next|dist"
+else
+  ls -la
+fi
