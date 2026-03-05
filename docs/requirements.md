@@ -2,7 +2,7 @@
 
 **Version:** v1.0  
 **Date:** 2026-03-04  
-**Status:** Draft → Implementation  
+**Status:** Ready for Release (local verify + smoke green, 2026-03-05)
 **Refs:** `docs/project-header.md`, `docs/stack.md`, `docs/ui-direction.md`, `docs/design-system.md`, `docs/ux-copy.md`  
 **ADR:** `docs/decisions/ADR-0001-import-sources-and-scheduling.md`
 
@@ -63,4 +63,3 @@ Runtime policy: NO CDN. Данные/инфра в РФ. Без MVP/демо/з�
 - Single import pipeline and normalized catalog.
 - Multiple sources (file_upload now; 1C network later) per ADR-0001.
 - Public reads from normalized catalog; last successful snapshot preserved if import fails.
-
