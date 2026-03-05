@@ -1,5 +1,12 @@
 import Link from "next/link";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+
+type Category = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+};
+
 type Product = {
   id: number;
   name: string;
@@ -10,6 +17,48 @@ type Product = {
   description: string | null;
   stock_quantity: number;
 };
+
+type CatalogSection = {
+  category: Category;
+  products: Product[];
+};
+
+async function getCategories() {
+  const apiBaseUrl = getServerApiBaseUrl();
+  const res = await fetch(withApiBase(apiBaseUrl, "/api/public/categories"), { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json() as Promise<Category[]>;
+}
+
+async function getProductsByCategory(categoryId: number) {
+  const apiBaseUrl = getServerApiBaseUrl();
+  const res = await fetch(
+    withApiBase(
+      apiBaseUrl,
+      `/api/public/products?category_id=${categoryId}&limit=6&in_stock_only=false`
+    ),
+    { cache: "no-store" }
+  );
+  if (!res.ok) return [];
+  return res.json() as Promise<Product[]>;
+}
+
+async function getCatalogSections() {
+  const categories = await getCategories();
+  if (categories.length === 0) return [];
+
+  const topLevel = categories.filter((category) => category.parent_id === null);
+  const targetCategories = (topLevel.length > 0 ? topLevel : categories).slice(0, 6);
+
+  const sections = await Promise.all(
+    targetCategories.map(async (category) => ({
+      category,
+      products: await getProductsByCategory(category.id),
+    }))
+  );
+
+  return sections.filter((section) => section.products.length > 0) as CatalogSection[];
+}
 
 async function searchProducts(query: string) {
   if (!query) return [];
@@ -32,6 +81,7 @@ export default async function PartsPage({
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const products = query ? await searchProducts(query) : [];
+  const catalogSections = query ? [] : await getCatalogSections();
 
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
@@ -94,18 +144,51 @@ export default async function PartsPage({
 
         <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6">
           {query === "" ? (
-            <>
-              <div className="text-sm font-semibold text-[#1F3B73]">Начните с поиска</div>
-              <div className="mt-1 text-sm text-neutral-600">
-                Введите артикул/OEM или название — покажем результаты.
+            <div className="space-y-6">
+              <div>
+                <div className="text-sm font-semibold text-[#1F3B73]">Начните с поиска</div>
+                <div className="mt-1 text-sm text-neutral-600">
+                  Введите артикул/OEM или название — покажем результаты.
+                </div>
               </div>
-            </>
+
+              {catalogSections.length === 0 ? (
+                <>
+                  <div className="text-sm font-semibold text-[#1F3B73]">Каталог временно недоступен</div>
+                  <div className="mt-1 text-sm text-neutral-600">
+                    Не удалось загрузить категории и товары. Попробуйте поиск по артикулу или VIN-подбор.
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-sm font-semibold text-[#1F3B73]">
+                    Категории и доступные товары
+                  </div>
+                  {catalogSections.map((section) => (
+                    <div key={section.category.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <h2 className="text-base font-semibold text-[#1F3B73]">{section.category.name}</h2>
+                      <div className="mt-3 grid gap-3">
+                        {section.products.map((product) => (
+                          <article key={product.id} className="rounded-xl border border-white bg-white p-3">
+                            <div className="text-sm font-medium text-[#1F3B73]">{product.name}</div>
+                            <div className="mt-1 text-xs text-neutral-600">
+                              {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
+                              {" · "}
+                              {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : products.length === 0 ? (
             <>
               <div className="text-sm font-semibold text-[#1F3B73]">Ничего не найдено</div>
               <div className="mt-1 text-sm text-neutral-600">
                 По запросу <span className="font-medium text-[#1F3B73]">&quot;{query}&quot;</span> ничего не найдено. Оставьте VIN-заявку — мы подберём запчасти вручную.
-                Оставьте VIN-заявку — мы подберём запчасти вручную.
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
@@ -137,18 +220,19 @@ export default async function PartsPage({
                       <div className="mt-1 text-sm text-neutral-600">
                         Артикул: {product.sku} | OEM: {product.oem || "—"} | Бренд: {product.brand || "—"}
                       </div>
-                      {product.price && (
-                        <div className="mt-2 text-lg font-semibold text-[#FF7A00]">
-                          {product.price.toLocaleString()} ₽
-                        </div>
-                      )}
+                      <div className="mt-2 text-sm text-neutral-600">
+                        Наличие:{" "}
+                        <span className={product.stock_quantity > 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>
+                          {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-[#FF7A00]">
+                        {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
+                      </div>
                     </div>
-                    <Link
-                      href={`/parts/${product.id}`}
-                      className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm text-white hover:bg-[#14294F] transition"
-                    >
-                      Подробнее
-                    </Link>
+                    <div className="rounded-xl bg-[#1F3B73]/10 px-4 py-2 text-sm font-medium text-[#1F3B73]">
+                      {product.stock_quantity > 0 ? "Можно заказать" : "Уточнить срок"}
+                    </div>
                   </div>
                 ))}
               </div>
