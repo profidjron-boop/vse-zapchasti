@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Проверяем токен в заголовке Authorization или в cookie
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.replace('Bearer ', '') || 
