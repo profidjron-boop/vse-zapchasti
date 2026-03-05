@@ -15,6 +15,15 @@ type Product = {
   price: number | null;
   stock_quantity: number;
   is_active: boolean;
+  attributes?: Record<string, unknown>;
+  compatibilities?: Array<{
+    id?: number;
+    make: string;
+    model: string;
+    year_from?: number | null;
+    year_to?: number | null;
+    engine?: string | null;
+  }>;
   images?: Array<{
     url: string;
     is_main: boolean;
@@ -48,6 +57,46 @@ function getMainImageUrl(product: Product): string | null {
   if (images.length === 0) return null;
   const main = images.find((image) => image.is_main) ?? images[0];
   return main?.url || null;
+}
+
+function getNumericAttribute(attributes: Record<string, unknown> | undefined, key: string): number | null {
+  if (!attributes) return null;
+  const value = attributes[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getStringAttribute(attributes: Record<string, unknown> | undefined, key: string): string | null {
+  if (!attributes) return null;
+  const value = attributes[key];
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function getStringListAttribute(attributes: Record<string, unknown> | undefined, keys: string[]): string[] {
+  if (!attributes) return [];
+
+  for (const key of keys) {
+    const value = attributes[key];
+    if (Array.isArray(value)) {
+      return value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    if (typeof value === "string") {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
 }
 
 export default async function ProductBySkuPage({
@@ -90,6 +139,12 @@ export default async function ProductBySkuPage({
 
   const currentProduct = product as Product;
   const mainImageUrl = getMainImageUrl(currentProduct);
+  const oldPrice = getNumericAttribute(currentProduct.attributes, "old_price");
+  const discountLabel =
+    getStringAttribute(currentProduct.attributes, "discount_label")
+    || getStringAttribute(currentProduct.attributes, "sale_badge");
+  const analogs = getStringListAttribute(currentProduct.attributes, ["analogs", "crosses", "cross_codes"]);
+  const compatibilities = currentProduct.compatibilities ?? [];
 
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
@@ -134,6 +189,11 @@ export default async function ProductBySkuPage({
 
             <div>
               <h1 className="text-2xl font-semibold text-[#1F3B73]">{currentProduct.name}</h1>
+              {discountLabel ? (
+                <span className="mt-2 inline-block rounded-full bg-[#FF7A00]/10 px-3 py-1 text-xs font-medium text-[#FF7A00]">
+                  {discountLabel}
+                </span>
+              ) : null}
 
               <dl className="mt-4 grid grid-cols-1 gap-3 text-sm text-neutral-700 sm:grid-cols-2">
                 <div className="rounded-xl bg-neutral-50 p-3">
@@ -156,8 +216,15 @@ export default async function ProductBySkuPage({
                 </div>
               </dl>
 
-              <div className="mt-6 text-3xl font-bold text-[#FF7A00]">
-                {currentProduct.price ? `${currentProduct.price.toLocaleString()} ₽` : "Цена по запросу"}
+              <div className="mt-6">
+                {typeof oldPrice === "number" && typeof currentProduct.price === "number" && oldPrice > currentProduct.price ? (
+                  <div className="text-sm text-neutral-500 line-through">
+                    {oldPrice.toLocaleString("ru-RU")} ₽
+                  </div>
+                ) : null}
+                <div className="text-3xl font-bold text-[#FF7A00]">
+                  {currentProduct.price ? `${currentProduct.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                </div>
               </div>
             </div>
           </div>
@@ -166,6 +233,39 @@ export default async function ProductBySkuPage({
             <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Описание</div>
             <div>{currentProduct.description || "Описание появится позже. Для уточнения свяжитесь с менеджером."}</div>
           </div>
+
+          {compatibilities.length > 0 ? (
+            <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-700">
+              <div className="mb-2 text-xs uppercase tracking-wide text-neutral-500">Совместимость</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {compatibilities.map((compatibility, index) => (
+                  <div key={`${compatibility.make}-${compatibility.model}-${index}`} className="rounded-xl bg-white px-3 py-2">
+                    <div className="font-medium text-neutral-900">
+                      {compatibility.make} {compatibility.model}
+                    </div>
+                    <div className="text-xs text-neutral-500">
+                      {compatibility.year_from ? `с ${compatibility.year_from}` : ""}
+                      {compatibility.year_to ? ` по ${compatibility.year_to}` : ""}
+                      {compatibility.engine ? ` · ${compatibility.engine}` : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {analogs.length > 0 ? (
+            <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-700">
+              <div className="mb-2 text-xs uppercase tracking-wide text-neutral-500">Аналоги / кроссы</div>
+              <div className="flex flex-wrap gap-2">
+                {analogs.map((analog) => (
+                  <span key={analog} className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                    {analog}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <ProductLeadForm productId={currentProduct.id} productSku={currentProduct.sku} productName={currentProduct.name} />
 

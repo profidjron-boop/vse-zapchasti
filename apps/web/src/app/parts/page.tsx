@@ -17,6 +17,7 @@ type Product = {
   price: number | null;
   description: string | null;
   stock_quantity: number;
+  attributes?: Record<string, unknown>;
   images?: Array<{
     url: string;
     is_main: boolean;
@@ -127,6 +128,25 @@ function getMainImageUrl(product: Product): string | null {
   if (images.length === 0) return null;
   const main = images.find((image) => image.is_main) ?? images[0];
   return main?.url || null;
+}
+
+function getNumericAttribute(attributes: Record<string, unknown> | undefined, key: string): number | null {
+  if (!attributes) return null;
+  const value = attributes[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getStringAttribute(attributes: Record<string, unknown> | undefined, key: string): string | null {
+  if (!attributes) return null;
+  const value = attributes[key];
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized || null;
 }
 
 export default async function PartsPage({
@@ -285,13 +305,26 @@ export default async function PartsPage({
                                 <Link href={`/parts/p/${encodeURIComponent(product.sku)}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
                                   {product.name}
                                 </Link>
-                                <div className="mt-1 text-xs text-neutral-600">
-                                  {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
-                                  {" · "}
-                                  {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
-                                  {" · "}
-                                  {product.brand || "без бренда"}
-                                </div>
+                                {getStringAttribute(product.attributes, "discount_label") ? (
+                                  <span className="mt-1 inline-block rounded-full bg-[#FF7A00]/10 px-2 py-0.5 text-[10px] font-medium text-[#FF7A00]">
+                                    {getStringAttribute(product.attributes, "discount_label")}
+                                  </span>
+                                ) : null}
+                                {(() => {
+                                  const oldPrice = getNumericAttribute(product.attributes, "old_price");
+                                  return (
+                                    <div className="mt-1 text-xs text-neutral-600">
+                                      {typeof oldPrice === "number" && typeof product.price === "number" && oldPrice > product.price ? (
+                                        <span className="mr-1 line-through text-neutral-500">{oldPrice.toLocaleString("ru-RU")} ₽</span>
+                                      ) : null}
+                                      {product.price ? `${product.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                                      {" · "}
+                                      {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                                      {" · "}
+                                      {product.brand || "без бренда"}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </article>
@@ -374,7 +407,25 @@ export default async function PartsPage({
                           </span>
                         </div>
                         <div className="mt-2 text-lg font-semibold text-[#FF7A00]">
-                          {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
+                          {(() => {
+                            const oldPrice = getNumericAttribute(product.attributes, "old_price");
+                            const discountLabel = getStringAttribute(product.attributes, "discount_label");
+                            return (
+                              <div>
+                                {discountLabel ? (
+                                  <span className="mb-1 inline-block rounded-full bg-[#FF7A00]/10 px-2 py-0.5 text-[10px] font-medium text-[#FF7A00]">
+                                    {discountLabel}
+                                  </span>
+                                ) : null}
+                                {typeof oldPrice === "number" && typeof product.price === "number" && oldPrice > product.price ? (
+                                  <div className="text-xs font-normal text-neutral-500 line-through">
+                                    {oldPrice.toLocaleString("ru-RU")} ₽
+                                  </div>
+                                ) : null}
+                                {product.price ? `${product.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
