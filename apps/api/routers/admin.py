@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
+from notifications import notify_event
 from models import (
     AuditLog,
     Category,
@@ -1422,6 +1423,19 @@ async def admin_update_service_request_status(
     db.add(audit)
     await db.commit()
 
+    notify_event(
+        "service_request.status_changed",
+        {
+            "id": service_request.id,
+            "uuid": service_request.uuid,
+            "old_status": current_status,
+            "new_status": service_request.status,
+            "phone": service_request.phone,
+            "operator_comment": service_request.operator_comment,
+            "updated_at": service_request.updated_at.isoformat() if service_request.updated_at else None,
+        },
+    )
+
     return service_request
 
 # ---------- VIN Requests ----------
@@ -1532,6 +1546,20 @@ async def admin_update_vin_request_status(
     )
     db.add(audit)
     await db.commit()
+
+    notify_event(
+        "vin_request.status_changed",
+        {
+            "id": vin_request.id,
+            "uuid": vin_request.uuid,
+            "old_status": current_status,
+            "new_status": vin_request.status,
+            "vin": vin_request.vin,
+            "phone": vin_request.phone,
+            "operator_comment": vin_request.operator_comment,
+            "updated_at": vin_request.updated_at.isoformat() if vin_request.updated_at else None,
+        },
+    )
 
     return vin_request
 
@@ -1823,6 +1851,19 @@ async def admin_update_order_status(
 
     result = await db.execute(select(Order).options(selectinload(Order.items)).where(Order.id == order_id))
     updated_order = result.scalar_one()
+
+    notify_event(
+        "order.status_changed",
+        {
+            "id": updated_order.id,
+            "uuid": updated_order.uuid,
+            "old_status": current_status,
+            "new_status": updated_order.status,
+            "customer_phone": updated_order.customer_phone,
+            "manager_comment": updated_order.manager_comment,
+            "updated_at": updated_order.updated_at.isoformat() if updated_order.updated_at else None,
+        },
+    )
     return updated_order
 
 
@@ -1963,6 +2004,20 @@ async def admin_update_lead_status(
     )
     db.add(audit)
     await db.commit()
+
+    notify_event(
+        "lead.status_changed",
+        {
+            "id": lead.id,
+            "uuid": lead.uuid,
+            "type": lead.type,
+            "old_status": current_status,
+            "new_status": lead.status,
+            "phone": lead.phone,
+            "manager_comment": lead.manager_comment,
+            "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
+        },
+    )
     
     return {"status": "updated", "new_status": lead.status, "manager_comment": lead.manager_comment}
 
