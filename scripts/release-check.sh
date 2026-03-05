@@ -49,6 +49,9 @@ mkdir -p "$BACKUP_DIR"
 stamp="$(date +%Y%m%d_%H%M%S)"
 backup_file="$BACKUP_DIR/release_${stamp}.dump"
 
+log "release-check: verify-all"
+bash ./scripts/verify-all.sh
+
 log "release-check: backup"
 bash docs/backup.sh --output "$backup_file"
 
