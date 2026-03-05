@@ -30,6 +30,7 @@ export default function CartPage() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [orderId, setOrderId] = useState<number | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"cash_on_delivery" | "invoice">("cash_on_delivery");
 
   useEffect(() => {
     setItems(loadCart());
@@ -62,9 +63,18 @@ export default function CartPage() {
     const consentGiven = formData.get("consent") === "on";
     const phoneRaw = formData.get("customer_phone")?.toString().trim() || "";
     const customerPhone = normalizePhone(phoneRaw);
+    const selectedPaymentMethod = (formData.get("payment_method")?.toString() || "") as
+      | "cash_on_delivery"
+      | "invoice";
+    const legalEntityInn = formData.get("legal_entity_inn")?.toString().trim() || "";
 
     if (!customerPhone) {
       setError("Проверьте телефон. Нужен формат РФ: +7XXXXXXXXXX.");
+      return;
+    }
+
+    if (selectedPaymentMethod === "invoice" && !legalEntityInn) {
+      setError("Для оплаты по счёту укажите ИНН организации.");
       return;
     }
 
@@ -79,7 +89,7 @@ export default function CartPage() {
         delivery_method: formData.get("delivery_method")?.toString() || undefined,
         payment_method: formData.get("payment_method")?.toString() || undefined,
         legal_entity_name: formData.get("legal_entity_name")?.toString().trim() || undefined,
-        legal_entity_inn: formData.get("legal_entity_inn")?.toString().trim() || undefined,
+        legal_entity_inn: legalEntityInn || undefined,
         consent_given: consentGiven,
         consent_version: "v1.0",
         items: items.map((item) => ({
@@ -109,6 +119,7 @@ export default function CartPage() {
       setSuccess("Заказ оформлен. Менеджер свяжется с вами для подтверждения.");
       clearCart();
       setItems([]);
+      setPaymentMethod("cash_on_delivery");
       event.currentTarget.reset();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Не удалось оформить заказ. Попробуйте позже.");
@@ -259,6 +270,10 @@ export default function CartPage() {
                     <label className="mb-1 block text-xs font-medium text-neutral-700">Оплата</label>
                     <select
                       name="payment_method"
+                      value={paymentMethod}
+                      onChange={(event) =>
+                        setPaymentMethod(event.target.value === "invoice" ? "invoice" : "cash_on_delivery")
+                      }
                       className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
                     >
                       <option value="cash_on_delivery">При получении</option>
@@ -266,6 +281,30 @@ export default function CartPage() {
                     </select>
                   </div>
                 </div>
+
+                {paymentMethod === "invoice" ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-neutral-700">Организация</label>
+                      <input
+                        type="text"
+                        name="legal_entity_name"
+                        placeholder='ООО "Пример"'
+                        className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-neutral-700">ИНН *</label>
+                      <input
+                        type="text"
+                        name="legal_entity_inn"
+                        required
+                        placeholder="10 или 12 цифр"
+                        className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-neutral-700">Комментарий</label>

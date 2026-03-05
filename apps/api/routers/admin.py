@@ -154,7 +154,7 @@ get_catalog_user = require_roles("admin", "manager")
 get_leads_user = require_roles("admin", "manager")
 get_orders_user = require_roles("admin", "manager")
 get_service_requests_user = require_roles("admin", "service_manager")
-get_service_catalog_user = require_roles("admin", "service_manager")
+get_service_catalog_user = require_roles("admin")
 get_content_user = require_roles("admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -968,13 +968,25 @@ async def admin_import_products(
         await db.flush()
 
         snapshot_result = await db.execute(
-            select(Product).options(selectinload(Product.images)).order_by(Product.id)
+            select(Product)
+            .options(selectinload(Product.images), selectinload(Product.compatibilities))
+            .order_by(Product.id)
         )
         snapshot_data = []
         for product in snapshot_result.scalars().all():
             images = sorted(
                 product.images or [],
                 key=lambda image: (image.sort_order, image.id),
+            )
+            compatibilities = sorted(
+                product.compatibilities or [],
+                key=lambda compatibility: (
+                    (compatibility.make or "").lower(),
+                    (compatibility.model or "").lower(),
+                    compatibility.year_from or 0,
+                    compatibility.year_to or 0,
+                    compatibility.id,
+                ),
             )
             snapshot_data.append(
                 {
@@ -997,6 +1009,17 @@ async def admin_import_products(
                             "is_main": image.is_main,
                         }
                         for image in images
+                    ],
+                    "compatibilities": [
+                        {
+                            "id": compatibility.id,
+                            "make": compatibility.make,
+                            "model": compatibility.model,
+                            "year_from": compatibility.year_from,
+                            "year_to": compatibility.year_to,
+                            "engine": compatibility.engine,
+                        }
+                        for compatibility in compatibilities
                     ],
                     "updated_at": product.updated_at.isoformat() if product.updated_at else None,
                 }

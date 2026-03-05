@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
   { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },
   { href: "/admin/categories", label: "Категории", roles: ["admin", "manager"] },
-  { href: "/admin/service-catalog", label: "Справочник услуг", roles: ["admin", "service_manager"] },
+  { href: "/admin/service-catalog", label: "Справочник услуг", roles: ["admin"] },
   { href: "/admin/service-requests", label: "Заявки (сервис)", roles: ["admin", "service_manager"] },
 ];
 
@@ -72,9 +72,7 @@ function canAccessPath(pathname: string, role: UserRole): boolean {
   if (role === "service_manager") {
     return (
       pathname === "/admin/service-requests" ||
-      pathname.startsWith("/admin/service-requests/") ||
-      pathname === "/admin/service-catalog" ||
-      pathname.startsWith("/admin/service-catalog/")
+      pathname.startsWith("/admin/service-requests/")
     );
   }
 

@@ -138,6 +138,41 @@ def _normalize_snapshot_images(raw_images: Any) -> list[dict[str, Any]]:
     return images
 
 
+def _normalize_snapshot_compatibilities(raw_compatibilities: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_compatibilities, list):
+        return []
+
+    compatibilities: list[dict[str, Any]] = []
+    for raw_compatibility in raw_compatibilities:
+        if not isinstance(raw_compatibility, dict):
+            continue
+
+        make = raw_compatibility.get("make")
+        model = raw_compatibility.get("model")
+        if not isinstance(make, str) or not make.strip():
+            continue
+        if not isinstance(model, str) or not model.strip():
+            continue
+
+        engine_raw = raw_compatibility.get("engine")
+        engine = engine_raw.strip() if isinstance(engine_raw, str) else None
+        if engine == "":
+            engine = None
+
+        compatibilities.append(
+            {
+                "id": _to_int(raw_compatibility.get("id"), 0),
+                "make": make.strip(),
+                "model": model.strip(),
+                "year_from": _to_int(raw_compatibility.get("year_from"), 0) or None,
+                "year_to": _to_int(raw_compatibility.get("year_to"), 0) or None,
+                "engine": engine,
+            }
+        )
+
+    return compatibilities
+
+
 def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
     if not isinstance(raw_product, dict):
         return None
@@ -165,7 +200,7 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
         "is_active": bool(raw_product.get("is_active", True)),
         "attributes": raw_product.get("attributes") if isinstance(raw_product.get("attributes"), dict) else {},
         "images": _normalize_snapshot_images(raw_product.get("images")),
-        "compatibilities": [],
+        "compatibilities": _normalize_snapshot_compatibilities(raw_product.get("compatibilities")),
     }
 
     if normalized["id"] <= 0 or normalized["category_id"] <= 0:
