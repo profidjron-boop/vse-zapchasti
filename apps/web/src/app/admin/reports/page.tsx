@@ -21,6 +21,12 @@ type ServiceReportItem = {
   created_at: string;
 };
 
+type OrderReportItem = {
+  id: number;
+  status: string;
+  created_at: string;
+};
+
 type ProductReportItem = {
   id: number;
   is_active: boolean;
@@ -66,6 +72,7 @@ export default function AdminReportsPage() {
   const [leads, setLeads] = useState<LeadReportItem[]>([]);
   const [vinRequests, setVinRequests] = useState<VinReportItem[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceReportItem[]>([]);
+  const [orders, setOrders] = useState<OrderReportItem[]>([]);
   const [products, setProducts] = useState<ProductReportItem[]>([]);
   const [categories, setCategories] = useState<CategoryReportItem[]>([]);
 
@@ -89,6 +96,7 @@ export default function AdminReportsPage() {
         "/api/admin/leads?limit=500",
         "/api/admin/vin-requests?limit=500",
         "/api/admin/service-requests?limit=500",
+        "/api/admin/orders?limit=500",
         "/api/admin/products?limit=500",
         "/api/admin/categories",
       ];
@@ -109,17 +117,19 @@ export default function AdminReportsPage() {
         throw new Error("Не удалось загрузить отчёты");
       }
 
-      const [leadsData, vinData, serviceData, productsData, categoriesData] = await Promise.all([
+      const [leadsData, vinData, serviceData, ordersData, productsData, categoriesData] = await Promise.all([
         responses[0].json(),
         responses[1].json(),
         responses[2].json(),
         responses[3].json(),
         responses[4].json(),
+        responses[5].json(),
       ]);
 
       setLeads(Array.isArray(leadsData) ? (leadsData as LeadReportItem[]) : []);
       setVinRequests(Array.isArray(vinData) ? (vinData as VinReportItem[]) : []);
       setServiceRequests(Array.isArray(serviceData) ? (serviceData as ServiceReportItem[]) : []);
+      setOrders(Array.isArray(ordersData) ? (ordersData as OrderReportItem[]) : []);
       setProducts(Array.isArray(productsData) ? (productsData as ProductReportItem[]) : []);
       setCategories(Array.isArray(categoriesData) ? (categoriesData as CategoryReportItem[]) : []);
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
@@ -151,6 +161,7 @@ export default function AdminReportsPage() {
   const leadStatusRows = useMemo(() => groupStatusCounts(leads), [leads]);
   const vinStatusRows = useMemo(() => groupStatusCounts(vinRequests), [vinRequests]);
   const serviceStatusRows = useMemo(() => groupStatusCounts(serviceRequests), [serviceRequests]);
+  const orderStatusRows = useMemo(() => groupStatusCounts(orders), [orders]);
 
   const latestLeads = useMemo(
     () =>
@@ -208,6 +219,10 @@ export default function AdminReportsPage() {
           <div className="mt-2 text-2xl font-bold text-[#1F3B73]">{serviceRequests.length}</div>
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+          <div className="text-sm text-neutral-600">Заказы</div>
+          <div className="mt-2 text-2xl font-bold text-[#1F3B73]">{orders.length}</div>
+        </div>
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
           <div className="text-sm text-neutral-600">Товары (всего)</div>
           <div className="mt-2 text-2xl font-bold text-[#1F3B73]">{products.length}</div>
           <div className="mt-1 text-xs text-neutral-500">Активные: {activeProducts}</div>
@@ -223,7 +238,7 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-3">
+      <div className="mb-6 grid gap-4 lg:grid-cols-4">
         <div className="rounded-2xl border border-neutral-200 bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Статусы заявок (запчасти)</h2>
           {leadStatusRows.length === 0 ? (
@@ -263,6 +278,22 @@ export default function AdminReportsPage() {
           ) : (
             <ul className="space-y-2 text-sm">
               {serviceStatusRows.map((row) => (
+                <li key={row.status} className="flex items-center justify-between">
+                  <span>{statusLabel(row.status)}</span>
+                  <span className="font-medium text-[#1F3B73]">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+          <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Статусы заказов</h2>
+          {orderStatusRows.length === 0 ? (
+            <p className="text-sm text-neutral-500">Нет данных</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {orderStatusRows.map((row) => (
                 <li key={row.status} className="flex items-center justify-between">
                   <span>{statusLabel(row.status)}</span>
                   <span className="font-medium text-[#1F3B73]">{row.count}</span>
