@@ -5,6 +5,11 @@
 - API: FastAPI (`apps/api`)
 - DB: Postgres + Alembic migrations
 
+## CI workflow
+- `.github/workflows/release-check.yml`
+- `pull_request -> main`: `scripts/release-check.sh --skip-write-smoke`
+- `push -> main` и `workflow_dispatch`: `scripts/release-check.sh`
+
 ## Preconditions
 1. Рабочая ветка синхронизирована, изменения закоммичены.
 2. Есть актуальный backup БД и проверка восстановления.
