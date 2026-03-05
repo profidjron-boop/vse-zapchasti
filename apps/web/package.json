@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run lint && pnpm run typecheck"
   },
   "dependencies": {
     "js-cookie": "^3.0.5",

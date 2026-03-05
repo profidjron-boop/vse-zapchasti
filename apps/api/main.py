@@ -21,14 +21,25 @@ from routers import admin
 load_dotenv()
 logger = logging.getLogger("api.request")
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+AUTO_CREATE_SCHEMA_ON_START = _env_bool("AUTO_CREATE_SCHEMA_ON_START", default=False)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("🚀 API starting up...")
-    async with engine.begin() as conn:
-        # Create tables if they don't exist (for development)
-        # In production, use migrations
-        await conn.run_sync(Base.metadata.create_all)
+    if AUTO_CREATE_SCHEMA_ON_START:
+        async with engine.begin() as conn:
+            # Explicitly opt-in only (development fallback), production uses Alembic migrations.
+            await conn.run_sync(Base.metadata.create_all)
     yield
     # Shutdown
     print("🛑 API shutting down...")
