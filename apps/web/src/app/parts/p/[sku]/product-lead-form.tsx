@@ -1,5 +1,6 @@
 'use client';
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
@@ -54,12 +55,12 @@ export default function ProductLeadForm({
       type: "product",
       name: formData.get("name")?.toString().trim() || undefined,
       phone: normalizedPhone,
-      product_id: productId,
       product_sku: productSku,
-      message: formData.get("message")?.toString().trim() || `Запрос по товару: ${productName} (${productSku})`,
+      message:
+        formData.get("message")?.toString().trim()
+        || `Запрос по товару: ${productName} (${productSku}, id:${productId})`,
       consent_given: consentGiven,
       consent_version: "v1.0",
-      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
     };
 
     try {
@@ -111,9 +112,9 @@ export default function ProductLeadForm({
           {leadId ? (
             <span className="mt-1 block text-xs text-green-800">
               Для оператора: заявка #{leadId} в админке{" "}
-              <a href={`/admin/leads/${leadId}`} className="underline">
+              <Link href={`/admin/leads/${leadId}`} className="underline">
                 открыть
-              </a>
+              </Link>
             </span>
           ) : null}
         </div>
