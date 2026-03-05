@@ -164,6 +164,21 @@ class ServiceRequest(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class ServiceCatalogItem(Base):
+    __tablename__ = "service_catalog_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    vehicle_type = Column(String(20), nullable=False, default="passenger")  # passenger, truck, both
+    duration_minutes = Column(Integer, nullable=True)
+    price = Column(Float, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class User(Base):
     __tablename__ = "users"
     

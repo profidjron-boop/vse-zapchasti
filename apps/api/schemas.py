@@ -11,6 +11,7 @@ ORDER_PAYMENT_METHODS = {"cash_on_delivery", "invoice"}
 ORDER_SOURCES = {"checkout", "one_click"}
 LEAD_TYPES = {"product", "callback", "vin", "parts_search"}
 USER_ROLES = {"admin", "manager", "service_manager"}
+SERVICE_CATALOG_VEHICLE_TYPES = {"passenger", "truck", "both"}
 
 
 def normalize_phone(value: str) -> str:
@@ -499,6 +500,74 @@ class ServiceRequestStatusUpdate(BaseModel):
             return None
         normalized = value.strip()
         return normalized or None
+
+
+class ServiceCatalogItemBase(BaseModel):
+    name: str
+    vehicle_type: str = "passenger"
+    duration_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
+    price: Optional[float] = Field(default=None, ge=0)
+    sort_order: int = 0
+    is_active: bool = True
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+    @field_validator("vehicle_type")
+    @classmethod
+    def validate_vehicle_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in SERVICE_CATALOG_VEHICLE_TYPES:
+            raise ValueError(
+                f"vehicle_type must be one of: {', '.join(sorted(SERVICE_CATALOG_VEHICLE_TYPES))}"
+            )
+        return normalized
+
+
+class ServiceCatalogItemCreate(ServiceCatalogItemBase):
+    pass
+
+
+class ServiceCatalogItemUpdate(BaseModel):
+    name: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    duration_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
+    price: Optional[float] = Field(default=None, ge=0)
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("vehicle_type")
+    @classmethod
+    def validate_vehicle_type(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in SERVICE_CATALOG_VEHICLE_TYPES:
+            raise ValueError(
+                f"vehicle_type must be one of: {', '.join(sorted(SERVICE_CATALOG_VEHICLE_TYPES))}"
+            )
+        return normalized
+
+
+class ServiceCatalogItemResponse(ServiceCatalogItemBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 # ---------- User Schemas ----------
 class UserBase(BaseModel):

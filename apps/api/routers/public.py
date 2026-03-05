@@ -5,7 +5,7 @@ from threading import Lock
 import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from typing import Any, List, Optional
 import uuid
@@ -19,6 +19,7 @@ from models import (
     Lead,
     Order,
     OrderItem,
+    ServiceCatalogItem,
     ServiceRequest,
     SiteContent,
     VinRequest,
@@ -28,6 +29,7 @@ from schemas import (
     OrderCreate,
     OrderPublicResponse,
     OrderResponse,
+    ServiceCatalogItemResponse,
     ServiceRequestCreate,
     ServiceRequestResponse,
     VinRequestCreate,
@@ -529,6 +531,32 @@ async def get_order_history(
     return result.scalars().all()
 
 # ---------- Service Requests ----------
+@router.get("/service-catalog", response_model=List[ServiceCatalogItemResponse])
+async def get_service_catalog(
+    vehicle_type: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get active service catalog items."""
+    normalized_vehicle_type: Optional[str] = None
+    if vehicle_type is not None:
+        normalized_vehicle_type = vehicle_type.strip().lower()
+        if normalized_vehicle_type not in {"passenger", "truck"}:
+            raise HTTPException(status_code=400, detail="vehicle_type must be 'passenger' or 'truck'")
+
+    query = select(ServiceCatalogItem).where(ServiceCatalogItem.is_active.is_(True))
+    if normalized_vehicle_type is not None:
+        query = query.where(
+            or_(
+                ServiceCatalogItem.vehicle_type == normalized_vehicle_type,
+                ServiceCatalogItem.vehicle_type == "both",
+            )
+        )
+    query = query.order_by(ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc())
+
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
 @router.post("/service-requests", response_model=ServiceRequestResponse, status_code=201)
 async def create_service_request(
     request_data: ServiceRequestCreate,

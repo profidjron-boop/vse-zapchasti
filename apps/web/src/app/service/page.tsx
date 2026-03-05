@@ -4,6 +4,33 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
+type ServiceCard = {
+  title: string;
+  desc: string;
+  icon: string;
+  duration: string;
+  price: string;
+};
+
+const fallbackServices: { passenger: ServiceCard[]; truck: ServiceCard[] } = {
+  passenger: [
+    { title: "Диагностика и ТО", desc: "Полная диагностика, плановое ТО, замена жидкостей", icon: "🔧", duration: "60 мин", price: "от 2 000 ₽" },
+    { title: "Ремонт двигателя", desc: "Капитальный ремонт, замена ГРМ, диагностика", icon: "⚙️", duration: "180 мин", price: "от 8 000 ₽" },
+    { title: "Ремонт КПП", desc: "Автомат, механика, вариатор — любой сложности", icon: "🔄", duration: "240 мин", price: "от 9 500 ₽" },
+    { title: "Ходовая часть", desc: "Замена амортизаторов, рычагов, сайлентблоков", icon: "🛞", duration: "120 мин", price: "от 4 000 ₽" },
+    { title: "Автоэлектрика", desc: "Диагностика электрики, ремонт генератора, стартера", icon: "⚡", duration: "90 мин", price: "от 3 500 ₽" },
+    { title: "Шиномонтаж", desc: "Сезонная замена, балансировка, ремонт проколов", icon: "🔩", duration: "45 мин", price: "от 1 500 ₽" }
+  ],
+  truck: [
+    { title: "Диагностика грузовых", desc: "Компьютерная диагностика, проверка систем", icon: "🔧", duration: "90 мин", price: "от 3 000 ₽" },
+    { title: "Ремонт ДВС", desc: "Капитальный ремонт двигателей грузовиков", icon: "⚙️", duration: "300 мин", price: "от 15 000 ₽" },
+    { title: "Ремонт КПП", desc: "Ремонт коробок передач ZF, Eaton и др.", icon: "🔄", duration: "300 мин", price: "от 16 000 ₽" },
+    { title: "Ходовая часть", desc: "Замена рессор, сайлентблоков, амортизаторов", icon: "🛞", duration: "180 мин", price: "от 7 000 ₽" },
+    { title: "Электрика", desc: "Ремонт электропроводки, диагностика CAN-шин", icon: "⚡", duration: "120 мин", price: "от 5 000 ₽" },
+    { title: "ТО грузовиков", desc: "Плановое ТО, замена масел и фильтров", icon: "🔩", duration: "90 мин", price: "от 4 500 ₽" }
+  ]
+};
+
 function normalizePhone(value: string): string {
   let digits = value.replace(/\D/g, "");
 
@@ -34,6 +61,7 @@ export default function ServicePage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [contentMap, setContentMap] = useState<Record<string, string>>({});
+  const [services, setServices] = useState(fallbackServices);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +88,75 @@ export default function ServicePage() {
     }
 
     loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadServiceCatalog() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/service-catalog"), { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as Array<{
+          name?: string;
+          vehicle_type?: string;
+          duration_minutes?: number | null;
+          price?: number | null;
+        }>;
+
+        if (!Array.isArray(payload) || cancelled) return;
+
+        const passenger: ServiceCard[] = [];
+        const truck: ServiceCard[] = [];
+
+        for (const item of payload) {
+          if (!item?.name || typeof item.name !== "string") continue;
+
+          const durationLabel =
+            typeof item.duration_minutes === "number" && item.duration_minutes > 0
+              ? `${Math.round(item.duration_minutes)} мин`
+              : "по согласованию";
+          const priceLabel =
+            typeof item.price === "number"
+              ? `от ${Math.round(item.price).toLocaleString("ru-RU")} ₽`
+              : "цена по запросу";
+
+          const card: ServiceCard = {
+            title: item.name,
+            desc: "Услуга сервисного центра",
+            icon: "🔧",
+            duration: durationLabel,
+            price: priceLabel,
+          };
+
+          const vehicleType = String(item.vehicle_type || "").toLowerCase();
+          if (vehicleType === "truck") {
+            truck.push(card);
+          } else if (vehicleType === "both") {
+            passenger.push(card);
+            truck.push(card);
+          } else {
+            passenger.push(card);
+          }
+        }
+
+        if (!cancelled && (passenger.length > 0 || truck.length > 0)) {
+          setServices({
+            passenger: passenger.length > 0 ? passenger : fallbackServices.passenger,
+            truck: truck.length > 0 ? truck : fallbackServices.truck,
+          });
+        }
+      } catch {
+        // keep fallback services
+      }
+    }
+
+    void loadServiceCatalog();
     return () => {
       cancelled = true;
     };
@@ -186,25 +283,6 @@ export default function ServicePage() {
     );
   }
 
-  const services = {
-    passenger: [
-      { title: "Диагностика и ТО", desc: "Полная диагностика, плановое ТО, замена жидкостей", icon: "🔧" },
-      { title: "Ремонт двигателя", desc: "Капитальный ремонт, замена ГРМ, диагностика", icon: "⚙️" },
-      { title: "Ремонт КПП", desc: "Автомат, механика, вариатор — любой сложности", icon: "🔄" },
-      { title: "Ходовая часть", desc: "Замена амортизаторов, рычагов, сайлентблоков", icon: "🛞" },
-      { title: "Автоэлектрика", desc: "Диагностика электрики, ремонт генератора, стартера", icon: "⚡" },
-      { title: "Шиномонтаж", desc: "Сезонная замена, балансировка, ремонт проколов", icon: "🔩" }
-    ],
-    truck: [
-      { title: "Диагностика грузовых", desc: "Компьютерная диагностика, проверка систем", icon: "🔧" },
-      { title: "Ремонт ДВС", desc: "Капитальный ремонт двигателей грузовиков", icon: "⚙️" },
-      { title: "Ремонт КПП", desc: "Ремонт коробок передач ZF, Eaton и др.", icon: "🔄" },
-      { title: "Ходовая часть", desc: "Замена рессор, сайлентблоков, амортизаторов", icon: "🛞" },
-      { title: "Электрика", desc: "Ремонт электропроводки, диагностика CAN-шин", icon: "⚡" },
-      { title: "ТО грузовиков", desc: "Плановое ТО, замена масел и фильтров", icon: "🔩" }
-    ]
-  };
-
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
@@ -259,6 +337,25 @@ export default function ServicePage() {
               <div className="text-4xl">{work.icon}</div>
               <h3 className="mt-4 text-lg font-semibold text-[#1F3B73]">{work.title}</h3>
               <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
+              <p className="mt-3 text-xs font-medium text-neutral-500">Длительность: {work.duration}</p>
+              <p className="mt-1 text-sm font-semibold text-[#1F3B73]">{work.price}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-8">
+        <h2 className="text-2xl font-bold text-[#1F3B73]">
+          Грузовые автомобили
+        </h2>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {services.truck.map((work) => (
+            <div key={work.title} className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-lg">
+              <div className="text-4xl">{work.icon}</div>
+              <h3 className="mt-4 text-lg font-semibold text-[#1F3B73]">{work.title}</h3>
+              <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
+              <p className="mt-3 text-xs font-medium text-neutral-500">Длительность: {work.duration}</p>
+              <p className="mt-1 text-sm font-semibold text-[#1F3B73]">{work.price}</p>
             </div>
           ))}
         </div>
@@ -283,9 +380,20 @@ export default function ServicePage() {
                 <label className="text-sm font-medium text-neutral-700">Вид работ *</label>
                 <select name="service_type" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none">
                   <option value="">Выберите направление</option>
-                  {services.passenger.map(s => (
-                    <option key={s.title} value={s.title}>{s.title}</option>
-                  ))}
+                  <optgroup label="Легковые">
+                    {services.passenger.map((service) => (
+                      <option key={`passenger-${service.title}`} value={service.title}>
+                        {service.title} · {service.duration} · {service.price}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Грузовые">
+                    {services.truck.map((service) => (
+                      <option key={`truck-${service.title}`} value={service.title}>
+                        {service.title} · {service.duration} · {service.price}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
               <div>

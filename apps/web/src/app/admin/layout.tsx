@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
   { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
   { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },
   { href: "/admin/categories", label: "Категории", roles: ["admin", "manager"] },
+  { href: "/admin/service-catalog", label: "Справочник услуг", roles: ["admin", "service_manager"] },
   { href: "/admin/service-requests", label: "Заявки (сервис)", roles: ["admin", "service_manager"] },
 ];
 
@@ -44,7 +45,8 @@ const navOrder: Record<string, number> = {
   "/admin/vin-requests": 8,
   "/admin/products": 9,
   "/admin/categories": 10,
-  "/admin/service-requests": 11,
+  "/admin/service-catalog": 11,
+  "/admin/service-requests": 12,
 };
 
 function canAccessPath(pathname: string, role: UserRole): boolean {
@@ -68,7 +70,12 @@ function canAccessPath(pathname: string, role: UserRole): boolean {
   }
 
   if (role === "service_manager") {
-    return pathname === "/admin/service-requests" || pathname.startsWith("/admin/service-requests/");
+    return (
+      pathname === "/admin/service-requests" ||
+      pathname.startsWith("/admin/service-requests/") ||
+      pathname === "/admin/service-catalog" ||
+      pathname.startsWith("/admin/service-catalog/")
+    );
   }
 
   return false;

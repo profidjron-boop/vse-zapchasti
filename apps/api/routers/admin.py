@@ -26,6 +26,7 @@ from models import (
     Order,
     Product,
     ProductImage,
+    ServiceCatalogItem,
     ServiceRequest,
     SiteContent,
     User,
@@ -43,6 +44,9 @@ from schemas import (
     ProductImageResponse,
     ProductResponse,
     ProductUpdate,
+    ServiceCatalogItemCreate,
+    ServiceCatalogItemResponse,
+    ServiceCatalogItemUpdate,
     ServiceRequestResponse,
     ServiceRequestStatusUpdate,
     SiteContentCreate,
@@ -148,6 +152,7 @@ get_catalog_user = require_roles("admin", "manager")
 get_leads_user = require_roles("admin", "manager")
 get_orders_user = require_roles("admin", "manager")
 get_service_requests_user = require_roles("admin", "service_manager")
+get_service_catalog_user = require_roles("admin", "service_manager")
 get_content_user = require_roles("admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -1198,6 +1203,127 @@ async def admin_delete_category(
     return None
 
 # ---------- Service Requests ----------
+@router.get("/service-catalog", response_model=List[ServiceCatalogItemResponse])
+async def admin_get_service_catalog(
+    include_inactive: bool = Query(False),
+    vehicle_type: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_service_catalog_user),
+):
+    query = select(ServiceCatalogItem)
+    if not include_inactive:
+        query = query.where(ServiceCatalogItem.is_active.is_(True))
+
+    if vehicle_type:
+        normalized_vehicle_type = vehicle_type.strip().lower()
+        if normalized_vehicle_type not in {"passenger", "truck", "both"}:
+            raise HTTPException(status_code=400, detail="vehicle_type must be passenger, truck or both")
+        query = query.where(ServiceCatalogItem.vehicle_type == normalized_vehicle_type)
+
+    query = query.order_by(ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc())
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.post("/service-catalog", response_model=ServiceCatalogItemResponse, status_code=201)
+async def admin_create_service_catalog_item(
+    payload: ServiceCatalogItemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_service_catalog_user),
+):
+    item = ServiceCatalogItem(**payload.model_dump())
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="create",
+        entity_type="service_catalog_item",
+        entity_id=item.id,
+        new_values=payload.model_dump(),
+    )
+    db.add(audit)
+    await db.commit()
+
+    return item
+
+
+@router.put("/service-catalog/{item_id}", response_model=ServiceCatalogItemResponse)
+async def admin_update_service_catalog_item(
+    item_id: int,
+    payload: ServiceCatalogItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_service_catalog_user),
+):
+    result = await db.execute(select(ServiceCatalogItem).where(ServiceCatalogItem.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Service catalog item not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    old_values = {
+        "name": item.name,
+        "vehicle_type": item.vehicle_type,
+        "duration_minutes": item.duration_minutes,
+        "price": item.price,
+        "sort_order": item.sort_order,
+        "is_active": item.is_active,
+    }
+
+    for key, value in update_data.items():
+        setattr(item, key, value)
+    item.updated_at = _utcnow()
+    await db.commit()
+    await db.refresh(item)
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="update",
+        entity_type="service_catalog_item",
+        entity_id=item.id,
+        old_values=old_values,
+        new_values=update_data,
+    )
+    db.add(audit)
+    await db.commit()
+
+    return item
+
+
+@router.delete("/service-catalog/{item_id}", response_model=ServiceCatalogItemResponse)
+async def admin_delete_service_catalog_item(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_service_catalog_user),
+):
+    result = await db.execute(select(ServiceCatalogItem).where(ServiceCatalogItem.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Service catalog item not found")
+
+    old_values = {
+        "is_active": item.is_active,
+    }
+    item.is_active = False
+    item.updated_at = _utcnow()
+    await db.commit()
+    await db.refresh(item)
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="deactivate",
+        entity_type="service_catalog_item",
+        entity_id=item.id,
+        old_values=old_values,
+        new_values={"is_active": item.is_active},
+    )
+    db.add(audit)
+    await db.commit()
+
+    return item
+
+
 @router.get("/service-requests", response_model=List[ServiceRequestResponse])
 async def admin_get_service_requests(
     skip: int = Query(0, ge=0),
