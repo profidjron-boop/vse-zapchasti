@@ -170,7 +170,9 @@ export default async function PartsPage({
                       <div className="mt-3 grid gap-3">
                         {section.products.map((product) => (
                           <article key={product.id} className="rounded-xl border border-white bg-white p-3">
-                            <div className="text-sm font-medium text-[#1F3B73]">{product.name}</div>
+                            <Link href={`/parts/p/${encodeURIComponent(product.sku)}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
+                              {product.name}
+                            </Link>
                             <div className="mt-1 text-xs text-neutral-600">
                               {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
                               {" · "}
@@ -230,9 +232,12 @@ export default async function PartsPage({
                         {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
                       </div>
                     </div>
-                    <div className="rounded-xl bg-[#1F3B73]/10 px-4 py-2 text-sm font-medium text-[#1F3B73]">
-                      {product.stock_quantity > 0 ? "Можно заказать" : "Уточнить срок"}
-                    </div>
+                    <Link
+                      href={`/parts/p/${encodeURIComponent(product.sku)}`}
+                      className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
+                    >
+                      Подробнее
+                    </Link>
                   </div>
                 ))}
               </div>
