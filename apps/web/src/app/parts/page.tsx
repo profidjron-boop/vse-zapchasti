@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
@@ -16,6 +17,11 @@ type Product = {
   price: number | null;
   description: string | null;
   stock_quantity: number;
+  images?: Array<{
+    url: string;
+    is_main: boolean;
+    sort_order: number;
+  }>;
 };
 
 type CatalogSection = {
@@ -23,54 +29,84 @@ type CatalogSection = {
   products: Product[];
 };
 
-async function getCategories() {
-  const apiBaseUrl = getServerApiBaseUrl();
-  const res = await fetch(withApiBase(apiBaseUrl, "/api/public/categories"), { cache: "no-store" });
-  if (!res.ok) return [];
-  return res.json() as Promise<Category[]>;
+async function getCategories(): Promise<Category[] | null> {
+  try {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const res = await fetch(withApiBase(apiBaseUrl, "/api/public/categories"), { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json() as Promise<Category[]>;
+  } catch {
+    return null;
+  }
 }
 
-async function getProductsByCategory(categoryId: number) {
-  const apiBaseUrl = getServerApiBaseUrl();
-  const res = await fetch(
-    withApiBase(
-      apiBaseUrl,
-      `/api/public/products?category_id=${categoryId}&limit=6&in_stock_only=false`
-    ),
-    { cache: "no-store" }
-  );
-  if (!res.ok) return [];
-  return res.json() as Promise<Product[]>;
+async function getProductsByCategory(categoryId: number): Promise<Product[] | null> {
+  try {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const res = await fetch(
+      withApiBase(
+        apiBaseUrl,
+        `/api/public/products?category_id=${categoryId}&limit=6&in_stock_only=false`
+      ),
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    return res.json() as Promise<Product[]>;
+  } catch {
+    return null;
+  }
 }
 
 async function getCatalogSections() {
   const categories = await getCategories();
-  if (categories.length === 0) return [];
+  if (!categories) return { sections: [] as CatalogSection[], hasError: true };
+  if (categories.length === 0) return { sections: [] as CatalogSection[], hasError: false };
 
   const topLevel = categories.filter((category) => category.parent_id === null);
   const targetCategories = (topLevel.length > 0 ? topLevel : categories).slice(0, 6);
 
+  let hasError = false;
   const sections = await Promise.all(
-    targetCategories.map(async (category) => ({
-      category,
-      products: await getProductsByCategory(category.id),
-    }))
+    targetCategories.map(async (category) => {
+      const products = await getProductsByCategory(category.id);
+      if (!products) {
+        hasError = true;
+      }
+      return {
+        category,
+        products: products ?? [],
+      };
+    })
   );
 
-  return sections.filter((section) => section.products.length > 0) as CatalogSection[];
+  return {
+    sections: sections.filter((section) => section.products.length > 0) as CatalogSection[],
+    hasError,
+  };
 }
 
 async function searchProducts(query: string) {
   if (!query) return [];
-  
-  const apiBaseUrl = getServerApiBaseUrl();
-  const res = await fetch(
-    withApiBase(apiBaseUrl, `/api/public/products?search=${encodeURIComponent(query)}&limit=10`),
-    { cache: 'no-store' }
-  );
-  
-  if (!res.ok) return [];
-  return res.json();
+
+  try {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const res = await fetch(
+      withApiBase(apiBaseUrl, `/api/public/products?search=${encodeURIComponent(query)}&limit=10`),
+      { cache: "no-store" }
+    );
+
+    if (!res.ok) return null;
+    return (await res.json()) as Product[];
+  } catch {
+    return null;
+  }
+}
+
+function getMainImageUrl(product: Product): string | null {
+  const images = product.images ?? [];
+  if (images.length === 0) return null;
+  const main = images.find((image) => image.is_main) ?? images[0];
+  return main?.url || null;
 }
 
 export default async function PartsPage({
@@ -80,8 +116,13 @@ export default async function PartsPage({
 }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
-  const products = query ? await searchProducts(query) : [];
-  const catalogSections = query ? [] : await getCatalogSections();
+  const productsResult = query ? await searchProducts(query) : [];
+  const products = productsResult ?? [];
+  const searchError = query ? productsResult === null : false;
+
+  const catalogResult = query ? { sections: [] as CatalogSection[], hasError: false } : await getCatalogSections();
+  const catalogSections = catalogResult.sections;
+  const catalogError = catalogResult.hasError;
 
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
@@ -152,11 +193,18 @@ export default async function PartsPage({
                 </div>
               </div>
 
-              {catalogSections.length === 0 ? (
+              {catalogError && catalogSections.length === 0 ? (
                 <>
                   <div className="text-sm font-semibold text-[#1F3B73]">Каталог временно недоступен</div>
                   <div className="mt-1 text-sm text-neutral-600">
                     Не удалось загрузить категории и товары. Попробуйте поиск по артикулу или VIN-подбор.
+                  </div>
+                </>
+              ) : catalogSections.length === 0 ? (
+                <>
+                  <div className="text-sm font-semibold text-[#1F3B73]">Каталог пока пуст</div>
+                  <div className="mt-1 text-sm text-neutral-600">
+                    Товары появятся здесь после публикации в админке.
                   </div>
                 </>
               ) : (
@@ -170,13 +218,32 @@ export default async function PartsPage({
                       <div className="mt-3 grid gap-3">
                         {section.products.map((product) => (
                           <article key={product.id} className="rounded-xl border border-white bg-white p-3">
-                            <Link href={`/parts/p/${encodeURIComponent(product.sku)}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
-                              {product.name}
-                            </Link>
-                            <div className="mt-1 text-xs text-neutral-600">
-                              {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
-                              {" · "}
-                              {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                            <div className="flex items-start gap-3">
+                              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
+                                {getMainImageUrl(product) ? (
+                                  <Image
+                                    src={getMainImageUrl(product) as string}
+                                    alt={product.name}
+                                    className="h-full w-full object-cover"
+                                    width={64}
+                                    height={64}
+                                  />
+                                ) : (
+                                  <div className="flex h-full items-center justify-center text-[10px] text-neutral-400">NO IMAGE</div>
+                                )}
+                              </div>
+                              <div>
+                                <Link href={`/parts/p/${encodeURIComponent(product.sku)}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
+                                  {product.name}
+                                </Link>
+                                <div className="mt-1 text-xs text-neutral-600">
+                                  {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
+                                  {" · "}
+                                  {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                                  {" · "}
+                                  {product.brand || "без бренда"}
+                                </div>
+                              </div>
                             </div>
                           </article>
                         ))}
@@ -186,6 +253,14 @@ export default async function PartsPage({
                 </div>
               )}
             </div>
+          ) : searchError ? (
+            <>
+              <div className="text-sm font-semibold text-[#1F3B73]">Ошибка поиска</div>
+              <div className="mt-1 text-sm text-neutral-600">
+                Не удалось загрузить результаты по запросу{" "}
+                <span className="font-medium text-[#1F3B73]">&quot;{query}&quot;</span>. Попробуйте повторить позже.
+              </div>
+            </>
           ) : products.length === 0 ? (
             <>
               <div className="text-sm font-semibold text-[#1F3B73]">Ничего не найдено</div>
@@ -216,20 +291,35 @@ export default async function PartsPage({
               </div>
               <div className="grid gap-4">
                 {products.map((product: Product) => (
-                  <div key={product.id} className="flex items-start justify-between rounded-2xl border border-neutral-200 p-4 hover:shadow-md transition">
-                    <div>
-                      <div className="font-medium text-[#1F3B73]">{product.name}</div>
-                      <div className="mt-1 text-sm text-neutral-600">
-                        Артикул: {product.sku} | OEM: {product.oem || "—"} | Бренд: {product.brand || "—"}
+                  <div key={product.id} className="flex items-start justify-between gap-4 rounded-2xl border border-neutral-200 p-4 hover:shadow-md transition">
+                    <div className="flex items-start gap-4">
+                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
+                        {getMainImageUrl(product) ? (
+                          <Image
+                            src={getMainImageUrl(product) as string}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                            width={80}
+                            height={80}
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-[10px] text-neutral-400">NO IMAGE</div>
+                        )}
                       </div>
-                      <div className="mt-2 text-sm text-neutral-600">
-                        Наличие:{" "}
-                        <span className={product.stock_quantity > 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>
-                          {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
-                        </span>
-                      </div>
-                      <div className="mt-2 text-lg font-semibold text-[#FF7A00]">
-                        {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
+                      <div>
+                        <div className="font-medium text-[#1F3B73]">{product.name}</div>
+                        <div className="mt-1 text-sm text-neutral-600">
+                          Артикул: {product.sku} | OEM: {product.oem || "—"} | Бренд: {product.brand || "—"}
+                        </div>
+                        <div className="mt-2 text-sm text-neutral-600">
+                          Наличие:{" "}
+                          <span className={product.stock_quantity > 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>
+                            {product.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-lg font-semibold text-[#FF7A00]">
+                          {product.price ? `${product.price.toLocaleString()} ₽` : "Цена по запросу"}
+                        </div>
                       </div>
                     </div>
                     <Link

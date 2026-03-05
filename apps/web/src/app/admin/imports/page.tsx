@@ -1,0 +1,241 @@
+'use client';
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+
+type ImportRun = {
+  id: number;
+  entity_type: string;
+  status: string;
+  source: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_by: number | null;
+  created_by_user: string | null;
+  created: number;
+  updated: number;
+  failed: number;
+};
+
+type ImportResponse = {
+  run_id: number;
+  created: number;
+  updated: number;
+  failed: number;
+};
+
+export default function AdminImportsPage() {
+  const router = useRouter();
+  const [runs, setRuns] = useState<ImportRun[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadResult, setUploadResult] = useState<ImportResponse | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [defaultCategoryId, setDefaultCategoryId] = useState("");
+
+  const createdLabel = useMemo(() => {
+    if (!uploadResult) return "";
+    return `Run #${uploadResult.run_id}: created ${uploadResult.created}, updated ${uploadResult.updated}, failed ${uploadResult.failed}`;
+  }, [uploadResult]);
+
+  const fetchRuns = useCallback(async () => {
+    try {
+      setError("");
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/imports?limit=100"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить список импортов");
+      }
+
+      const data = (await response.json()) as ImportRun[];
+      setRuns(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить список импортов");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    void fetchRuns();
+  }, [fetchRuns]);
+
+  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUploadError("");
+    setUploadResult(null);
+
+    if (!file) {
+      setUploadError("Выберите файл CSV или XLSX");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (defaultCategoryId.trim()) {
+        params.set("default_category_id", defaultCategoryId.trim());
+      }
+
+      const formData = new FormData();
+      formData.set("file", file);
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      const endpoint = params.toString()
+        ? `/api/admin/products/import?${params.toString()}`
+        : "/api/admin/products/import";
+
+      const response = await fetch(withApiBase(apiBaseUrl, endpoint), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { detail?: string };
+        throw new Error(payload.detail || "Не удалось выполнить импорт");
+      }
+
+      const result = (await response.json()) as ImportResponse;
+      setUploadResult(result);
+      setFile(null);
+      await fetchRuns();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Ошибка при загрузке файла");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[#1F3B73]">Импорты каталога</h1>
+        <p className="mt-2 text-sm text-neutral-600">
+          История запусков импорта и загрузка нового CSV/XLSX файла.
+        </p>
+      </div>
+
+      <form onSubmit={handleUpload} className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Файл импорта</label>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Default category ID</label>
+            <input
+              type="number"
+              min={1}
+              value={defaultCategoryId}
+              onChange={(event) => setDefaultCategoryId(event.target.value)}
+              placeholder="Опционально"
+              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isUploading}
+            className="rounded-xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-50"
+          >
+            {isUploading ? "Загрузка..." : "Загрузить файл"}
+          </button>
+        </div>
+
+        {uploadError && <p className="mt-3 text-sm text-red-600">{uploadError}</p>}
+        {uploadResult && (
+          <p className="mt-3 text-sm text-green-700">
+            {createdLabel}{" "}
+            <Link href={`/admin/imports/${uploadResult.run_id}`} className="font-medium underline">
+              Открыть детали
+            </Link>
+          </p>
+        )}
+      </form>
+
+      {error && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="py-12 text-center text-neutral-500">Загрузка...</div>
+      ) : runs.length === 0 ? (
+        <div className="py-12 text-center text-neutral-500">Запусков импорта пока нет</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="border-b border-neutral-200 bg-neutral-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Source</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Created by</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Created/Updated/Failed</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Детали</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200">
+              {runs.map((run) => (
+                <tr key={run.id} className="hover:bg-neutral-50">
+                  <td className="px-4 py-3 text-sm">
+                    {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-sm">{run.status}</td>
+                  <td className="px-4 py-3 text-sm">{run.source || "—"}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {run.created}/{run.updated}/{run.failed}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <Link href={`/admin/imports/${run.id}`} className="text-[#1F3B73] hover:underline">
+                      Открыть
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
