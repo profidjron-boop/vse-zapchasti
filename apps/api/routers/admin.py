@@ -874,7 +874,7 @@ async def admin_import_products(
                 ),
             )
 
-        await db.commit()
+        await db.flush()
 
         snapshot_result = await db.execute(
             select(Product).options(selectinload(Product.images)).order_by(Product.id)

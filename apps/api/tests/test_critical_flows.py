@@ -61,6 +61,9 @@ class FakeAsyncSession:
     async def commit(self):
         return None
 
+    async def flush(self):
+        return None
+
     async def rollback(self):
         return None
 
