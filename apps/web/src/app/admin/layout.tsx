@@ -104,12 +104,21 @@ export default function AdminLayout({
       }
 
       try {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 7000);
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/auth/me"), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await (async () => {
+          try {
+            return await fetch(withApiBase(apiBaseUrl, "/api/admin/auth/me"), {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              signal: controller.signal,
+            });
+          } finally {
+            window.clearTimeout(timeoutId);
+          }
+        })();
 
         if (!response.ok) {
           localStorage.removeItem("admin_token");
