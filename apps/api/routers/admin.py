@@ -16,12 +16,25 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import AuditLog, Category, Lead, Product, ServiceRequest, SiteContent, User, VinRequest
+from models import (
+    AuditLog,
+    Category,
+    ImportRun,
+    Lead,
+    Product,
+    ProductImage,
+    ServiceRequest,
+    SiteContent,
+    User,
+    VinRequest,
+)
 from schemas import (
     CategoryCreate,
     CategoryResponse,
     CategoryUpdate,
     ProductCreate,
+    ProductImageBase,
+    ProductImageResponse,
     ProductResponse,
     ProductUpdate,
     ServiceRequestResponse,
@@ -394,6 +407,63 @@ async def admin_create_product(
     
     return db_product
 
+
+@router.post("/products/{product_id}/images", response_model=ProductImageResponse, status_code=201)
+async def admin_attach_product_image(
+    product_id: int,
+    image: ProductImageBase,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_catalog_user),
+):
+    """Attach uploaded self-hosted image to product."""
+    product_result = await db.execute(select(Product).where(Product.id == product_id))
+    product = product_result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    relative_path = image.url.removeprefix("/uploads/").strip("/")
+    if not relative_path:
+        raise HTTPException(status_code=400, detail="Image URL is invalid")
+
+    file_path = (UPLOAD_DIR / relative_path).resolve()
+    upload_root = UPLOAD_DIR.resolve()
+    if not str(file_path).startswith(str(upload_root)) or not file_path.is_file():
+        raise HTTPException(status_code=400, detail="Uploaded file not found")
+
+    if image.is_main:
+        current_main = await db.execute(
+            select(ProductImage).where(ProductImage.product_id == product_id, ProductImage.is_main.is_(True))
+        )
+        for existing_main in current_main.scalars().all():
+            existing_main.is_main = False
+
+    db_image = ProductImage(product_id=product_id, **image.model_dump())
+    db.add(db_image)
+    await db.commit()
+    await db.refresh(db_image)
+
+    audit = AuditLog(
+        action="attach_image",
+        entity_type="product",
+        entity_id=product_id,
+        new_values=db_image_to_dict(db_image),
+    )
+    db.add(audit)
+    await db.commit()
+
+    return db_image
+
+
+def db_image_to_dict(image: ProductImage) -> dict[str, Any]:
+    return {
+        "id": image.id,
+        "product_id": image.product_id,
+        "url": image.url,
+        "sort_order": image.sort_order,
+        "is_main": image.is_main,
+    }
+
+
 @router.put("/products/{product_id}", response_model=ProductResponse)
 async def admin_update_product(
     product_id: int,
@@ -472,100 +542,185 @@ async def admin_import_products(
     file: UploadFile = File(...),
     default_category_id: Optional[int] = Query(None, ge=1),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """Import products from CSV/XLSX with upsert by SKU."""
+    run_id: Optional[int] = None
+    collected_errors: list[str] = []
+
+    previous_successful_run = await db.execute(
+        select(ImportRun)
+        .where(ImportRun.entity_type == "products", ImportRun.status == "finished")
+        .order_by(ImportRun.id.desc())
+        .limit(1)
+    )
+    previous_run = previous_successful_run.scalar_one_or_none()
+
+    run = ImportRun(
+        entity_type="products",
+        status="started",
+        source=file.filename,
+        started_at=datetime.utcnow(),
+        created_by=current_user.id,
+        previous_successful_run_id=previous_run.id if previous_run else None,
+    )
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    run_id = run.id
+
     if not file.filename:
+        collected_errors.append("Filename is required.")
+        run.status = "failed"
+        run.finished_at = datetime.utcnow()
+        run.errors = collected_errors
+        await db.commit()
         raise HTTPException(status_code=400, detail="Filename is required.")
 
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    rows = _parse_import_rows(file.filename, content)
-    if not rows:
-        return {"file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0, "errors": []}
+        rows = _parse_import_rows(file.filename, content)
+        if not rows:
+            run.status = "finished"
+            run.finished_at = datetime.utcnow()
+            run.summary = {"file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0}
+            run.errors = []
+            run.snapshot_data = []
+            await db.commit()
+            return {"run_id": run.id, "file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0, "errors": []}
 
-    categories_result = await db.execute(select(Category))
-    categories = categories_result.scalars().all()
-    category_by_slug = {category.slug.lower(): category.id for category in categories if category.slug}
-    category_by_name = {category.name.lower(): category.id for category in categories if category.name}
+        categories_result = await db.execute(select(Category))
+        categories = categories_result.scalars().all()
+        category_by_slug = {category.slug.lower(): category.id for category in categories if category.slug}
+        category_by_name = {category.name.lower(): category.id for category in categories if category.name}
 
-    created = 0
-    updated = 0
-    errors: list[str] = []
+        created = 0
+        updated = 0
 
-    for row_index, row in enumerate(rows, start=2):
-        try:
-            sku = row.get("sku", "").strip()
-            name = row.get("name", "").strip()
-            if not sku or not name:
-                errors.append(f"Row {row_index}: 'sku' and 'name' are required.")
-                continue
+        for row_index, row in enumerate(rows, start=2):
+            try:
+                sku = row.get("sku", "").strip()
+                name = row.get("name", "").strip()
+                if not sku or not name:
+                    collected_errors.append(f"Row {row_index}: 'sku' and 'name' are required.")
+                    continue
 
-            category_id: Optional[int] = None
-            if row.get("category_id"):
-                category_id = _parse_optional_int(row["category_id"])
-            elif row.get("category_slug"):
-                category_id = category_by_slug.get(row["category_slug"].strip().lower())
-            elif row.get("category_name"):
-                category_id = category_by_name.get(row["category_name"].strip().lower())
-            else:
-                category_id = default_category_id
+                category_id: Optional[int] = None
+                if row.get("category_id"):
+                    category_id = _parse_optional_int(row["category_id"])
+                elif row.get("category_slug"):
+                    category_id = category_by_slug.get(row["category_slug"].strip().lower())
+                elif row.get("category_name"):
+                    category_id = category_by_name.get(row["category_name"].strip().lower())
+                else:
+                    category_id = default_category_id
 
-            if not category_id:
-                errors.append(f"Row {row_index}: category is required.")
-                continue
+                if not category_id:
+                    collected_errors.append(f"Row {row_index}: category is required.")
+                    continue
 
-            payload = {
-                "category_id": category_id,
-                "oem": row.get("oem") or None,
-                "brand": row.get("brand") or None,
-                "name": name,
-                "description": row.get("description") or None,
-                "price": _parse_optional_float(row.get("price", "")),
-                "stock_quantity": _parse_optional_int(row.get("stock_quantity", "")) or 0,
-                "is_active": _parse_bool(row.get("is_active", ""), default=True),
-            }
+                payload = {
+                    "category_id": category_id,
+                    "oem": row.get("oem") or None,
+                    "brand": row.get("brand") or None,
+                    "name": name,
+                    "description": row.get("description") or None,
+                    "price": _parse_optional_float(row.get("price", "")),
+                    "stock_quantity": _parse_optional_int(row.get("stock_quantity", "")) or 0,
+                    "is_active": _parse_bool(row.get("is_active", ""), default=True),
+                }
 
-            existing_result = await db.execute(select(Product).where(Product.sku == sku))
-            existing_product = existing_result.scalar_one_or_none()
+                existing_result = await db.execute(select(Product).where(Product.sku == sku))
+                existing_product = existing_result.scalar_one_or_none()
 
-            if existing_product:
-                for field, value in payload.items():
-                    setattr(existing_product, field, value)
-                updated += 1
-            else:
-                db.add(Product(sku=sku, **payload))
-                created += 1
+                if existing_product:
+                    for field, value in payload.items():
+                        setattr(existing_product, field, value)
+                    updated += 1
+                else:
+                    db.add(Product(sku=sku, **payload))
+                    created += 1
 
-        except ValueError as exc:
-            errors.append(f"Row {row_index}: {exc}")
+            except ValueError as exc:
+                collected_errors.append(f"Row {row_index}: {exc}")
 
-    await db.commit()
+        await db.commit()
 
-    audit = AuditLog(
-        action="import",
-        entity_type="product",
-        new_values={
+        snapshot_result = await db.execute(select(Product).order_by(Product.id))
+        snapshot_data = []
+        for product in snapshot_result.scalars().all():
+            snapshot_data.append(
+                {
+                    "id": product.id,
+                    "sku": product.sku,
+                    "category_id": product.category_id,
+                    "name": product.name,
+                    "price": product.price,
+                    "stock_quantity": product.stock_quantity,
+                    "is_active": product.is_active,
+                    "updated_at": product.updated_at.isoformat() if product.updated_at else None,
+                }
+            )
+
+        audit = AuditLog(
+            action="import",
+            entity_type="product",
+            new_values={
+                "run_id": run.id,
+                "file": file.filename,
+                "total": len(rows),
+                "created": created,
+                "updated": updated,
+                "failed": len(collected_errors),
+            },
+        )
+        db.add(audit)
+
+        run.status = "finished"
+        run.finished_at = datetime.utcnow()
+        run.summary = {
             "file": file.filename,
             "total": len(rows),
             "created": created,
             "updated": updated,
-            "failed": len(errors),
-        },
-    )
-    db.add(audit)
-    await db.commit()
+            "failed": len(collected_errors),
+        }
+        run.errors = collected_errors[:500]
+        run.snapshot_data = snapshot_data
+        await db.commit()
 
-    return {
-        "file": file.filename,
-        "total": len(rows),
-        "created": created,
-        "updated": updated,
-        "failed": len(errors),
-        "errors": errors[:100],
-    }
+        return {
+            "run_id": run.id,
+            "file": file.filename,
+            "total": len(rows),
+            "created": created,
+            "updated": updated,
+            "failed": len(collected_errors),
+            "errors": collected_errors[:100],
+        }
+    except HTTPException as http_exc:
+        await db.rollback()
+        if run_id is not None:
+            failed_run = await db.get(ImportRun, run_id)
+            if failed_run:
+                failed_run.status = "failed"
+                failed_run.finished_at = datetime.utcnow()
+                failed_run.errors = collected_errors[:500] + [str(http_exc.detail)]
+                await db.commit()
+        raise
+    except Exception as exc:
+        await db.rollback()
+        if run_id is not None:
+            failed_run = await db.get(ImportRun, run_id)
+            if failed_run:
+                failed_run.status = "failed"
+                failed_run.finished_at = datetime.utcnow()
+                failed_run.errors = collected_errors[:500] + [str(exc)]
+                await db.commit()
+        raise HTTPException(status_code=500, detail="Import failed. Please check file format and data.") from exc
 
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])

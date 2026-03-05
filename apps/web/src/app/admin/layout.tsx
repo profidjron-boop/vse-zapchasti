@@ -3,6 +3,50 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+
+type UserRole = "admin" | "manager" | "service_manager";
+
+type NavItem = {
+  href: string;
+  label: string;
+  roles: UserRole[];
+};
+
+const navItems: NavItem[] = [
+  { href: "/admin", label: "Дашборд", roles: ["admin"] },
+  { href: "/admin/content", label: "Редактор сайта", roles: ["admin"] },
+  { href: "/admin/leads", label: "Заявки (запчасти)", roles: ["admin", "manager"] },
+  { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
+  { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },
+  { href: "/admin/categories", label: "Категории", roles: ["admin", "manager"] },
+  { href: "/admin/service-requests", label: "Заявки (сервис)", roles: ["admin", "service_manager"] },
+];
+
+function canAccessPath(pathname: string, role: UserRole): boolean {
+  if (role === "admin") {
+    return true;
+  }
+
+  if (role === "manager") {
+    return (
+      pathname === "/admin/leads" ||
+      pathname.startsWith("/admin/leads/") ||
+      pathname === "/admin/vin-requests" ||
+      pathname.startsWith("/admin/vin-requests/") ||
+      pathname === "/admin/products" ||
+      pathname.startsWith("/admin/products/") ||
+      pathname === "/admin/categories" ||
+      pathname.startsWith("/admin/categories/")
+    );
+  }
+
+  if (role === "service_manager") {
+    return pathname === "/admin/service-requests" || pathname.startsWith("/admin/service-requests/");
+  }
+
+  return false;
+}
 
 export default function AdminLayout({
   children,
@@ -12,6 +56,7 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -21,8 +66,49 @@ export default function AdminLayout({
       if (!token && pathname !== '/admin/login') {
         router.push('/admin/login');
         setIsAuthenticated(false);
+        setUserRole(null);
       } else {
-        setIsAuthenticated(true);
+        try {
+          const apiBaseUrl = getClientApiBaseUrl();
+          const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/auth/me"), {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            localStorage.removeItem("admin_token");
+            setIsAuthenticated(false);
+            setUserRole(null);
+            router.push("/admin/login");
+            return;
+          }
+
+          const profile = (await response.json()) as { role?: string };
+          const role = profile.role;
+          if (role !== "admin" && role !== "manager" && role !== "service_manager") {
+            localStorage.removeItem("admin_token");
+            setIsAuthenticated(false);
+            setUserRole(null);
+            router.push("/admin/login");
+            return;
+          }
+
+          setIsAuthenticated(true);
+          setUserRole(role);
+
+          if (pathname !== "/admin/login" && !canAccessPath(pathname, role)) {
+            const fallback = navItems.find((item) => item.roles.includes(role));
+            router.push(fallback?.href || "/admin/login");
+            return;
+          }
+        } catch {
+          localStorage.removeItem("admin_token");
+          setIsAuthenticated(false);
+          setUserRole(null);
+          router.push("/admin/login");
+          return;
+        }
       }
       setIsLoading(false);
     };
@@ -46,15 +132,7 @@ export default function AdminLayout({
     return children;
   }
 
-  const navItems = [
-    { href: "/admin/content", label: "Редактор сайта" },
-    { href: "/admin", label: "Дашборд" },
-    { href: "/admin/vin-requests", label: "VIN-заявки" },
-    { href: "/admin/leads", label: "Заявки (запчасти)" },
-    { href: "/admin/service-requests", label: "Заявки (сервис)" },
-    { href: "/admin/products", label: "Товары" },
-    { href: "/admin/categories", label: "Категории" },
-  ];
+  const visibleNavItems = userRole ? navItems.filter((item) => item.roles.includes(userRole)) : [];
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -90,7 +168,7 @@ export default function AdminLayout({
           {/* Sidebar */}
           <nav className="w-64 shrink-0">
             <div className="rounded-2xl bg-white p-4 shadow-sm">
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
