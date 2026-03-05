@@ -54,6 +54,10 @@ make migrate-check # текущее состояние миграций (alembic
   - `pull_request`: `scripts/release-check.sh --skip-write-smoke`
   - `push main` / `workflow_dispatch`: `scripts/release-check.sh`
 
+Если GitHub недоступен:
+- `bash scripts/ci-local.sh --mode pr` — локальный эквивалент PR-пайплайна.
+- `bash scripts/ci-local.sh --mode main` — локальный эквивалент полного main/release пайплайна.
+
 Примечания:
 - Скрипт поднимает dev Postgres через docker compose при необходимости и ждёт порт 5433 перед `api:migrate-check`.
 - Использовать как “одна команда, чтобы проверить всё” перед коммитом/релизом.
