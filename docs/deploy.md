@@ -58,6 +58,16 @@
 6) Smoke tests (home, поиск, заявка/запись).
 7) Мониторинг/логи по scope.
 
+## CI release readiness
+- Workflow: `.github/workflows/release-check.yml`
+- Триггеры: `pull_request` в `main`, `push` в `main`, `workflow_dispatch`.
+- Проверка: one-command `scripts/release-check.sh`:
+  - `scripts/verify-all.sh`
+  - backup (`docs/backup.sh`)
+  - restore-check (`docs/restore-check.sh`)
+  - smoke (`scripts/smoke.sh` + `--with-write`)
+- Артефакты backup сохраняются в CI как `release-check-backups`.
+
 ## Trace ID и поиск ошибок (ops)
 - API назначает `trace_id` на каждый запрос:
   - если пришёл `X-Request-Id`, используется он;
