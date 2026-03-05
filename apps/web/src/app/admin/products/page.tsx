@@ -183,6 +183,7 @@ export default function AdminProductsPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Цена</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Остаток</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
@@ -198,6 +199,24 @@ export default function AdminProductsPage() {
                     <span className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
                       {product.is_active ? "Активен" : "Выключен"}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/admin/products/${product.id}`}
+                        className="rounded-lg border border-[#1F3B73]/20 bg-white px-2 py-1 text-xs font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5"
+                      >
+                        Редактировать
+                      </Link>
+                      <Link
+                        href={`/parts/p/${encodeURIComponent(product.sku)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                      >
+                        На сайте
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
