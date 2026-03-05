@@ -33,6 +33,10 @@ make migrate-check # текущее состояние миграций (alembic
    - `bash scripts/smoke.sh`
    - `bash scripts/smoke.sh --with-write`
    - `scripts/smoke.sh` сам поднимает `postgres` (`docker compose up -d postgres`), запускает API на `:8000` и Web на `:3000` (build + start), ждёт готовность `/health` и `/`, затем останавливает фоновые процессы API/Web по `trap EXIT`.
+   - Для admin smoke-check можно передать:
+     - готовый токен: `ADMIN_TOKEN=... bash scripts/smoke.sh --with-write`
+     - или логин/пароль: `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/smoke.sh --with-write`
+     - при заданных `SMOKE_ADMIN_EMAIL/SMOKE_ADMIN_PASSWORD` скрипт сам запрашивает `/api/admin/auth/token`.
 
 ## Runbook
 - `docs/release-rollback-runbook.md` — пошаговый release/rollback процесс
