@@ -171,6 +171,14 @@ export default function AdminReportsPage() {
     [leads]
   );
 
+  const latestOrders = useMemo(
+    () =>
+      [...orders]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 10),
+    [orders]
+  );
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -324,6 +332,34 @@ export default function AdminReportsPage() {
                     <td className="px-3 py-2">#{lead.id}</td>
                     <td className="px-3 py-2">{statusLabel(lead.status)}</td>
                     <td className="px-3 py-2">{new Date(lead.created_at).toLocaleString("ru-RU")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-4">
+        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Последние заказы</h2>
+        {latestOrders.length === 0 ? (
+          <p className="text-sm text-neutral-500">Нет данных</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">ID</th>
+                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Статус</th>
+                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Создан</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 text-sm">
+                {latestOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-3 py-2">#{order.id}</td>
+                    <td className="px-3 py-2">{statusLabel(order.status)}</td>
+                    <td className="px-3 py-2">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
                   </tr>
                 ))}
               </tbody>
