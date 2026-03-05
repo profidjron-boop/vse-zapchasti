@@ -5,7 +5,7 @@ from typing import List, Optional
 import uuid
 
 from database import get_db
-from models import Category, Product, Lead, ServiceRequest
+from models import Category, Product, Lead, ServiceRequest, SiteContent
 from schemas import (
     CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
     ServiceRequestCreate, ServiceRequestResponse
@@ -140,3 +140,12 @@ async def create_service_request(
     await db.commit()
     await db.refresh(db_request)
     return db_request
+
+# ---------- Public Content ----------
+@router.get("/content", response_model=List[dict])
+async def get_public_content(db: AsyncSession = Depends(get_db)):
+    """Get all public content (for frontend)"""
+    query = select(SiteContent).order_by(SiteContent.key)
+    result = await db.execute(query)
+    content = result.scalars().all()
+    return [{"key": c.key, "value": c.value} for c in content]
