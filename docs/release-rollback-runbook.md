@@ -17,7 +17,7 @@
 ## Release Procedure
 1. Release readiness (локально/CI):
    - `bash scripts/release-check.sh`
-2. Verify gates (локально/CI):
+2. (Опционально) ручной fallback verify, если нужен отдельный прогон по шагам:
    - `pnpm web:lint`
    - `pnpm web:typecheck`
    - `pnpm --dir apps/web run build`
