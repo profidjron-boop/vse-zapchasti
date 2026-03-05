@@ -23,7 +23,8 @@ make migrate-check # текущее состояние миграций (alembic
 2. `cd apps/api && make lint && make test && make migrate-check`
 3. `docker-compose build`
 4. `bash docs/backup.sh` — бэкап БД
-5. Smoke:
+5. `bash docs/restore-check.sh --input <path-to-backup.dump>` — проверка восстановления из backup
+6. Smoke:
    - `bash scripts/smoke.sh`
    - `bash scripts/smoke.sh --with-write`
    - `scripts/smoke.sh` сам поднимает `postgres` (`docker compose up -d postgres`), запускает API на `:8000` и Web на `:3000` (build + start), ждёт готовность `/health` и `/`, затем останавливает фоновые процессы API/Web по `trap EXIT`.

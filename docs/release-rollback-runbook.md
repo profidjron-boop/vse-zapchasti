@@ -8,6 +8,8 @@
 ## Preconditions
 1. Рабочая ветка синхронизирована, изменения закоммичены.
 2. Есть актуальный backup БД и проверка восстановления.
+   - `bash docs/backup.sh`
+   - `bash docs/restore-check.sh --input <path-to-backup.dump>`
 3. Доступны прод-`env`:
    - `apps/web/.env` (`API_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`)
    - `apps/api/.env` (`DATABASE_URL` и пр.)
@@ -48,6 +50,7 @@
 ## Release Checklist
 - Verify gates: green.
 - Backup БД сделан перед релизом.
+- Restore-check из backup пройден.
 - Миграции применены без ошибок.
 - Smoke (`GET`) green.
 - Smoke (`--with-write`) green.
