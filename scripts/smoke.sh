@@ -15,6 +15,8 @@ DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://vsez:vsez_dev_password_change
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-10}"
 STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-120}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
+SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-}"
+SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-}"
 WITH_WRITE=0
 API_PID=""
 WEB_PID=""
@@ -37,7 +39,8 @@ Options:
 
 Env:
   WEB_BASE_URL, API_BASE_URL, WEB_HOST, WEB_PORT, API_HOST, API_PORT, DATABASE_URL,
-  ADMIN_TOKEN, SMOKE_TIMEOUT_SECONDS, STARTUP_TIMEOUT_SECONDS
+  ADMIN_TOKEN, SMOKE_ADMIN_EMAIL, SMOKE_ADMIN_PASSWORD,
+  SMOKE_TIMEOUT_SECONDS, STARTUP_TIMEOUT_SECONDS
 EOF
 }
 
@@ -154,6 +157,49 @@ wait_for_http() {
   fail "Timeout waiting for $label at $url"
 }
 
+resolve_admin_token() {
+  if [[ -n "$ADMIN_TOKEN" ]]; then
+    return 0
+  fi
+
+  if [[ -z "$SMOKE_ADMIN_EMAIL" || -z "$SMOKE_ADMIN_PASSWORD" ]]; then
+    return 0
+  fi
+
+  log "ADMIN_TOKEN is empty: requesting admin token via credentials"
+
+  local tmp
+  tmp="$(mktemp)"
+
+  local code
+  code="$(curl -sS -m "$SMOKE_TIMEOUT_SECONDS" -o "$tmp" -w "%{http_code}" \
+    -X POST "$API_BASE_URL/api/admin/auth/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    --data-urlencode "username=$SMOKE_ADMIN_EMAIL" \
+    --data-urlencode "password=$SMOKE_ADMIN_PASSWORD")" || {
+      rm -f "$tmp"
+      fail "Request failed: POST $API_BASE_URL/api/admin/auth/token"
+    }
+
+  if [[ "$code" != "200" ]]; then
+    local preview
+    preview="$(head -c 240 "$tmp" | tr '\n' ' ')"
+    rm -f "$tmp"
+    fail "Admin token request failed: expected 200, got $code; body: $preview"
+  fi
+
+  ADMIN_TOKEN="$(
+    apps/api/.venv/bin/python -c \
+      'import json,sys; print((json.load(open(sys.argv[1])) or {}).get("access_token",""))' \
+      "$tmp"
+  )"
+  rm -f "$tmp"
+
+  if [[ -z "$ADMIN_TOKEN" ]]; then
+    fail "Admin token response does not contain access_token"
+  fi
+}
+
 require_prerequisites() {
   have curl || fail "curl is required"
   have docker || fail "docker is required"
@@ -225,6 +271,8 @@ EOF
 )"
 request_expect "201" "POST" "$API_BASE_URL/api/public/service-requests" "$service_payload"
 ok "public service-request create"
+
+resolve_admin_token
 
 if [[ -n "$ADMIN_TOKEN" ]]; then
   request_expect "200" "GET" "$API_BASE_URL/api/admin/auth/me" "" "$ADMIN_TOKEN"
