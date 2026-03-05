@@ -173,6 +173,7 @@ export default async function PartsPage({
 }: {
   searchParams: Promise<{
     q?: string;
+    direction?: string;
     vehicle_make?: string;
     vehicle_model?: string;
     vehicle_year?: string;
@@ -187,6 +188,8 @@ export default async function PartsPage({
 
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
+  const direction = params.direction?.trim().toLowerCase() ?? "";
+  const selectedDirection = direction === "parts" || direction === "oils" ? direction : "";
   const vehicleMake = params.vehicle_make?.trim() ?? "";
   const vehicleModel = params.vehicle_model?.trim() ?? "";
   const vehicleYear = params.vehicle_year?.trim() ?? "";
@@ -211,6 +214,17 @@ export default async function PartsPage({
       ? { sections: [] as CatalogSection[], hasError: false }
       : await getCatalogSections();
   const catalogSections = catalogResult.sections;
+  const visibleCatalogSections = catalogSections.filter((section) => {
+    if (!selectedDirection) return true;
+    const name = section.category.name.toLowerCase();
+    const isOilLike =
+      name.includes("масл")
+      || name.includes("смаз")
+      || name.includes("жидк")
+      || name.includes("расход")
+      || name.includes("фильтр");
+    return selectedDirection === "oils" ? isOilLike : !isOilLike;
+  });
   const catalogError = catalogResult.hasError;
   const brandName = contentValue("site_brand_name", "Все запчасти");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
@@ -263,6 +277,38 @@ export default async function PartsPage({
         </div>
 
         <form action="/parts" method="get" className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-lg">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Link
+              href="/parts?direction=parts"
+              className={`rounded-xl px-3 py-2 text-xs font-medium ${
+                selectedDirection === "parts"
+                  ? "bg-[#1F3B73] text-white"
+                  : "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100"
+              }`}
+            >
+              Запчасти (коммерческий транспорт)
+            </Link>
+            <Link
+              href="/parts?direction=oils"
+              className={`rounded-xl px-3 py-2 text-xs font-medium ${
+                selectedDirection === "oils"
+                  ? "bg-[#1F3B73] text-white"
+                  : "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100"
+              }`}
+            >
+              Масла и расходники
+            </Link>
+            {selectedDirection ? (
+              <Link
+                href="/parts"
+                className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Сбросить
+              </Link>
+            ) : null}
+          </div>
+
+          {selectedDirection ? <input type="hidden" name="direction" value={selectedDirection} /> : null}
           <label className="block text-sm font-semibold text-neutral-700">
             {searchLabel}
           </label>
@@ -337,7 +383,7 @@ export default async function PartsPage({
                     Не удалось загрузить категории и товары. Попробуйте поиск по артикулу или VIN-подбор.
                   </div>
                 </>
-              ) : catalogSections.length === 0 ? (
+              ) : visibleCatalogSections.length === 0 ? (
                 <>
                   <div className="text-sm font-semibold text-[#1F3B73]">Каталог пока пуст</div>
                   <div className="mt-1 text-sm text-neutral-600">
@@ -349,7 +395,7 @@ export default async function PartsPage({
                   <div className="text-sm font-semibold text-[#1F3B73]">
                     Категории и доступные товары
                   </div>
-                  {catalogSections.map((section) => (
+                  {visibleCatalogSections.map((section) => (
                     <div key={section.category.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <h2 className="text-base font-semibold text-[#1F3B73]">{section.category.name}</h2>
                       <div className="mt-3 grid gap-3">
