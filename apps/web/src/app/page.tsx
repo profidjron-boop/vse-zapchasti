@@ -14,12 +14,18 @@ export default function Page() {
               <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
             </nav>
             <div className="flex items-center gap-3">
-              <button className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]">
+              <Link
+                href="/contacts"
+                className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]"
+              >
                 Для дилеров
-              </button>
-              <button className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20">
+              </Link>
+              <Link
+                href="/contacts#callback-form"
+                className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20"
+              >
                 Заказать звонок
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -70,16 +76,20 @@ export default function Page() {
             <div className="mt-6 h-40 rounded-2xl bg-gradient-to-br from-[#1F3B73]/5 to-[#FF7A00]/5" />
             <div className="mt-6">
               <label className="text-sm font-medium text-neutral-700">Поиск по артикулу или OEM</label>
-              <div className="mt-2 flex gap-3">
+              <form action="/parts" method="get" className="mt-2 flex gap-3">
                 <input
                   type="text"
+                  name="q"
                   placeholder="Например: 06A905161B"
                   className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm focus:border-[#1F3B73] focus:outline-none"
                 />
-                <button className="rounded-2xl bg-[#1F3B73] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#14294F]">
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-[#1F3B73] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#14294F]"
+                >
                   Найти
                 </button>
-              </div>
+              </form>
               <Link href="/parts/vin" className="mt-4 inline-block text-sm font-medium text-[#FF7A00] hover:underline">
                 Оставить VIN-заявку →
               </Link>
@@ -112,9 +122,12 @@ export default function Page() {
               ))}
             </div>
             <div className="mt-8">
-              <button className="rounded-2xl border-2 border-[#FF7A00] px-6 py-3 font-medium text-[#FF7A00] transition hover:bg-[#FF7A00] hover:text-white">
+              <Link
+                href="/service#form"
+                className="inline-block rounded-2xl border-2 border-[#FF7A00] px-6 py-3 font-medium text-[#FF7A00] transition hover:bg-[#FF7A00] hover:text-white"
+              >
                 Записаться
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -159,9 +172,12 @@ export default function Page() {
                   </div>
                 ))}
               </div>
-              <button className="mt-8 rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-[#FF7A00]/20">
+              <Link
+                href="/service#form"
+                className="mt-8 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-[#FF7A00]/20"
+              >
                 Оставить заявку
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -176,9 +192,12 @@ export default function Page() {
               <p className="mt-2 text-white/80">
                 Закажите обратный звонок — мы подберём и привезём
               </p>
-              <button className="mt-6 rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-black/20">
+              <Link
+                href="/contacts#callback-form"
+                className="mt-6 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-black/20"
+              >
                 Оставьте заявку
-              </button>
+              </Link>
             </div>
             <div className="h-48 rounded-2xl bg-white/10" />
           </div>

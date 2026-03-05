@@ -1,5 +1,5 @@
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import UTC, datetime
 import os
 from threading import Lock
 import time
@@ -371,7 +371,7 @@ async def create_lead(
         lead.consent_text
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
-    lead_data["consent_at"] = datetime.utcnow()
+    lead_data["consent_at"] = datetime.now(UTC)
 
     db_lead = Lead(
         **lead_data,
@@ -404,7 +404,7 @@ async def create_service_request(
         request_data.consent_text
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
-    service_request_data["consent_at"] = datetime.utcnow()
+    service_request_data["consent_at"] = datetime.now(UTC)
 
     db_request = ServiceRequest(
         **service_request_data,
@@ -455,7 +455,7 @@ async def create_vin_request(
         request_data.consent_text
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
-    vin_request_data["consent_at"] = datetime.utcnow()
+    vin_request_data["consent_at"] = datetime.now(UTC)
 
     db_request = VinRequest(
         **vin_request_data,

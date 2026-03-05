@@ -27,7 +27,6 @@ export default function ContactsPage() {
       message: formData.get("message")?.toString().trim() || undefined,
       consent_given: consentGiven,
       consent_version: "v1.0",
-      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
     };
 
     try {
@@ -67,9 +66,12 @@ export default function ContactsPage() {
               <Link href="/contacts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Контакты</Link>
             </nav>
             <div className="flex items-center gap-3">
-              <button className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]">
+              <Link
+                href="/contacts"
+                className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]"
+              >
                 Для дилеров
-              </button>
+              </Link>
               <a
                 href="#callback-form"
                 className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20"
@@ -202,16 +204,35 @@ export default function ContactsPage() {
           </div>
 
           <div className="space-y-8">
-            {/* Карта (заглушка без внешних скриптов) */}
+            {/* Карта проезда (без внешних JS SDK, только ссылки) */}
             <div className="h-96 rounded-3xl bg-gradient-to-br from-[#1F3B73]/10 to-[#FF7A00]/10 p-8 shadow-xl">
-              <div className="flex h-full items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🗺️</div>
-                  <p className="text-neutral-600">Карта проезда</p>
-                  <p className="mt-2 text-sm text-neutral-500">
-                    660000, г. Красноярск, пр. Металлургов, 2В<br />
-                    (Яндекс.Карты / 2GIS — подключение только после решения по провайдеру)
+              <div className="flex h-full flex-col justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#1F3B73]">Карта проезда</h3>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    660000, г. Красноярск, пр. Металлургов, 2В
                   </p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Без встраивания внешних скриптов: открытие в отдельной вкладке.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    href="https://yandex.ru/maps/?text=%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D1%8F%D1%80%D1%81%D0%BA%2C%20%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%2C%202%D0%92"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
+                  >
+                    Открыть в Яндекс Картах
+                  </a>
+                  <a
+                    href="https://2gis.ru/krasnoyarsk/search/%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%202%D0%92"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-2xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Открыть в 2GIS
+                  </a>
                 </div>
               </div>
             </div>

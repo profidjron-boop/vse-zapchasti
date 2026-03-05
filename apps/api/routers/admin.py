@@ -1,5 +1,5 @@
 import csv
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import io
 import os
 from pathlib import Path
@@ -61,6 +61,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/auth/token")
 
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -70,9 +75,9 @@ def get_password_hash(password):
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = _utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = _utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -639,7 +644,7 @@ async def admin_import_products(
         entity_type="products",
         status="started",
         source=file.filename,
-        started_at=datetime.utcnow(),
+        started_at=_utcnow(),
         created_by=current_user.id,
         previous_successful_run_id=previous_run.id if previous_run else None,
     )
@@ -651,7 +656,7 @@ async def admin_import_products(
     if not file.filename:
         collected_errors.append("Filename is required.")
         run.status = "failed"
-        run.finished_at = datetime.utcnow()
+        run.finished_at = _utcnow()
         run.errors = collected_errors
         await db.commit()
         raise HTTPException(status_code=400, detail="Filename is required.")
@@ -664,7 +669,7 @@ async def admin_import_products(
         rows = _parse_import_rows(file.filename, content)
         if not rows:
             run.status = "finished"
-            run.finished_at = datetime.utcnow()
+            run.finished_at = _utcnow()
             run.summary = {"file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0}
             run.errors = []
             run.snapshot_data = []
@@ -789,7 +794,7 @@ async def admin_import_products(
         db.add(audit)
 
         run.status = "finished"
-        run.finished_at = datetime.utcnow()
+        run.finished_at = _utcnow()
         run.summary = {
             "file": file.filename,
             "total": len(rows),
@@ -816,7 +821,7 @@ async def admin_import_products(
             failed_run = await db.get(ImportRun, run_id)
             if failed_run:
                 failed_run.status = "failed"
-                failed_run.finished_at = datetime.utcnow()
+                failed_run.finished_at = _utcnow()
                 failed_run.errors = collected_errors[:500] + [str(http_exc.detail)]
                 await db.commit()
         raise
@@ -826,7 +831,7 @@ async def admin_import_products(
             failed_run = await db.get(ImportRun, run_id)
             if failed_run:
                 failed_run.status = "failed"
-                failed_run.finished_at = datetime.utcnow()
+                failed_run.finished_at = _utcnow()
                 failed_run.errors = collected_errors[:500] + [str(exc)]
                 await db.commit()
         raise HTTPException(status_code=500, detail="Import failed. Please check file format and data.") from exc
@@ -1126,7 +1131,7 @@ async def admin_update_service_request_status(
 
     service_request.status = next_status
     service_request.operator_comment = payload.operator_comment
-    service_request.updated_at = datetime.utcnow()
+    service_request.updated_at = _utcnow()
     await db.commit()
     await db.refresh(service_request)
 
@@ -1237,7 +1242,7 @@ async def admin_update_vin_request_status(
 
     vin_request.status = next_status
     vin_request.operator_comment = payload.operator_comment
-    vin_request.updated_at = datetime.utcnow()
+    vin_request.updated_at = _utcnow()
     await db.commit()
     await db.refresh(vin_request)
 
@@ -1536,7 +1541,7 @@ async def admin_update_lead_status(
     lead.status = next_status
     if comment is not None:
         lead.manager_comment = normalized_comment
-    lead.updated_at = datetime.utcnow()
+    lead.updated_at = _utcnow()
     
     await db.commit()
     

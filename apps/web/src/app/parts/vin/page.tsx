@@ -23,7 +23,6 @@ export default function VinRequestPage() {
       message: formData.get("message")?.toString().trim() || undefined,
       consent_given: formData.get("consent") === "on",
       consent_version: "v1.0",
-      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
     };
 
     try {

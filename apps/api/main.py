@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from database import engine
@@ -80,14 +81,32 @@ def _error_detail_with_trace(detail: str, trace_id: str) -> str:
     return f"{normalized} Код: {trace_id}"
 
 
+def _error_response(status_code: int, code: str, message: str, trace_id: str) -> JSONResponse:
+    normalized_message = message.strip() if message else "Ошибка запроса"
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": code,
+                "message": normalized_message,
+                "trace_id": trace_id,
+            },
+            # Backward compatibility for existing frontend handlers.
+            "detail": _error_detail_with_trace(normalized_message, trace_id),
+        },
+        headers={"X-Request-Id": trace_id},
+    )
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     trace_id = _get_trace_id(request)
     detail = exc.detail if isinstance(exc.detail, str) else "Ошибка запроса"
-    return JSONResponse(
+    return _error_response(
         status_code=exc.status_code,
-        content={"detail": _error_detail_with_trace(detail, trace_id)},
-        headers={"X-Request-Id": trace_id},
+        code=f"http_{exc.status_code}",
+        message=detail,
+        trace_id=trace_id,
     )
 
 
@@ -106,10 +125,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             ensure_ascii=False,
         )
     )
-    return JSONResponse(
+    return _error_response(
         status_code=422,
-        content={"detail": _error_detail_with_trace("Ошибка валидации запроса.", trace_id)},
-        headers={"X-Request-Id": trace_id},
+        code="validation_error",
+        message="Ошибка валидации запроса.",
+        trace_id=trace_id,
     )
 
 
@@ -129,10 +149,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             ensure_ascii=False,
         )
     )
-    return JSONResponse(
+    return _error_response(
         status_code=500,
-        content={"detail": _error_detail_with_trace("Внутренняя ошибка.", trace_id)},
-        headers={"X-Request-Id": trace_id},
+        code="internal_error",
+        message="Внутренняя ошибка.",
+        trace_id=trace_id,
     )
 
 
@@ -179,10 +200,39 @@ async def add_security_headers(request: Request, call_next):
 app.include_router(public.router)
 app.include_router(admin.router)
 
+
+async def _is_database_ready() -> bool:
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+
+
 @app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint"""
     return {"ok": True}
+
+
+@app.get("/api/health", tags=["health"])
+async def api_health_check():
+    """API health endpoint with DB check."""
+    db_ready = await _is_database_ready()
+    if not db_ready:
+        return JSONResponse(status_code=503, content={"ok": False, "database": "down"})
+    return {"ok": True, "database": "ok"}
+
+
+@app.get("/api/ready", tags=["health"])
+async def api_ready_check():
+    """Readiness endpoint for orchestrators."""
+    db_ready = await _is_database_ready()
+    if not db_ready:
+        return JSONResponse(status_code=503, content={"ok": False, "ready": False, "database": "down"})
+    return {"ok": True, "ready": True, "database": "ok"}
+
 
 @app.get("/", tags=["root"])
 async def root():
