@@ -1,16 +1,61 @@
 'use client';
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from 'js-cookie';
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+
+type Category = {
+  id: number;
+  name: string;
+};
 
 export default function NewProductPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        const token = Cookies.get("admin_token");
+        if (!token) {
+          router.push("/admin/login");
+          return;
+        }
+
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/categories"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.status === 401) {
+          Cookies.remove("admin_token");
+          router.push("/admin/login");
+          return;
+        }
+        if (!response.ok) {
+          throw new Error("Не удалось загрузить категории");
+        }
+
+        const payload = (await response.json()) as Category[];
+        setCategories(payload);
+      } catch (loadError) {
+        console.error(loadError);
+        setError("Не удалось загрузить категории. Обновите страницу.");
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+
+    void loadCategories();
+  }, [router]);
 
   async function parseError(response: Response, fallback: string): Promise<string> {
     try {
@@ -28,6 +73,44 @@ export default function NewProductPage() {
     setError("");
 
     const formData = new FormData(event.currentTarget);
+    const oldPriceRaw = formData.get("old_price");
+    const oldPrice = oldPriceRaw ? parseFloat(String(oldPriceRaw)) : null;
+    const discountLabel = String(formData.get("discount_label") || "").trim();
+    const analogsRaw = String(formData.get("analogs") || "").trim();
+    const analogs = analogsRaw
+      ? analogsRaw.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+
+    const compatMake = String(formData.get("compat_make") || "").trim();
+    const compatModel = String(formData.get("compat_model") || "").trim();
+    const compatYearFromRaw = String(formData.get("compat_year_from") || "").trim();
+    const compatYearToRaw = String(formData.get("compat_year_to") || "").trim();
+    const compatEngine = String(formData.get("compat_engine") || "").trim();
+
+    const compatibilities =
+      compatMake && compatModel
+        ? [
+            {
+              make: compatMake,
+              model: compatModel,
+              year_from: compatYearFromRaw ? parseInt(compatYearFromRaw, 10) : undefined,
+              year_to: compatYearToRaw ? parseInt(compatYearToRaw, 10) : undefined,
+              engine: compatEngine || undefined,
+            },
+          ]
+        : [];
+
+    const attributes: Record<string, unknown> = {};
+    if (oldPrice !== null && Number.isFinite(oldPrice) && oldPrice > 0) {
+      attributes.old_price = oldPrice;
+    }
+    if (discountLabel) {
+      attributes.discount_label = discountLabel;
+    }
+    if (analogs.length > 0) {
+      attributes.analogs = analogs;
+    }
+
     const data = {
       category_id: parseInt(formData.get("category_id") as string),
       sku: formData.get("sku"),
@@ -38,9 +121,9 @@ export default function NewProductPage() {
       price: formData.get("price") ? parseFloat(formData.get("price") as string) : null,
       stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
       is_active: formData.get("is_active") === "on",
-      attributes: {},
+      attributes,
       images: [],
-      compatibilities: []
+      compatibilities
     };
 
     try {
@@ -169,11 +252,15 @@ export default function NewProductPage() {
             <select
               name="category_id"
               required
+              disabled={categoriesLoading}
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
             >
-              <option value="">Выберите категорию</option>
-              <option value="1">Категория 1</option>
-              <option value="2">Категория 2</option>
+              <option value="">{categoriesLoading ? "Загрузка категорий..." : "Выберите категорию"}</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -202,6 +289,21 @@ export default function NewProductPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Старая цена (для акции)
+            </label>
+            <input
+              type="number"
+              name="old_price"
+              step="0.01"
+              min="0"
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
               Количество на складе
             </label>
             <input
@@ -209,6 +311,65 @@ export default function NewProductPage() {
               name="stock_quantity"
               defaultValue="0"
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Бейдж акции
+            </label>
+            <input
+              type="text"
+              name="discount_label"
+              placeholder="Например: -15% / Акция"
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Аналоги / кроссы (через запятую)
+          </label>
+          <input
+            type="text"
+            name="analogs"
+            placeholder="Например: 06A905161B, 06A905161C"
+            className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+          />
+        </div>
+
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+          <p className="text-sm font-medium text-neutral-700">Совместимость (1 позиция, опционально)</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <input
+              type="text"
+              name="compat_make"
+              placeholder="Марка (например, Mercedes)"
+              className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              type="text"
+              name="compat_model"
+              placeholder="Модель (например, Actros)"
+              className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              type="number"
+              name="compat_year_from"
+              placeholder="Год от"
+              className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              type="number"
+              name="compat_year_to"
+              placeholder="Год до"
+              className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              type="text"
+              name="compat_engine"
+              placeholder="Двигатель (опц.)"
+              className="md:col-span-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
             />
           </div>
         </div>
