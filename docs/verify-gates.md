@@ -46,6 +46,10 @@ make migrate-check # текущее состояние миграций (alembic
 
 - scripts/verify-all.sh
 
+## CI gates
+
+- `.github/workflows/release-check.yml` — CI job с one-command release readiness (`scripts/release-check.sh`) и upload backup artifacts.
+
 Примечания:
 - Скрипт поднимает dev Postgres через docker compose при необходимости и ждёт порт 5433 перед `api:migrate-check`.
 - Использовать как “одна команда, чтобы проверить всё” перед коммитом/релизом.
