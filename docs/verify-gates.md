@@ -37,6 +37,8 @@ make migrate-check # текущее состояние миграций (alembic
      - готовый токен: `ADMIN_TOKEN=... bash scripts/smoke.sh --with-write`
      - или логин/пароль: `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/smoke.sh --with-write`
      - при заданных `SMOKE_ADMIN_EMAIL/SMOKE_ADMIN_PASSWORD` скрипт сам запрашивает `/api/admin/auth/token`.
+     - чтобы не использовать рабочий admin, можно создать/обновить выделенного smoke-admin прямо в smoke:
+       `SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/smoke.sh --with-write`
 
 ## Runbook
 - `docs/release-rollback-runbook.md` — пошаговый release/rollback процесс

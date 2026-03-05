@@ -17,6 +17,7 @@ STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-120}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-}"
 SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-}"
+SMOKE_ADMIN_BOOTSTRAP="${SMOKE_ADMIN_BOOTSTRAP:-0}"
 WITH_WRITE=0
 API_PID=""
 WEB_PID=""
@@ -39,7 +40,7 @@ Options:
 
 Env:
   WEB_BASE_URL, API_BASE_URL, WEB_HOST, WEB_PORT, API_HOST, API_PORT, DATABASE_URL,
-  ADMIN_TOKEN, SMOKE_ADMIN_EMAIL, SMOKE_ADMIN_PASSWORD,
+  ADMIN_TOKEN, SMOKE_ADMIN_EMAIL, SMOKE_ADMIN_PASSWORD, SMOKE_ADMIN_BOOTSTRAP,
   SMOKE_TIMEOUT_SECONDS, STARTUP_TIMEOUT_SECONDS
 EOF
 }
@@ -200,6 +201,31 @@ resolve_admin_token() {
   fi
 }
 
+bootstrap_smoke_admin_user() {
+  if [[ "$SMOKE_ADMIN_BOOTSTRAP" != "1" ]]; then
+    return 0
+  fi
+
+  if [[ -z "$SMOKE_ADMIN_EMAIL" || -z "$SMOKE_ADMIN_PASSWORD" ]]; then
+    fail "SMOKE_ADMIN_BOOTSTRAP=1 requires SMOKE_ADMIN_EMAIL and SMOKE_ADMIN_PASSWORD"
+  fi
+
+  log "Ensuring dedicated smoke admin user exists"
+
+  local password_hash
+  password_hash="$(
+    (
+      cd apps/api
+      JWT_SECRET_KEY="${JWT_SECRET_KEY:-dev_smoke_secret_change_me}" ./.venv/bin/python -c \
+        "from routers.admin import get_password_hash; print(get_password_hash('${SMOKE_ADMIN_PASSWORD}'))"
+    )
+  )"
+
+  docker compose exec -T postgres psql -U vsez -d vsez -v ON_ERROR_STOP=1 \
+    -c "INSERT INTO users (email, password_hash, name, role, is_active, created_at, updated_at) VALUES ('${SMOKE_ADMIN_EMAIL}', '${password_hash}', 'Smoke Admin', 'admin', true, NOW(), NOW()) ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = 'admin', is_active = true, updated_at = NOW();" >/dev/null
+  ok "smoke admin ready"
+}
+
 require_prerequisites() {
   have curl || fail "curl is required"
   have docker || fail "docker is required"
@@ -271,6 +297,8 @@ EOF
 )"
 request_expect "201" "POST" "$API_BASE_URL/api/public/service-requests" "$service_payload"
 ok "public service-request create"
+
+bootstrap_smoke_admin_user
 
 resolve_admin_token
 
