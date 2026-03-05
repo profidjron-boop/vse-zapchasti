@@ -49,6 +49,7 @@ make migrate-check # текущее состояние миграций (alembic
 
 ## CI gates
 
+- `.github/workflows/verify-all.yml` — CI job с прогоном `scripts/verify-all.sh` на `pull_request`, `push main`, `workflow_dispatch`.
 - `.github/workflows/release-check.yml` — CI job с one-command release readiness (`scripts/release-check.sh`) и upload backup artifacts.
   - `pull_request`: `scripts/release-check.sh --skip-write-smoke`
   - `push main` / `workflow_dispatch`: `scripts/release-check.sh`

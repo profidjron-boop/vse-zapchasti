@@ -1,0 +1,55 @@
+name: verify-all
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-all:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read pinned runtime versions
+        id: versions
+        run: |
+          echo "node=$(awk '/^nodejs / {print $2}' .tool-versions)" >> "$GITHUB_OUTPUT"
+          echo "python=$(awk '/^python / {print $2}' .tool-versions)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.versions.outputs.node }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.versions.outputs.python }}
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Prepare API dependencies
+        run: |
+          mkdir -p apps/api/.venv/bin
+          ln -sf "$(command -v uv)" apps/api/.venv/bin/uv
+          cd apps/api
+          ./.venv/bin/uv sync
+
+      - name: Install Web dependencies
+        run: pnpm --dir apps/web install --frozen-lockfile
+
+      - name: Run verify-all
+        run: bash scripts/verify-all.sh
