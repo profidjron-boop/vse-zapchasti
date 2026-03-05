@@ -20,6 +20,7 @@ make migrate-check # текущее состояние миграций (alembic
 
 ## Release gates (перед публикацией)
 0. `bash scripts/release-check.sh` — единый прогон release readiness:
+   - preflight verify (`scripts/verify-all.sh`)
    - backup (`docs/backup.sh`)
    - restore-check (`docs/restore-check.sh`)
    - smoke (`scripts/smoke.sh` + `--with-write`)
