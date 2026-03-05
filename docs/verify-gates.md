@@ -28,6 +28,7 @@ make dev         # запуск dev сервера
 5. Smoke:
    - `bash scripts/smoke.sh`
    - `bash scripts/smoke.sh --with-write`
+   - `scripts/smoke.sh` сам поднимает `postgres` (`docker compose up -d postgres`), запускает API на `:8000` и Web на `:3000` (build + start), ждёт готовность `/health` и `/`, затем останавливает фоновые процессы API/Web по `trap EXIT`.
 
 ## Runbook
 - `docs/release-rollback-runbook.md` — пошаговый release/rollback процесс

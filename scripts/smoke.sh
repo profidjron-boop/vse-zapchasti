@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WEB_BASE_URL="${WEB_BASE_URL:-http://localhost:3000}"
-API_BASE_URL="${API_BASE_URL:-http://localhost:8000}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+WEB_HOST="${WEB_HOST:-127.0.0.1}"
+WEB_PORT="${WEB_PORT:-3000}"
+API_HOST="${API_HOST:-127.0.0.1}"
+API_PORT="${API_PORT:-8000}"
+WEB_BASE_URL="${WEB_BASE_URL:-http://${WEB_HOST}:${WEB_PORT}}"
+API_BASE_URL="${API_BASE_URL:-http://${API_HOST}:${API_PORT}}"
+DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://vsez:vsez_dev_password_change_me@localhost:5433/vsez}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-10}"
+STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-120}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 WITH_WRITE=0
+API_PID=""
+WEB_PID=""
+API_LOG=""
+WEB_LOG=""
 
 usage() {
   cat <<'EOF'
@@ -15,14 +29,15 @@ Usage:
   bash scripts/smoke.sh [--with-write] [--web-base URL] [--api-base URL] [--admin-token TOKEN]
 
 Options:
-  --with-write         Run write checks for public forms (creates test records)
+  --with-write         Run extra write checks for public leads endpoint
   --web-base URL       Override WEB base URL (default: http://localhost:3000)
   --api-base URL       Override API base URL (default: http://localhost:8000)
   --admin-token TOKEN  Optional admin JWT token for admin endpoint checks
   -h, --help           Show help
 
 Env:
-  WEB_BASE_URL, API_BASE_URL, ADMIN_TOKEN, SMOKE_TIMEOUT_SECONDS
+  WEB_BASE_URL, API_BASE_URL, WEB_HOST, WEB_PORT, API_HOST, API_PORT, DATABASE_URL,
+  ADMIN_TOKEN, SMOKE_TIMEOUT_SECONDS, STARTUP_TIMEOUT_SECONDS
 EOF
 }
 
@@ -63,6 +78,17 @@ ts() { date +"%Y-%m-%d %H:%M:%S"; }
 log() { echo "[$(ts)] $*"; }
 ok() { echo "✅ $*"; }
 fail() { echo "❌ $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+cleanup() {
+  if [[ -n "$WEB_PID" ]] && kill -0 "$WEB_PID" >/dev/null 2>&1; then
+    kill "$WEB_PID" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$API_PID" ]] && kill -0 "$API_PID" >/dev/null 2>&1; then
+    kill "$API_PID" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
 
 request_expect() {
   local expected="$1"
@@ -108,9 +134,73 @@ request_expect() {
   rm -f "$tmp"
 }
 
+wait_for_http() {
+  local expected="$1"
+  local method="$2"
+  local url="$3"
+  local label="$4"
+  local deadline=$(( $(date +%s) + STARTUP_TIMEOUT_SECONDS ))
+  local code
+
+  while [[ "$(date +%s)" -lt "$deadline" ]]; do
+    code="$(curl -sS -m "$SMOKE_TIMEOUT_SECONDS" -o /dev/null -w "%{http_code}" -X "$method" "$url" || true)"
+    if [[ "$code" == "$expected" ]]; then
+      ok "$label"
+      return 0
+    fi
+    sleep 1
+  done
+
+  fail "Timeout waiting for $label at $url"
+}
+
+require_prerequisites() {
+  have curl || fail "curl is required"
+  have docker || fail "docker is required"
+  have pnpm || fail "pnpm is required"
+  [[ -x "apps/api/.venv/bin/uv" ]] || fail "apps/api/.venv/bin/uv not found"
+}
+
+start_postgres() {
+  log "Starting postgres via docker compose"
+  docker compose up -d postgres >/dev/null
+  ok "postgres up"
+}
+
+start_api() {
+  API_LOG="$(mktemp)"
+  log "Starting API on $API_BASE_URL"
+  (
+    cd apps/api
+    DATABASE_URL="$DATABASE_URL" ./.venv/bin/uv run uvicorn main:app --host "$API_HOST" --port "$API_PORT"
+  ) >"$API_LOG" 2>&1 &
+  API_PID=$!
+  wait_for_http "200" "GET" "$API_BASE_URL/health" "api health ready"
+}
+
+start_web() {
+  WEB_LOG="$(mktemp)"
+  log "Building web"
+  pnpm --dir apps/web run build >/dev/null
+  ok "web build"
+
+  log "Starting web on $WEB_BASE_URL"
+  (
+    API_BASE_URL="$API_BASE_URL" NEXT_PUBLIC_API_BASE_URL="$API_BASE_URL" \
+      pnpm --dir apps/web run start -- --hostname "$WEB_HOST" --port "$WEB_PORT"
+  ) >"$WEB_LOG" 2>&1 &
+  WEB_PID=$!
+  wait_for_http "200" "GET" "$WEB_BASE_URL/" "web ready"
+}
+
 log "Smoke start"
 log "WEB_BASE_URL=$WEB_BASE_URL"
 log "API_BASE_URL=$API_BASE_URL"
+
+require_prerequisites
+start_postgres
+start_api
+start_web
 
 request_expect "200" "GET" "$WEB_BASE_URL/"
 ok "web home"
@@ -127,6 +217,14 @@ ok "catalog list"
 request_expect "200" "GET" "$API_BASE_URL/api/public/products?search=test&limit=1"
 ok "catalog search"
 
+stamp="$(date +%s)"
+service_payload="$(cat <<EOF
+{"vehicle_type":"passenger","service_type":"Диагностика","name":"Smoke Service","phone":"+7888000${stamp: -4}","description":"smoke service request","consent_given":true,"consent_version":"v1.0","consent_text":"smoke consent"}
+EOF
+)"
+request_expect "201" "POST" "$API_BASE_URL/api/public/service-requests" "$service_payload"
+ok "public service-request create"
+
 if [[ -n "$ADMIN_TOKEN" ]]; then
   request_expect "200" "GET" "$API_BASE_URL/api/admin/auth/me" "" "$ADMIN_TOKEN"
   ok "admin auth/me"
@@ -139,23 +237,14 @@ else
 fi
 
 if [[ "$WITH_WRITE" -eq 1 ]]; then
-  stamp="$(date +%s)"
-
   lead_payload="$(cat <<EOF
 {"type":"callback","name":"Smoke Test","phone":"+7999000${stamp: -4}","message":"smoke callback","consent_given":true,"consent_version":"v1.0","consent_text":"smoke consent"}
 EOF
 )"
   request_expect "201" "POST" "$API_BASE_URL/api/public/leads" "$lead_payload"
   ok "public lead create"
-
-  service_payload="$(cat <<EOF
-{"vehicle_type":"passenger","service_type":"Диагностика","name":"Smoke Service","phone":"+7888000${stamp: -4}","description":"smoke service request","consent_given":true,"consent_version":"v1.0","consent_text":"smoke consent"}
-EOF
-)"
-  request_expect "201" "POST" "$API_BASE_URL/api/public/service-requests" "$service_payload"
-  ok "public service-request create"
 else
-  log "--with-write not set: skip write checks"
+  log "--with-write not set: skip extra lead write check"
 fi
 
 log "Smoke done"

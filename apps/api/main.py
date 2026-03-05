@@ -46,11 +46,7 @@ app.include_router(admin.router)
 @app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint"""
-    return {
-        "status": "ok",
-        "service": "vse-zapchasti-api",
-        "version": "0.1.0"
-    }
+    return {"ok": True}
 
 @app.get("/", tags=["root"])
 async def root():
