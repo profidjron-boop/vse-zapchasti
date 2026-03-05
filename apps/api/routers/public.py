@@ -17,8 +17,30 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/api/public", tags=["public"])
-FORM_RATE_LIMIT_PER_MINUTE = int(os.getenv("PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", "20"))
-FORM_RATE_LIMIT_WINDOW_SECONDS = 60
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+FORM_RATE_LIMIT_WINDOW_SECONDS = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS", 60)
+DEFAULT_FORM_RATE_LIMIT_PER_MINUTE = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", 20)
+FORM_RATE_LIMITS_PER_SCOPE = {
+    "leads": _env_positive_int("PUBLIC_LEADS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
+    "service_requests": _env_positive_int(
+        "PUBLIC_SERVICE_REQUESTS_RATE_LIMIT_PER_MINUTE",
+        DEFAULT_FORM_RATE_LIMIT_PER_MINUTE,
+    ),
+    "vin_requests": _env_positive_int(
+        "PUBLIC_VIN_REQUESTS_RATE_LIMIT_PER_MINUTE",
+        DEFAULT_FORM_RATE_LIMIT_PER_MINUTE,
+    ),
+}
 _rate_limit_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
 
@@ -27,14 +49,18 @@ def _enforce_form_rate_limit(request: Request, scope: str) -> None:
     ip_address = request.client.host if request.client else "unknown"
     bucket_key = f"{scope}:{ip_address}"
     now = time.time()
+    limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE)
 
     with _rate_limit_lock:
         bucket = _rate_limit_buckets[bucket_key]
         while bucket and now - bucket[0] > FORM_RATE_LIMIT_WINDOW_SECONDS:
             bucket.popleft()
 
-        if len(bucket) >= FORM_RATE_LIMIT_PER_MINUTE:
-            raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+        if len(bucket) >= limit_per_minute:
+            raise HTTPException(
+                status_code=429,
+                detail="Слишком много запросов. Попробуйте позже.",
+            )
 
         bucket.append(now)
 
