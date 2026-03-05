@@ -39,6 +39,28 @@
 6) Smoke tests (home, поиск, заявка/запись).
 7) Мониторинг/логи по scope.
 
+## Trace ID и поиск ошибок (ops)
+- API назначает `trace_id` на каждый запрос:
+  - если пришёл `X-Request-Id`, используется он;
+  - иначе генерируется UUID.
+- `trace_id` возвращается в ответе как заголовок `X-Request-Id`.
+- Ошибки API отдаются без трассировок, в формате `detail` с хвостом `Код: <trace_id>`.
+- Access-логи API пишутся в structured JSON и включают минимум:
+  - `method`, `path`, `status`, `duration_ms`, `trace_id`, `user_id` (если есть).
+- Поиск инцидента:
+  1) взять `trace_id` из сообщения пользователя (`Код: ...`) или из `X-Request-Id`;
+  2) найти запись в логах API по `trace_id`;
+  3) сверить `path/status/duration_ms/user_id` и связанный временной интервал.
+
+## Стратегия каталога при импортах
+- Публичные эндпоинты каталога (`/api/public/products*`) поддерживают режимы чтения:
+  - `PUBLIC_PRODUCTS_READ_MODE=snapshot` (по умолчанию) — читать из `last successful snapshot` (`import_runs.snapshot_data`).
+  - `PUBLIC_PRODUCTS_READ_MODE=table` — читать из основной таблицы `products`.
+- Для строгой гарантии стабильной публички использовать `snapshot`:
+  - во время неуспешного импорта (`status=failed`) публичка продолжает читать последний `status=finished` snapshot;
+  - новый набор становится публичным только после успешного завершения импорта и фиксации snapshot.
+- Если успешных snapshot ещё нет, API автоматически использует fallback на `products`.
+
 ## Backups (обязательно перед релизом)
 - Регулярные бэкапы Postgres + проверка восстановления.
 - Документировать restore steps.
