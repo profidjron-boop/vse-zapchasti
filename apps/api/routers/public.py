@@ -352,7 +352,11 @@ async def get_products(
         )
         return filtered[offset : offset + limit]
 
-    query = select(Product).where(Product.is_active)
+    query = (
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.is_active)
+    )
     
     if category_id:
         query = query.where(Product.category_id == category_id)
@@ -430,7 +434,11 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
                 return product
         raise HTTPException(status_code=404, detail="Product not found")
 
-    query = select(Product).where(Product.id == product_id, Product.is_active)
+    query = (
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.id == product_id, Product.is_active)
+    )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
     
@@ -449,7 +457,11 @@ async def get_product_by_sku(sku: str, db: AsyncSession = Depends(get_db)):
                 return product
         raise HTTPException(status_code=404, detail="Product not found")
 
-    query = select(Product).where(Product.sku == sku, Product.is_active)
+    query = (
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.sku == sku, Product.is_active)
+    )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
     

@@ -13,7 +13,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +26,7 @@ from models import (
     Lead,
     Order,
     Product,
+    ProductCompatibility,
     ProductImage,
     ServiceCatalogItem,
     ServiceRequest,
@@ -591,7 +592,13 @@ async def admin_get_products(
     current_user: User = Depends(get_catalog_user)
 ):
     """Get all products (admin only)"""
-    query = select(Product).offset(skip).limit(limit).order_by(Product.id)
+    query = (
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .offset(skip)
+        .limit(limit)
+        .order_by(Product.id)
+    )
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -602,7 +609,11 @@ async def admin_get_product(
     current_user: User = Depends(get_catalog_user)
 ):
     """Get product by ID (admin)"""
-    query = select(Product).where(Product.id == product_id)
+    query = (
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.id == product_id)
+    )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
     
@@ -621,12 +632,29 @@ async def admin_create_product(
     existing = await db.execute(select(Product).where(Product.sku == product.sku))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="SKU already exists")
-    
-    db_product = Product(**product.model_dump())
+
+    product_data = product.model_dump(exclude={"images", "compatibilities"})
+    db_product = Product(**product_data)
     db.add(db_product)
+
+    await db.flush()
+
+    for compatibility in product.compatibilities:
+        db_compatibility = ProductCompatibility(
+            product_id=db_product.id,
+            **compatibility.model_dump(),
+        )
+        db.add(db_compatibility)
+
+    for image in product.images:
+        db_image = ProductImage(
+            product_id=db_product.id,
+            **image.model_dump(),
+        )
+        db.add(db_image)
+
     await db.commit()
-    await db.refresh(db_product)
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
@@ -637,8 +665,13 @@ async def admin_create_product(
     )
     db.add(audit)
     await db.commit()
-    
-    return db_product
+
+    created_result = await db.execute(
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.id == db_product.id)
+    )
+    return created_result.scalar_one()
 
 
 @router.post("/products/{product_id}/images", response_model=ProductImageResponse, status_code=201)
@@ -706,7 +739,11 @@ async def admin_update_product(
     current_user: User = Depends(get_catalog_user)
 ):
     """Update product"""
-    query = select(Product).where(Product.id == product_id)
+    query = (
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.id == product_id)
+    )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
     
@@ -718,16 +755,37 @@ async def admin_update_product(
         "sku": product.sku,
         "name": product.name,
         "price": product.price,
-        "stock_quantity": product.stock_quantity
+        "stock_quantity": product.stock_quantity,
+        "compatibilities": [
+            {
+                "make": compatibility.make,
+                "model": compatibility.model,
+                "year_from": compatibility.year_from,
+                "year_to": compatibility.year_to,
+                "engine": compatibility.engine,
+            }
+            for compatibility in product.compatibilities
+        ],
     }
-    
-    # Update only provided fields
-    update_data = product_update.model_dump(exclude_unset=True)
+
+    has_compatibilities_update = "compatibilities" in product_update.model_fields_set
+
+    # Update only provided scalar fields
+    update_data = product_update.model_dump(exclude_unset=True, exclude={"compatibilities"})
     for field, value in update_data.items():
         setattr(product, field, value)
+
+    if has_compatibilities_update:
+        await db.execute(delete(ProductCompatibility).where(ProductCompatibility.product_id == product_id))
+        for compatibility in product_update.compatibilities or []:
+            db.add(
+                ProductCompatibility(
+                    product_id=product_id,
+                    **compatibility.model_dump(),
+                )
+            )
     
     await db.commit()
-    await db.refresh(product)
     
     # Audit log
     audit = AuditLog(
@@ -736,12 +794,26 @@ async def admin_update_product(
         entity_type="product",
         entity_id=product_id,
         old_values=old_values,
-        new_values=update_data
+        new_values={
+            **update_data,
+            **(
+                {
+                    "compatibilities": [item.model_dump() for item in (product_update.compatibilities or [])]
+                }
+                if has_compatibilities_update
+                else {}
+            ),
+        }
     )
     db.add(audit)
     await db.commit()
-    
-    return product
+
+    updated_result = await db.execute(
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.id == product_id)
+    )
+    return updated_result.scalar_one()
 
 @router.delete("/products/{product_id}", status_code=204)
 async def admin_delete_product(

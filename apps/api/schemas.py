@@ -107,6 +107,7 @@ class ProductUpdate(BaseModel):
     stock_quantity: Optional[int] = None
     is_active: Optional[bool] = None
     attributes: Optional[Dict[str, Any]] = None
+    compatibilities: Optional[List[ProductCompatibilityBase]] = None
 
 class ProductResponse(ProductBase):
     id: int
