@@ -143,7 +143,7 @@ wait_for_http() {
   local code
 
   while [[ "$(date +%s)" -lt "$deadline" ]]; do
-    code="$(curl -sS -m "$SMOKE_TIMEOUT_SECONDS" -o /dev/null -w "%{http_code}" -X "$method" "$url" || true)"
+    code="$(curl -s -m "$SMOKE_TIMEOUT_SECONDS" -o /dev/null -w "%{http_code}" -X "$method" "$url" 2>/dev/null || true)"
     if [[ "$code" == "$expected" ]]; then
       ok "$label"
       return 0
