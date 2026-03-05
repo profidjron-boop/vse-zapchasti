@@ -8,12 +8,13 @@ import uuid
 import zipfile
 from xml.etree import ElementTree as ET
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from database import get_db
 from models import (
@@ -72,7 +73,11 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
+async def get_current_user(
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+):
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
@@ -92,6 +97,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     
     if user is None:
         raise credentials_exception
+    request.state.user_id = user.id
     return user
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
@@ -323,6 +329,56 @@ def _parse_bool(value: str, default: bool = True) -> bool:
     if not raw:
         return default
     return raw in {"1", "true", "yes", "y", "on", "да"}
+
+
+def _extract_import_counts(run: ImportRun) -> dict[str, int]:
+    summary = run.summary if isinstance(run.summary, dict) else {}
+
+    def _to_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    created = _to_int(summary.get("created"), 0)
+    updated = _to_int(summary.get("updated"), 0)
+    failed = _to_int(summary.get("failed"), len(run.errors or []))
+    total = _to_int(summary.get("total"), created + updated + failed)
+
+    return {
+        "total": total,
+        "created": created,
+        "updated": updated,
+        "failed": failed,
+    }
+
+
+def _serialize_import_run(run: ImportRun, users_by_id: dict[int, str]) -> dict[str, Any]:
+    counts = _extract_import_counts(run)
+    return {
+        "id": run.id,
+        "entity_type": run.entity_type,
+        "status": run.status,
+        "source": run.source,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "created_by": run.created_by,
+        "created_by_user": users_by_id.get(run.created_by) if run.created_by else None,
+        "total": counts["total"],
+        "created": counts["created"],
+        "updated": counts["updated"],
+        "failed": counts["failed"],
+        "details_url": f"/admin/imports/{run.id}",
+        "previous_successful_run_id": run.previous_successful_run_id,
+    }
+
+
+async def _load_users_map(db: AsyncSession, user_ids: set[int]) -> dict[int, str]:
+    if not user_ids:
+        return {}
+
+    users_result = await db.execute(select(User.id, User.email).where(User.id.in_(user_ids)))
+    return {row[0]: row[1] for row in users_result.all()}
 
 # ---------- Authentication ----------
 @router.post("/auth/token", response_model=TokenResponse)
@@ -649,18 +705,37 @@ async def admin_import_products(
 
         await db.commit()
 
-        snapshot_result = await db.execute(select(Product).order_by(Product.id))
+        snapshot_result = await db.execute(
+            select(Product).options(selectinload(Product.images)).order_by(Product.id)
+        )
         snapshot_data = []
         for product in snapshot_result.scalars().all():
+            images = sorted(
+                product.images or [],
+                key=lambda image: (image.sort_order, image.id),
+            )
             snapshot_data.append(
                 {
                     "id": product.id,
                     "sku": product.sku,
                     "category_id": product.category_id,
+                    "oem": product.oem,
+                    "brand": product.brand,
                     "name": product.name,
+                    "description": product.description,
                     "price": product.price,
                     "stock_quantity": product.stock_quantity,
                     "is_active": product.is_active,
+                    "attributes": product.attributes or {},
+                    "images": [
+                        {
+                            "id": image.id,
+                            "url": image.url,
+                            "sort_order": image.sort_order,
+                            "is_main": image.is_main,
+                        }
+                        for image in images
+                    ],
                     "updated_at": product.updated_at.isoformat() if product.updated_at else None,
                 }
             )
@@ -721,6 +796,91 @@ async def admin_import_products(
                 failed_run.errors = collected_errors[:500] + [str(exc)]
                 await db.commit()
         raise HTTPException(status_code=500, detail="Import failed. Please check file format and data.") from exc
+
+
+@router.get("/imports", response_model=List[dict])
+async def admin_get_import_runs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    entity_type: Optional[str] = Query(None, description="Filter by import entity type"),
+    status: Optional[str] = Query(None, description="Filter by import status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """List import runs for admin imports dashboard."""
+    query = select(ImportRun)
+
+    if entity_type:
+        query = query.where(ImportRun.entity_type == entity_type.strip().lower())
+    if status:
+        query = query.where(ImportRun.status == status.strip().lower())
+
+    query = query.order_by(ImportRun.started_at.desc(), ImportRun.id.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    runs = result.scalars().all()
+
+    user_ids = {run.created_by for run in runs if run.created_by is not None}
+    users_by_id = await _load_users_map(db, user_ids)
+
+    return [_serialize_import_run(run, users_by_id) for run in runs]
+
+
+@router.get("/imports/{run_id}", response_model=dict)
+async def admin_get_import_run_details(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Get full import run details for admin view."""
+    run = await db.get(ImportRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Import run not found")
+
+    users_by_id = await _load_users_map(db, {run.created_by} if run.created_by is not None else set())
+    counts = _extract_import_counts(run)
+
+    errors_raw = run.errors if isinstance(run.errors, list) else []
+    errors = [str(item) for item in errors_raw]
+
+    snapshot_items = run.snapshot_data if isinstance(run.snapshot_data, list) else []
+    sample_keys: list[str] = []
+    if snapshot_items and isinstance(snapshot_items[0], dict):
+        sample_keys = sorted(str(key) for key in snapshot_items[0].keys())
+
+    previous = None
+    if run.previous_successful_run_id is not None:
+        previous_run = await db.get(ImportRun, run.previous_successful_run_id)
+        if previous_run:
+            previous = {
+                "id": previous_run.id,
+                "status": previous_run.status,
+                "source": previous_run.source,
+                "finished_at": previous_run.finished_at,
+            }
+
+    return {
+        "id": run.id,
+        "entity_type": run.entity_type,
+        "status": run.status,
+        "source": run.source,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "created_by": run.created_by,
+        "created_by_user": users_by_id.get(run.created_by) if run.created_by is not None else None,
+        "total": counts["total"],
+        "created": counts["created"],
+        "updated": counts["updated"],
+        "failed": counts["failed"],
+        "summary": run.summary if isinstance(run.summary, dict) else {},
+        "errors": errors,
+        "errors_count": len(errors),
+        "previous_successful_run": previous,
+        "snapshot_metadata": {
+            "items_count": len(snapshot_items),
+            "has_snapshot": bool(snapshot_items),
+            "sample_keys": sample_keys[:20],
+        },
+    }
 
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])

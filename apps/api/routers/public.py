@@ -6,11 +6,11 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
-from typing import List, Optional
+from typing import Any, List, Optional
 import uuid
 
 from database import get_db
-from models import AuditLog, Category, Product, Lead, ServiceRequest, SiteContent, VinRequest
+from models import AuditLog, Category, ImportRun, Product, Lead, ServiceRequest, SiteContent, VinRequest
 from schemas import (
     CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
     ServiceRequestCreate, ServiceRequestResponse, VinRequestCreate, VinRequestResponse
@@ -43,6 +43,7 @@ FORM_RATE_LIMITS_PER_SCOPE = {
 }
 _rate_limit_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
+PUBLIC_PRODUCTS_READ_MODE = os.getenv("PUBLIC_PRODUCTS_READ_MODE", "snapshot").strip().lower()
 
 
 def _enforce_form_rate_limit(request: Request, scope: str) -> None:
@@ -63,6 +64,161 @@ def _enforce_form_rate_limit(request: Request, scope: str) -> None:
             )
 
         bucket.append(now)
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_snapshot_images(raw_images: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_images, list):
+        return []
+
+    images: list[dict[str, Any]] = []
+    for raw_image in raw_images:
+        if not isinstance(raw_image, dict):
+            continue
+
+        url = raw_image.get("url")
+        if not isinstance(url, str) or not url:
+            continue
+
+        images.append(
+            {
+                "id": _to_int(raw_image.get("id"), 0),
+                "url": url,
+                "sort_order": _to_int(raw_image.get("sort_order"), 0),
+                "is_main": bool(raw_image.get("is_main", False)),
+            }
+        )
+
+    images.sort(key=lambda item: (item["sort_order"], item["id"]))
+    return images
+
+
+def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
+    if not isinstance(raw_product, dict):
+        return None
+
+    sku = raw_product.get("sku")
+    name = raw_product.get("name")
+    category_id = raw_product.get("category_id")
+    product_id = raw_product.get("id")
+
+    if not isinstance(sku, str) or not sku.strip():
+        return None
+    if not isinstance(name, str) or not name.strip():
+        return None
+
+    normalized = {
+        "id": _to_int(product_id, 0),
+        "category_id": _to_int(category_id, 0),
+        "sku": sku.strip(),
+        "oem": raw_product.get("oem") if isinstance(raw_product.get("oem"), str) else None,
+        "brand": raw_product.get("brand") if isinstance(raw_product.get("brand"), str) else None,
+        "name": name.strip(),
+        "description": raw_product.get("description") if isinstance(raw_product.get("description"), str) else None,
+        "price": _to_float(raw_product.get("price")),
+        "stock_quantity": _to_int(raw_product.get("stock_quantity"), 0),
+        "is_active": bool(raw_product.get("is_active", True)),
+        "attributes": raw_product.get("attributes") if isinstance(raw_product.get("attributes"), dict) else {},
+        "images": _normalize_snapshot_images(raw_product.get("images")),
+        "compatibilities": [],
+    }
+
+    if normalized["id"] <= 0 or normalized["category_id"] <= 0:
+        return None
+
+    return normalized
+
+
+async def _load_latest_products_snapshot(db: AsyncSession) -> Optional[list[dict[str, Any]]]:
+    if PUBLIC_PRODUCTS_READ_MODE != "snapshot":
+        return None
+
+    run_result = await db.execute(
+        select(ImportRun)
+        .where(ImportRun.entity_type == "products", ImportRun.status == "finished")
+        .order_by(ImportRun.id.desc())
+        .limit(1)
+    )
+    run = run_result.scalar_one_or_none()
+    if not run or not isinstance(run.snapshot_data, list):
+        return None
+
+    products: list[dict[str, Any]] = []
+    for raw_product in run.snapshot_data:
+        normalized = _normalize_snapshot_product(raw_product)
+        if normalized is not None:
+            products.append(normalized)
+
+    return products
+
+
+def _apply_snapshot_filters(
+    products: list[dict[str, Any]],
+    *,
+    category_id: Optional[int] = None,
+    search: Optional[str] = None,
+    brand: Optional[str] = None,
+    in_stock_only: bool = False,
+) -> list[dict[str, Any]]:
+    filtered = [product for product in products if product.get("is_active", False)]
+
+    if category_id:
+        filtered = [product for product in filtered if product.get("category_id") == category_id]
+
+    if brand:
+        brand_normalized = brand.strip().lower()
+        filtered = [
+            product
+            for product in filtered
+            if isinstance(product.get("brand"), str) and product.get("brand", "").strip().lower() == brand_normalized
+        ]
+
+    if in_stock_only:
+        filtered = [product for product in filtered if _to_int(product.get("stock_quantity"), 0) > 0]
+
+    if search:
+        search_text = " ".join(search.strip().lower().split())
+        if search_text:
+            tokens = [token for token in search_text.split(" ") if token]
+            scored: list[tuple[tuple[int, int, int], dict[str, Any]]] = []
+            for product in filtered:
+                search_blob = " ".join(
+                    (
+                        str(product.get("name") or "").lower(),
+                        str(product.get("sku") or "").lower(),
+                        str(product.get("oem") or "").lower(),
+                        str(product.get("brand") or "").lower(),
+                    )
+                )
+                token_hits = sum(1 for token in tokens if token in search_blob)
+                if token_hits == 0 and search_text not in search_blob:
+                    continue
+                exact_sku = int(str(product.get("sku") or "").lower() == search_text)
+                scored.append(((exact_sku, token_hits, _to_int(product.get("id"), 0)), product))
+
+            scored.sort(key=lambda item: item[0], reverse=True)
+            filtered = [item[1] for item in scored]
+        else:
+            filtered.sort(key=lambda product: _to_int(product.get("id"), 0))
+    else:
+        filtered.sort(key=lambda product: _to_int(product.get("id"), 0))
+
+    return filtered
 
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])
@@ -105,6 +261,17 @@ async def get_products(
     db: AsyncSession = Depends(get_db)
 ):
     """Get products with filters and search"""
+    snapshot_products = await _load_latest_products_snapshot(db)
+    if snapshot_products is not None:
+        filtered = _apply_snapshot_filters(
+            snapshot_products,
+            category_id=category_id,
+            search=search,
+            brand=brand,
+            in_stock_only=in_stock_only,
+        )
+        return filtered[offset : offset + limit]
+
     query = select(Product).where(Product.is_active)
     
     if category_id:
@@ -151,6 +318,13 @@ async def get_products(
 @router.get("/products/{product_id}", response_model=ProductResponse)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     """Get product by ID"""
+    snapshot_products = await _load_latest_products_snapshot(db)
+    if snapshot_products is not None:
+        for product in snapshot_products:
+            if product.get("id") == product_id and product.get("is_active", False):
+                return product
+        raise HTTPException(status_code=404, detail="Product not found")
+
     query = select(Product).where(Product.id == product_id, Product.is_active)
     result = await db.execute(query)
     product = result.scalar_one_or_none()
@@ -162,6 +336,14 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
 @router.get("/products/by-sku/{sku}", response_model=ProductResponse)
 async def get_product_by_sku(sku: str, db: AsyncSession = Depends(get_db)):
     """Get product by SKU"""
+    snapshot_products = await _load_latest_products_snapshot(db)
+    if snapshot_products is not None:
+        sku_normalized = sku.strip()
+        for product in snapshot_products:
+            if product.get("sku") == sku_normalized and product.get("is_active", False):
+                return product
+        raise HTTPException(status_code=404, detail="Product not found")
+
     query = select(Product).where(Product.sku == sku, Product.is_active)
     result = await db.execute(query)
     product = result.scalar_one_or_none()
