@@ -106,13 +106,32 @@ async function getCatalogSections() {
   };
 }
 
-async function searchProducts(query: string) {
-  if (!query) return [];
+async function searchProducts(
+  query: string,
+  filters: {
+    vehicleMake?: string;
+    vehicleModel?: string;
+    vehicleYear?: string;
+    vehicleEngine?: string;
+  }
+) {
+  const hasVehicleFilters = Boolean(
+    filters.vehicleMake || filters.vehicleModel || filters.vehicleYear || filters.vehicleEngine
+  );
+  if (!query && !hasVehicleFilters) return [];
 
   try {
     const apiBaseUrl = getServerApiBaseUrl();
+    const params = new URLSearchParams();
+    if (query) params.set("search", query);
+    if (filters.vehicleMake) params.set("vehicle_make", filters.vehicleMake);
+    if (filters.vehicleModel) params.set("vehicle_model", filters.vehicleModel);
+    if (filters.vehicleYear) params.set("vehicle_year", filters.vehicleYear);
+    if (filters.vehicleEngine) params.set("vehicle_engine", filters.vehicleEngine);
+    params.set("limit", "10");
+
     const res = await fetch(
-      withApiBase(apiBaseUrl, `/api/public/products?search=${encodeURIComponent(query)}&limit=10`),
+      withApiBase(apiBaseUrl, `/api/public/products?${params.toString()}`),
       { cache: "no-store" }
     );
 
@@ -152,7 +171,13 @@ function getStringAttribute(attributes: Record<string, unknown> | undefined, key
 export default async function PartsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    vehicle_make?: string;
+    vehicle_model?: string;
+    vehicle_year?: string;
+    vehicle_engine?: string;
+  }>;
 }) {
   const contentMap = await getPublicContentMap();
   const contentValue = (key: string, fallback: string): string => {
@@ -162,13 +187,29 @@ export default async function PartsPage({
 
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
+  const vehicleMake = params.vehicle_make?.trim() ?? "";
+  const vehicleModel = params.vehicle_model?.trim() ?? "";
+  const vehicleYear = params.vehicle_year?.trim() ?? "";
+  const vehicleEngine = params.vehicle_engine?.trim() ?? "";
+  const hasVehicleFilters = Boolean(vehicleMake || vehicleModel || vehicleYear || vehicleEngine);
   const normalizedQuery = query.replace(/\s+/g, " ").trim();
-  const tooShortSearch = normalizedQuery.length > 0 && normalizedQuery.length < 2;
-  const productsResult = normalizedQuery && !tooShortSearch ? await searchProducts(normalizedQuery) : [];
+  const tooShortSearch = normalizedQuery.length > 0 && normalizedQuery.length < 2 && !hasVehicleFilters;
+  const productsResult =
+    (normalizedQuery && !tooShortSearch) || hasVehicleFilters
+      ? await searchProducts(normalizedQuery, {
+          vehicleMake,
+          vehicleModel,
+          vehicleYear,
+          vehicleEngine,
+        })
+      : [];
   const products = productsResult ?? [];
-  const searchError = normalizedQuery && !tooShortSearch ? productsResult === null : false;
+  const searchError = (normalizedQuery && !tooShortSearch) || hasVehicleFilters ? productsResult === null : false;
 
-  const catalogResult = normalizedQuery ? { sections: [] as CatalogSection[], hasError: false } : await getCatalogSections();
+  const catalogResult =
+    normalizedQuery || hasVehicleFilters
+      ? { sections: [] as CatalogSection[], hasError: false }
+      : await getCatalogSections();
   const catalogSections = catalogResult.sections;
   const catalogError = catalogResult.hasError;
   const brandName = contentValue("site_brand_name", "Все запчасти");
@@ -238,6 +279,33 @@ export default async function PartsPage({
             >
               Найти
             </button>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <input
+              name="vehicle_make"
+              defaultValue={vehicleMake}
+              placeholder="Марка (опц.)"
+              className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm text-neutral-900 focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              name="vehicle_model"
+              defaultValue={vehicleModel}
+              placeholder="Модель (опц.)"
+              className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm text-neutral-900 focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              name="vehicle_year"
+              defaultValue={vehicleYear}
+              placeholder="Год (опц.)"
+              inputMode="numeric"
+              className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm text-neutral-900 focus:border-[#1F3B73] focus:outline-none"
+            />
+            <input
+              name="vehicle_engine"
+              defaultValue={vehicleEngine}
+              placeholder="Двигатель (опц.)"
+              className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm text-neutral-900 focus:border-[#1F3B73] focus:outline-none"
+            />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Link
@@ -376,6 +444,7 @@ export default async function PartsPage({
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-[#1F3B73]">
                   Найдено {products.length} товаров
+                  {hasVehicleFilters ? " по параметрам авто" : ""}
                 </div>
               </div>
               <div className="grid gap-4">

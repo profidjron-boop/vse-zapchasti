@@ -5,7 +5,7 @@ from threading import Lock
 import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import selectinload
 from typing import Any, List, Optional
 import uuid
@@ -20,6 +20,7 @@ from models import (
     Order,
     OrderItem,
     ServiceCatalogItem,
+    ProductCompatibility,
     ServiceRequest,
     SiteContent,
     VinRequest,
@@ -202,6 +203,10 @@ def _apply_snapshot_filters(
     search: Optional[str] = None,
     brand: Optional[str] = None,
     in_stock_only: bool = False,
+    vehicle_make: Optional[str] = None,
+    vehicle_model: Optional[str] = None,
+    vehicle_year: Optional[int] = None,
+    vehicle_engine: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     filtered = [product for product in products if product.get("is_active", False)]
 
@@ -218,6 +223,44 @@ def _apply_snapshot_filters(
 
     if in_stock_only:
         filtered = [product for product in filtered if _to_int(product.get("stock_quantity"), 0) > 0]
+
+    if vehicle_make or vehicle_model or vehicle_year is not None or vehicle_engine:
+        vehicle_make_normalized = vehicle_make.strip().lower() if vehicle_make else None
+        vehicle_model_normalized = vehicle_model.strip().lower() if vehicle_model else None
+        vehicle_engine_normalized = vehicle_engine.strip().lower() if vehicle_engine else None
+
+        def _matches_vehicle(product: dict[str, Any]) -> bool:
+            compatibilities = product.get("compatibilities")
+            if not isinstance(compatibilities, list) or len(compatibilities) == 0:
+                return False
+
+            for compatibility in compatibilities:
+                if not isinstance(compatibility, dict):
+                    continue
+
+                make = str(compatibility.get("make") or "").strip().lower()
+                model = str(compatibility.get("model") or "").strip().lower()
+                engine = str(compatibility.get("engine") or "").strip().lower()
+                year_from = _to_int(compatibility.get("year_from"), 0)
+                year_to = _to_int(compatibility.get("year_to"), 0)
+
+                if vehicle_make_normalized and make != vehicle_make_normalized:
+                    continue
+                if vehicle_model_normalized and model != vehicle_model_normalized:
+                    continue
+                if vehicle_engine_normalized and vehicle_engine_normalized not in engine:
+                    continue
+                if vehicle_year is not None:
+                    if year_from > 0 and vehicle_year < year_from:
+                        continue
+                    if year_to > 0 and vehicle_year > year_to:
+                        continue
+
+                return True
+
+            return False
+
+        filtered = [product for product in filtered if _matches_vehicle(product)]
 
     if search:
         search_text = " ".join(search.strip().lower().split())
@@ -283,6 +326,10 @@ async def get_products(
     category_id: Optional[int] = None,
     search: Optional[str] = Query(None, min_length=2),
     brand: Optional[str] = None,
+    vehicle_make: Optional[str] = Query(None, min_length=1, max_length=100),
+    vehicle_model: Optional[str] = Query(None, min_length=1, max_length=100),
+    vehicle_year: Optional[int] = Query(None, ge=1950, le=2100),
+    vehicle_engine: Optional[str] = Query(None, min_length=1, max_length=100),
     in_stock_only: bool = False,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -297,6 +344,10 @@ async def get_products(
             search=search,
             brand=brand,
             in_stock_only=in_stock_only,
+            vehicle_make=vehicle_make,
+            vehicle_model=vehicle_model,
+            vehicle_year=vehicle_year,
+            vehicle_engine=vehicle_engine,
         )
         return filtered[offset : offset + limit]
 
@@ -310,6 +361,31 @@ async def get_products(
     
     if in_stock_only:
         query = query.where(Product.stock_quantity > 0)
+
+    if vehicle_make or vehicle_model or vehicle_year is not None or vehicle_engine:
+        compatibility_query = select(ProductCompatibility.id).where(ProductCompatibility.product_id == Product.id)
+
+        if vehicle_make:
+            compatibility_query = compatibility_query.where(
+                func.lower(ProductCompatibility.make) == vehicle_make.strip().lower()
+            )
+        if vehicle_model:
+            compatibility_query = compatibility_query.where(
+                func.lower(ProductCompatibility.model) == vehicle_model.strip().lower()
+            )
+        if vehicle_engine:
+            compatibility_query = compatibility_query.where(
+                func.lower(ProductCompatibility.engine).ilike(f"%{vehicle_engine.strip().lower()}%")
+            )
+        if vehicle_year is not None:
+            compatibility_query = compatibility_query.where(
+                and_(
+                    or_(ProductCompatibility.year_from.is_(None), ProductCompatibility.year_from <= vehicle_year),
+                    or_(ProductCompatibility.year_to.is_(None), ProductCompatibility.year_to >= vehicle_year),
+                )
+            )
+
+        query = query.where(compatibility_query.exists())
     
     if search:
         search_text = " ".join(search.strip().split())
