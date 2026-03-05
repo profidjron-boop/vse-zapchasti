@@ -26,6 +26,16 @@ type ImportResponse = {
   failed: number;
 };
 
+type UpdateMode = "manual" | "hourly" | "daily" | "event";
+
+function normalizeUpdateMode(value: string | null | undefined): UpdateMode {
+  const normalized = (value || "").trim().toLowerCase();
+  if (normalized === "hourly" || normalized === "daily" || normalized === "event") {
+    return normalized;
+  }
+  return "manual";
+}
+
 export default function AdminImportsPage() {
   const router = useRouter();
   const [runs, setRuns] = useState<ImportRun[]>([]);
@@ -39,6 +49,9 @@ export default function AdminImportsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [defaultCategoryId, setDefaultCategoryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
+  const [isSavingMode, setIsSavingMode] = useState(false);
+  const [modeMessage, setModeMessage] = useState("");
 
   const createdLabel = useMemo(() => {
     if (!uploadResult) return "";
@@ -47,12 +60,12 @@ export default function AdminImportsPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "success":
-        return "Успешно";
+      case "finished":
+        return "Завершён";
       case "failed":
-        return "Ошибка";
-      case "processing":
-        return "В обработке";
+        return "С ошибкой";
+      case "started":
+        return "Выполняется";
       default:
         return status;
     }
@@ -87,6 +100,17 @@ export default function AdminImportsPage() {
 
       const data = (await response.json()) as ImportRun[];
       setRuns(data);
+
+      const modeResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (modeResponse.ok) {
+        const modePayload = (await modeResponse.json()) as { value?: string };
+        setUpdateMode(normalizeUpdateMode(modePayload.value));
+      } else if (modeResponse.status === 404) {
+        setUpdateMode("manual");
+      }
+
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить список импортов");
@@ -164,6 +188,66 @@ export default function AdminImportsPage() {
     }
   }
 
+  async function handleSaveUpdateMode() {
+    setModeMessage("");
+    setError("");
+
+    try {
+      setIsSavingMode(true);
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      const payload = {
+        key: "import_products_update_mode",
+        value: updateMode,
+        type: "text",
+        description: "Режим обновления каталога: manual/hourly/daily/event",
+      };
+
+      const updateResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"), {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          value: payload.value,
+          type: payload.type,
+          description: payload.description,
+        }),
+      });
+
+      if (updateResponse.status === 404) {
+        const createResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/content"), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!createResponse.ok) {
+          const body = (await createResponse.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(body?.detail || "Не удалось сохранить режим обновления");
+        }
+      } else if (!updateResponse.ok) {
+        const body = (await updateResponse.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(body?.detail || "Не удалось сохранить режим обновления");
+      }
+
+      setModeMessage("Режим обновления сохранён");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось сохранить режим обновления");
+    } finally {
+      setIsSavingMode(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -187,6 +271,33 @@ export default function AdminImportsPage() {
       </div>
 
       <form onSubmit={handleUpload} className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+        <div className="mb-4 rounded-xl border border-neutral-200 bg-white p-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">Режим обновления</label>
+              <select
+                value={updateMode}
+                onChange={(event) => setUpdateMode(normalizeUpdateMode(event.target.value))}
+                className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+              >
+                <option value="manual">Ручной запуск</option>
+                <option value="hourly">По расписанию: раз в час</option>
+                <option value="daily">По расписанию: раз в сутки</option>
+                <option value="event">По событию (внешний триггер)</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSaveUpdateMode()}
+              disabled={isSavingMode}
+              className="rounded-xl border border-[#1F3B73]/20 bg-white px-3 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-50"
+            >
+              {isSavingMode ? "Сохранение..." : "Сохранить режим"}
+            </button>
+            {modeMessage ? <p className="text-sm text-green-700">{modeMessage}</p> : null}
+          </div>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">Файл импорта</label>
@@ -250,9 +361,9 @@ export default function AdminImportsPage() {
                 className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
               >
                 <option value="">Все</option>
-                <option value="success">Успешно</option>
+                <option value="finished">Завершён</option>
                 <option value="failed">Ошибка</option>
-                <option value="processing">В обработке</option>
+                <option value="started">Выполняется</option>
               </select>
             </div>
           </div>
@@ -276,9 +387,9 @@ export default function AdminImportsPage() {
                   <td className="px-4 py-3 text-sm">
                     <span
                       className={`rounded-full px-2 py-1 text-xs ${
-                        run.status === "success"
+                        run.status === "finished"
                           ? "bg-green-100 text-green-700"
-                          : run.status === "failed"
+                        : run.status === "failed"
                             ? "bg-red-100 text-red-700"
                             : "bg-amber-100 text-amber-700"
                       }`}
