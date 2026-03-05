@@ -16,6 +16,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read pinned runtime versions
+        id: versions
+        run: |
+          echo "node=$(awk '/^nodejs / {print $2}' .tool-versions)" >> "$GITHUB_OUTPUT"
+          echo "python=$(awk '/^python / {print $2}' .tool-versions)" >> "$GITHUB_OUTPUT"
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -24,14 +30,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ steps.versions.outputs.node }}
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ steps.versions.outputs.python }}
 
       - name: Install uv
         run: python -m pip install --upgrade uv
