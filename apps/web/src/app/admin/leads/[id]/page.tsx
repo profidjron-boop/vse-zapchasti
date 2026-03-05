@@ -20,6 +20,7 @@ type Lead = {
   vehicle_year: number | null;
   product_id: number | null;
   product_sku: string | null;
+  manager_comment: string | null;
   consent_given: boolean;
   consent_version: string | null;
   consent_text: string | null;
@@ -56,6 +57,7 @@ export default function LeadDetailPage() {
       const data = await res.json();
       setLead(data);
       setSelectedStatus(data.status);
+      setComment(data.manager_comment || '');
     } catch (err) {
       setError('Ошибка загрузки заявки');
       console.error(err);
@@ -93,13 +95,14 @@ export default function LeadDetailPage() {
     try {
       const token = localStorage.getItem('admin_token');
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?status=${selectedStatus}`), {
+      const query = new URLSearchParams({ status: selectedStatus });
+      query.set("comment", comment.trim());
+
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${query.toString()}`), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ comment }),
       });
 
       if (!res.ok) throw new Error('Failed to update status');
@@ -193,19 +196,20 @@ export default function LeadDetailPage() {
             
             <dl className="grid grid-cols-2 gap-4">
               <div>
-                <dt className="text-sm text-neutral-500">Тип</dt>
-                <dd className="font-medium">
-                  {lead.type === 'vin' ? 'VIN-заявка' :
-                   lead.type === 'callback' ? 'Обратный звонок' :
-                   lead.type === 'product' ? 'Запрос товара' : 'Подбор'}
-                </dd>
-              </div>
-              <div>
                 <dt className="text-sm text-neutral-500">Статус</dt>
                 <dd>
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[lead.status as keyof typeof statusColors] || 'bg-gray-100 text-gray-700'}`}>
                     {lead.status}
                   </span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm text-neutral-500">Тип</dt>
+                <dd className="font-medium">
+                  {lead.type === 'product' ? 'Product inquiry' :
+                   lead.type === 'callback' ? 'Callback' :
+                   lead.type === 'vin' ? 'VIN' :
+                   lead.type === 'parts_search' ? 'Подбор' : lead.type}
                 </dd>
               </div>
               <div>
@@ -313,7 +317,7 @@ export default function LeadDetailPage() {
               
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Комментарий (для истории)
+                  Заметка менеджера
                 </label>
                 <textarea
                   value={comment}
@@ -325,7 +329,11 @@ export default function LeadDetailPage() {
 
               <button
                 onClick={handleStatusUpdate}
-                disabled={saving || selectedStatus === lead.status}
+                disabled={
+                  saving ||
+                  (selectedStatus === lead.status &&
+                    comment.trim() === (lead.manager_comment || "").trim())
+                }
                 className="w-full rounded-2xl bg-[#1F3B73] py-3 font-medium text-white hover:bg-[#14294F] disabled:opacity-50 transition"
               >
                 {saving ? 'Сохранение...' : 'Обновить статус'}

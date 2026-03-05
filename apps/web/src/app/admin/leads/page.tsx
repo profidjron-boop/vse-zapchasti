@@ -60,6 +60,7 @@ export default function LeadsPage() {
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
       if (filters.type) params.append('type', filters.type);
+      if (searchTerm.trim()) params.append('search', searchTerm.trim());
       if (filters.dateFrom) params.append('date_from', filters.dateFrom);
       if (filters.dateTo) params.append('date_to', filters.dateTo);
       
@@ -81,18 +82,7 @@ export default function LeadsPage() {
       if (!res.ok) throw new Error('Failed to fetch');
       
       const data = await res.json();
-      // Фильтруем по поиску на клиенте (можно и на сервере, но для простоты пока так)
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        setLeads(data.filter((l: Lead) => 
-          l.phone?.toLowerCase().includes(searchLower) ||
-          l.name?.toLowerCase().includes(searchLower) ||
-          l.email?.toLowerCase().includes(searchLower) ||
-          l.vin?.toLowerCase().includes(searchLower)
-        ));
-      } else {
-        setLeads(data);
-      }
+      setLeads(data);
     } catch (err) {
       setError('Ошибка загрузки заявок');
       console.error(err);
@@ -156,10 +146,11 @@ export default function LeadsPage() {
 
   const getTypeLabel = (type: string) => {
     switch(type) {
+      case 'product': return 'Product inquiry';
+      case 'callback': return 'Callback';
       case 'vin': return 'VIN';
-      case 'callback': return 'Звонок';
-      case 'product': return 'Товар';
-      default: return 'Подбор';
+      case 'parts_search': return 'Подбор';
+      default: return type;
     }
   };
 
@@ -217,9 +208,9 @@ export default function LeadsPage() {
               className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
             >
               <option value="">Все</option>
+              <option value="product">Product inquiry</option>
+              <option value="callback">Callback</option>
               <option value="vin">VIN</option>
-              <option value="callback">Звонок</option>
-              <option value="product">Товар</option>
               <option value="parts_search">Подбор</option>
             </select>
           </div>
