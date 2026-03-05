@@ -62,12 +62,29 @@ def _normalize_origin(value: str | None) -> str | None:
     return None
 
 
-web_origin = _normalize_origin(os.getenv("WEB_ORIGIN")) or "http://localhost:3000"
+def _load_allowed_origins() -> list[str]:
+    raw = os.getenv("WEB_ORIGIN", "").strip()
+    origins: list[str] = []
+
+    if raw:
+        for item in raw.split(","):
+            normalized = _normalize_origin(item)
+            if normalized and normalized not in origins:
+                origins.append(normalized)
+
+    if origins:
+        return origins
+
+    # Local development fallback for loopback hosts.
+    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+
+allowed_origins = _load_allowed_origins()
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[web_origin],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
