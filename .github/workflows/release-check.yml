@@ -55,7 +55,12 @@ jobs:
         run: pnpm --dir apps/web install --frozen-lockfile
 
       - name: Run release-check
-        run: bash scripts/release-check.sh
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            bash scripts/release-check.sh --skip-write-smoke
+          else
+            bash scripts/release-check.sh
+          fi
 
       - name: Upload backup artifacts
         if: always()
