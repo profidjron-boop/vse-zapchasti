@@ -22,7 +22,7 @@ make migrate-check # текущее состояние миграций (alembic
 1. `pnpm web:lint && pnpm web:typecheck && pnpm --dir apps/web run build`
 2. `cd apps/api && make lint && make test && make migrate-check`
 3. `docker-compose build`
-4. `bash docs/backup.sh` (TODO) — бэкап БД
+4. `bash docs/backup.sh` — бэкап БД
 5. Smoke:
    - `bash scripts/smoke.sh`
    - `bash scripts/smoke.sh --with-write`
