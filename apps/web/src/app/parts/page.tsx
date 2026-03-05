@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 type Product = {
   id: number;
   name: string;
@@ -13,8 +14,9 @@ type Product = {
 async function searchProducts(query: string) {
   if (!query) return [];
   
+  const apiBaseUrl = getServerApiBaseUrl();
   const res = await fetch(
-    `http://localhost:8000/api/public/products?search=${encodeURIComponent(query)}&limit=10`,
+    withApiBase(apiBaseUrl, `/api/public/products?search=${encodeURIComponent(query)}&limit=10`),
     { cache: 'no-store' }
   );
   

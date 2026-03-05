@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from 'js-cookie';
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -33,8 +34,9 @@ export default function NewProductPage() {
 
     try {
       const token = Cookies.get('admin_token');
+      const apiBaseUrl = getClientApiBaseUrl();
       
-      const response = await fetch("http://localhost:8000/api/admin/products", {
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/products"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

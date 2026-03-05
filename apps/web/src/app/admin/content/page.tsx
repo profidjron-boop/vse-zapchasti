@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 
 type ContentBlock = {
   key: string;
@@ -15,9 +16,17 @@ export default function ContentEditorPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [deletingKey, setDeletingKey] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingValue, setEditingValue] = useState<{[key: string]: string}>({});
+  const [newBlock, setNewBlock] = useState({
+    key: '',
+    value: '',
+    type: 'text' as ContentBlock['type'],
+    description: '',
+  });
 
   useEffect(() => {
     fetchContent();
@@ -31,7 +40,8 @@ export default function ContentEditorPage() {
         return;
       }
       
-      const res = await fetch('http://localhost:8000/api/admin/content', {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/content'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -67,7 +77,8 @@ export default function ContentEditorPage() {
 
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:8000/api/admin/content/${key}`, {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +114,8 @@ export default function ContentEditorPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch('http://localhost:8000/api/admin/upload', {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/upload'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -120,7 +132,7 @@ export default function ContentEditorPage() {
       if (!res.ok) throw new Error('Upload failed');
       
       const data = await res.json();
-      setEditingValue({...editingValue, [key]: data.url});
+      setEditingValue(prev => ({...prev, [key]: data.url}));
       
       setSuccess(`Изображение загружено`);
       setTimeout(() => setSuccess(''), 3000);
@@ -129,6 +141,96 @@ export default function ContentEditorPage() {
       console.error(err);
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleCreateBlock() {
+    if (!newBlock.key.trim()) {
+      setError('Ключ блока обязателен');
+      return;
+    }
+
+    setCreating(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, '/api/admin/content'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          key: newBlock.key.trim(),
+          value: newBlock.value || null,
+          type: newBlock.type,
+          description: newBlock.description || null,
+        }),
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return;
+      }
+
+      if (!response.ok) throw new Error('Failed to create content block');
+      const createdBlock = await response.json() as ContentBlock;
+
+      setContent(prev => [...prev, createdBlock].sort((a, b) => a.key.localeCompare(b.key)));
+      setEditingValue(prev => ({ ...prev, [createdBlock.key]: createdBlock.value || '' }));
+      setNewBlock({ key: '', value: '', type: 'text', description: '' });
+      setSuccess(`Блок "${createdBlock.key}" создан`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (createError) {
+      console.error(createError);
+      setError('Ошибка создания блока');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleDeleteBlock(key: string) {
+    if (!confirm(`Удалить блок "${key}"?`)) return;
+
+    setDeletingKey(key);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return;
+      }
+
+      if (!response.ok) throw new Error('Failed to delete content block');
+
+      setContent(prev => prev.filter(block => block.key !== key));
+      setEditingValue(prev => {
+        const next = {...prev};
+        delete next[key];
+        return next;
+      });
+      setSuccess(`Блок "${key}" удалён`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (deleteError) {
+      console.error(deleteError);
+      setError(`Ошибка удаления блока "${key}"`);
+    } finally {
+      setDeletingKey('');
     }
   }
 
@@ -155,6 +257,63 @@ export default function ContentEditorPage() {
           {success}
         </div>
       )}
+
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-[#1F3B73]">Новый блок</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Ключ *</label>
+            <input
+              type="text"
+              value={newBlock.key}
+              onChange={(e) => setNewBlock({...newBlock, key: e.target.value})}
+              placeholder="например: hero_title"
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Тип</label>
+            <select
+              value={newBlock.type}
+              onChange={(e) => setNewBlock({...newBlock, type: e.target.value as ContentBlock['type']})}
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            >
+              <option value="text">Текст</option>
+              <option value="image">Изображение</option>
+              <option value="html">HTML</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Описание</label>
+            <input
+              type="text"
+              value={newBlock.description}
+              onChange={(e) => setNewBlock({...newBlock, description: e.target.value})}
+              placeholder="Описание для админки"
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Значение</label>
+            <textarea
+              rows={4}
+              value={newBlock.value}
+              onChange={(e) => setNewBlock({...newBlock, value: e.target.value})}
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={handleCreateBlock}
+            disabled={creating}
+            className="rounded-2xl bg-[#1F3B73] px-6 py-2 text-sm font-medium text-white hover:bg-[#14294F] disabled:opacity-50"
+          >
+            {creating ? 'Создание...' : 'Создать блок'}
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-6">
         {content.map((block) => (
@@ -246,7 +405,14 @@ export default function ContentEditorPage() {
               </div>
             )}
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-between">
+              <button
+                onClick={() => handleDeleteBlock(block.key)}
+                disabled={saving || uploading || deletingKey === block.key}
+                className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                {deletingKey === block.key ? 'Удаление...' : 'Удалить'}
+              </button>
               <button
                 onClick={() => handleSave(block.key)}
                 disabled={saving || uploading}

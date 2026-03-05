@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 export default function VinRequestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,10 +23,13 @@ export default function VinRequestPage() {
       vin: formData.get("vin"),
       message: formData.get("message") || undefined,
       consent_given: formData.get("consent") === "on",
+      consent_version: "v1.0",
+      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/public/leads", {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/leads"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

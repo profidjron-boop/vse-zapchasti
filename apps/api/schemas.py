@@ -97,6 +97,8 @@ class LeadBase(BaseModel):
     product_id: Optional[int] = None
     product_sku: Optional[str] = None
     consent_given: bool = False
+    consent_version: Optional[str] = None
+    consent_text: Optional[str] = None
 
 class LeadCreate(LeadBase):
     pass
@@ -107,7 +109,7 @@ class LeadResponse(LeadBase):
     status: str
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
-    consent_version: Optional[str] = None
+    consent_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     
@@ -128,6 +130,8 @@ class ServiceRequestBase(BaseModel):
     description: Optional[str] = None
     preferred_date: Optional[datetime] = None
     consent_given: bool = False
+    consent_version: Optional[str] = None
+    consent_text: Optional[str] = None
 
 class ServiceRequestCreate(ServiceRequestBase):
     pass
@@ -138,7 +142,7 @@ class ServiceRequestResponse(ServiceRequestBase):
     status: str
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
-    consent_version: Optional[str] = None
+    consent_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from 'react';
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ leads: 'Загрузка...', service: 'Загрузка...' });
@@ -20,10 +21,11 @@ export default function AdminDashboard() {
         const headers = {
           'Authorization': `Bearer ${token}`,
         };
+        const apiBaseUrl = getClientApiBaseUrl();
 
         const [leadsRes, serviceRes] = await Promise.all([
-          fetch("http://localhost:8000/api/admin/leads?limit=1", { headers }),
-          fetch("http://localhost:8000/api/admin/service-requests?limit=1", { headers })
+          fetch(withApiBase(apiBaseUrl, "/api/admin/leads?limit=1"), { headers }),
+          fetch(withApiBase(apiBaseUrl, "/api/admin/service-requests?limit=1"), { headers })
         ]);
 
         if (cancelled) {

@@ -19,6 +19,17 @@
 - Только через `.env` (права 600) или Vault (если появится по scope).
 - Не коммитить секреты.
 
+## Web env (обязательно)
+- `apps/web/.env`:
+  - `API_BASE_URL` — base URL API для server-side fetch в Next.js.
+  - `NEXT_PUBLIC_API_BASE_URL` — base URL API для browser fetch.
+- `dev` пример:
+  - `API_BASE_URL=http://localhost:8000`
+  - `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
+- `prod` правило:
+  - использовать публичный URL API (например, `https://api.vsezapchasti.ru`)
+  - не использовать `localhost` в production-окружении
+
 ## High-level steps (без команд; конкретика появится после появления compose/infra)
 1) Подготовить сервер: SSH keys only, firewall, no root login.
 2) Развернуть Docker/Compose.
@@ -31,4 +42,3 @@
 ## Backups (обязательно перед релизом)
 - Регулярные бэкапы Postgres + проверка восстановления.
 - Документировать restore steps.
-

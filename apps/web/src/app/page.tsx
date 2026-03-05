@@ -1,16 +1,12 @@
 import Link from "next/link";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 type ContentMap = Record<string, string>;
 
-function getApiBaseUrl(): string {
-  // Server-side env (preferred). In dev, fallback to localhost API.
-  const base = process.env.API_BASE_URL?.trim();
-  return base && base.length > 0 ? base : "http://localhost:8000";
-}
-
 async function getContent(): Promise<ContentMap> {
   try {
-    const res = await fetch(`${getApiBaseUrl()}/api/public/content`, { cache: "no-store" });
+    const apiBaseUrl = getServerApiBaseUrl();
+    const res = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
     if (!res.ok) return {};
     const data: Array<{ key: string; value: string | null }> = await res.json();
 

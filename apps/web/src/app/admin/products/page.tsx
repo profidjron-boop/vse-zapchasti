@@ -13,10 +13,12 @@ type Product = {
 };
 
 import Link from "next/link";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 async function getProducts() {
   try {
-    const res = await fetch("http://localhost:8000/api/public/products?limit=50", {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const res = await fetch(withApiBase(apiBaseUrl, "/api/public/products?limit=50"), {
       cache: 'no-store'
     });
     if (!res.ok) return [];
@@ -57,7 +59,6 @@ export default async function AdminProductsPage() {
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Бренд</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Цена</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Остаток</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
@@ -71,15 +72,6 @@ export default async function AdminProductsPage() {
                     {product.price ? `${product.price.toLocaleString()} ₽` : "—"}
                   </td>
                   <td className="py-3 px-4 text-sm">{product.stock_quantity}</td>
-                  <td className="py-3 px-4 text-sm">
-                    <Link
-                      href={`/admin/products/${product.id}`}
-                      className="text-[#1F3B73] hover:underline mr-3"
-                    >
-                      ✏️
-                    </Link>
-                    <button className="text-red-600 hover:underline">🗑️</button>
-                  </td>
                 </tr>
               ))}
             </tbody>

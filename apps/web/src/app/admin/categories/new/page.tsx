@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 export default function NewCategoryPage() {
   const router = useRouter();
@@ -73,10 +74,18 @@ export default function NewCategoryPage() {
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/admin/categories", {
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/categories"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       });

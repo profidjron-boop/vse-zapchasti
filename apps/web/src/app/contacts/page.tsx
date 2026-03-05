@@ -1,6 +1,59 @@
+'use client';
+
 import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 export default function ContactsPage() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleCallbackSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsSubmitting(true);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const consentGiven = formData.get("consent") === "on";
+
+    const payload = {
+      type: "callback",
+      name: formData.get("name")?.toString().trim() || undefined,
+      phone: formData.get("phone")?.toString().trim() || "",
+      email: formData.get("email")?.toString().trim() || undefined,
+      message: formData.get("message")?.toString().trim() || undefined,
+      consent_given: consentGiven,
+      consent_version: "v1.0",
+      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
+    };
+
+    try {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/leads"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create callback lead");
+      }
+
+      form.reset();
+      setSuccess("Заявка на обратный звонок отправлена. Менеджер свяжется с вами в рабочее время.");
+    } catch (submitError) {
+      console.error(submitError);
+      setError("Не удалось отправить заявку. Попробуйте позже.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       {/* Header */}
@@ -17,9 +70,12 @@ export default function ContactsPage() {
               <button className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]">
                 Для дилеров
               </button>
-              <button className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20">
+              <a
+                href="#callback-form"
+                className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20"
+              >
                 Заказать звонок
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -141,10 +197,21 @@ export default function ContactsPage() {
             {/* Форма обратной связи */}
             <div className="rounded-3xl bg-white p-8 shadow-xl">
               <h2 className="text-xl font-bold text-[#1F3B73]">Напишите нам</h2>
-              <form className="mt-6 space-y-4">
+              {error && (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="mt-4 rounded-2xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                  {success}
+                </div>
+              )}
+              <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-6 space-y-4">
                 <div>
                   <input 
                     type="text" 
+                    name="name"
                     placeholder="Ваше имя"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />
@@ -152,6 +219,8 @@ export default function ContactsPage() {
                 <div>
                   <input 
                     type="tel" 
+                    name="phone"
+                    required
                     placeholder="Телефон *"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />
@@ -159,25 +228,31 @@ export default function ContactsPage() {
                 <div>
                   <input 
                     type="email" 
+                    name="email"
                     placeholder="Email"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />
                 </div>
                 <div>
                   <textarea 
+                    name="message"
                     rows={4}
                     placeholder="Сообщение"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />
                 </div>
                 <div className="flex items-start gap-2">
-                  <input type="checkbox" id="consent" className="mt-1" />
+                  <input type="checkbox" name="consent" id="consent" className="mt-1" required />
                   <label htmlFor="consent" className="text-xs text-neutral-600">
                     Согласен на обработку персональных данных
                   </label>
                 </div>
-                <button type="submit" className="w-full rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20">
-                  Отправить сообщение
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? "Отправка..." : "Отправить сообщение"}
                 </button>
               </form>
             </div>

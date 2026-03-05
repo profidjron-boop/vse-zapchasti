@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 
 type Lead = {
   id: number;
@@ -34,7 +35,8 @@ export default function LeadsPage() {
   const fetchStatuses = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:8000/api/admin/leads/statuses', {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/leads/statuses'), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (res.ok) {
@@ -61,7 +63,8 @@ export default function LeadsPage() {
       if (filters.dateFrom) params.append('date_from', filters.dateFrom);
       if (filters.dateTo) params.append('date_to', filters.dateTo);
       
-      const url = `http://localhost:8000/api/admin/leads?limit=50&${params.toString()}`;
+      const apiBaseUrl = getClientApiBaseUrl();
+      const url = withApiBase(apiBaseUrl, `/api/admin/leads?limit=50&${params.toString()}`);
 
       const res = await fetch(url, {
         headers: {
@@ -115,7 +118,8 @@ export default function LeadsPage() {
     
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:8000/api/admin/leads/${id}`, {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

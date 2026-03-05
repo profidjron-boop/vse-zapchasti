@@ -96,6 +96,8 @@ class Lead(Base):
     user_agent = Column(Text, nullable=True)
     consent_given = Column(Boolean, default=False)
     consent_version = Column(String(50), nullable=True)
+    consent_text = Column(Text, nullable=True)
+    consent_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -130,6 +132,8 @@ class ServiceRequest(Base):
     user_agent = Column(Text, nullable=True)
     consent_given = Column(Boolean, default=False)
     consent_version = Column(String(50), nullable=True)
+    consent_text = Column(Text, nullable=True)
+    consent_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

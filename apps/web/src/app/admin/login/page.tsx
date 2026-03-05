@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
+import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +22,8 @@ export default function LoginPage() {
       formData.append('username', email);
       formData.append('password', password);
 
-      const res = await fetch('http://localhost:8000/api/admin/auth/token', {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/auth/token'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

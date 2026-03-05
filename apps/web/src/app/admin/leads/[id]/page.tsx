@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 
 type Lead = {
   id: number;
@@ -20,6 +21,11 @@ type Lead = {
   product_id: number | null;
   product_sku: string | null;
   consent_given: boolean;
+  consent_version: string | null;
+  consent_text: string | null;
+  consent_at: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 };
 
@@ -40,7 +46,8 @@ export default function LeadDetailPage() {
   const fetchLead = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:8000/api/admin/leads/${leadId}`, {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -60,7 +67,8 @@ export default function LeadDetailPage() {
   const fetchStatuses = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:8000/api/admin/leads/statuses', {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/leads/statuses'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -84,7 +92,8 @@ export default function LeadDetailPage() {
 
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:8000/api/admin/leads/${leadId}/status?status=${selectedStatus}`, {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?status=${selectedStatus}`), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -109,7 +118,8 @@ export default function LeadDetailPage() {
   async function handleDelete() {
     try {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:8000/api/admin/leads/${leadId}`, {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -229,7 +239,21 @@ export default function LeadDetailPage() {
                 <dt className="text-sm text-neutral-500">Согласие на ПДн</dt>
                 <dd>{lead.consent_given ? 'Да' : 'Нет'}</dd>
               </div>
+              <div>
+                <dt className="text-sm text-neutral-500">Версия согласия</dt>
+                <dd>{lead.consent_version || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-neutral-500">Дата согласия</dt>
+                <dd>{lead.consent_at ? new Date(lead.consent_at).toLocaleString('ru-RU') : '—'}</dd>
+              </div>
             </dl>
+            {lead.consent_text && (
+              <div className="mt-4 rounded-xl bg-neutral-50 p-3 text-sm text-neutral-700">
+                <div className="mb-1 text-xs text-neutral-500">Текст согласия</div>
+                <div>{lead.consent_text}</div>
+              </div>
+            )}
           </div>
 
           {(lead.vin || lead.vehicle_make || lead.message) && (

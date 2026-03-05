@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -107,13 +108,23 @@ async def create_lead(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new lead (parts request, VIN request, callback, etc.)"""
+    if not lead.consent_given:
+        raise HTTPException(status_code=400, detail="Consent is required")
+
+    lead_data = lead.model_dump()
+    lead_data["consent_version"] = lead.consent_version or "v1.0"
+    lead_data["consent_text"] = (
+        lead.consent_text
+        or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
+    )
+    lead_data["consent_at"] = datetime.utcnow()
+
     db_lead = Lead(
-        **lead.model_dump(),
+        **lead_data,
         uuid=str(uuid.uuid4()),
         status="new",
-        ip_address=request.client.host,
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        consent_version="v1.0"
     )
     db.add(db_lead)
     await db.commit()
@@ -128,13 +139,23 @@ async def create_service_request(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new service request (repair appointment)"""
+    if not request_data.consent_given:
+        raise HTTPException(status_code=400, detail="Consent is required")
+
+    service_request_data = request_data.model_dump()
+    service_request_data["consent_version"] = request_data.consent_version or "v1.0"
+    service_request_data["consent_text"] = (
+        request_data.consent_text
+        or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
+    )
+    service_request_data["consent_at"] = datetime.utcnow()
+
     db_request = ServiceRequest(
-        **request_data.model_dump(),
+        **service_request_data,
         uuid=str(uuid.uuid4()),
         status="new",
-        ip_address=request.client.host,
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        consent_version="v1.0"
     )
     db.add(db_request)
     await db.commit()

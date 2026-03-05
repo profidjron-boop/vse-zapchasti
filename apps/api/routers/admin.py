@@ -475,6 +475,37 @@ async def admin_update_content(
     
     return content
 
+
+@router.delete("/content/{key}", status_code=204)
+async def admin_delete_content(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Delete content block by key"""
+    result = await db.execute(select(SiteContent).where(SiteContent.key == key))
+    content = result.scalar_one_or_none()
+
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    content_id = content.id
+    old_values = {"key": content.key, "value": content.value, "type": content.type}
+
+    await db.delete(content)
+    await db.commit()
+
+    audit = AuditLog(
+        action="delete",
+        entity_type="content",
+        entity_id=content_id,
+        old_values=old_values,
+    )
+    db.add(audit)
+    await db.commit()
+
+    return None
+
 @router.post("/upload")
 async def admin_upload_file(
     file: UploadFile = File(...),

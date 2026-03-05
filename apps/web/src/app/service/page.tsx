@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 export default function ServicePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,10 +29,13 @@ export default function ServicePage() {
       description: formData.get("description") || undefined,
       preferred_date: formData.get("preferred_date") || undefined,
       consent_given: formData.get("consent") === "on",
+      consent_version: "v1.0",
+      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/public/service-requests", {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/service-requests"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
