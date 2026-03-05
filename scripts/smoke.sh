@@ -143,10 +143,20 @@ wait_for_http() {
   local method="$2"
   local url="$3"
   local label="$4"
+  local pid="${5:-}"
+  local log_file="${6:-}"
   local deadline=$(( $(date +%s) + STARTUP_TIMEOUT_SECONDS ))
   local code
 
   while [[ "$(date +%s)" -lt "$deadline" ]]; do
+    if [[ -n "$pid" ]] && ! kill -0 "$pid" >/dev/null 2>&1; then
+      if [[ -n "$log_file" && -f "$log_file" ]]; then
+        log "$label process exited early, last logs:"
+        tail -n 40 "$log_file" || true
+      fi
+      fail "$label process exited before readiness check"
+    fi
+
     code="$(curl -s -m "$SMOKE_TIMEOUT_SECONDS" -o /dev/null -w "%{http_code}" -X "$method" "$url" 2>/dev/null || true)"
     if [[ "$code" == "$expected" ]]; then
       ok "$label"
@@ -155,7 +165,22 @@ wait_for_http() {
     sleep 1
   done
 
+  if [[ -n "$log_file" && -f "$log_file" ]]; then
+    log "Timeout waiting for $label, last logs:"
+    tail -n 40 "$log_file" || true
+  fi
+
   fail "Timeout waiting for $label at $url"
+}
+
+assert_port_free() {
+  local host="$1"
+  local port="$2"
+  local label="$3"
+
+  if (echo >/dev/tcp/"$host"/"$port") >/dev/null 2>&1; then
+    fail "$label port ${host}:${port} is already in use. Stop existing process or override ${label}_PORT."
+  fi
 }
 
 resolve_admin_token() {
@@ -240,6 +265,7 @@ start_postgres() {
 }
 
 start_api() {
+  assert_port_free "$API_HOST" "$API_PORT" "API"
   API_LOG="$(mktemp)"
   log "Starting API on $API_BASE_URL"
   (
@@ -248,10 +274,11 @@ start_api() {
     DATABASE_URL="$DATABASE_URL" JWT_SECRET_KEY="${JWT_SECRET_KEY:-dev_smoke_secret_change_me}" UPLOAD_DIR="${UPLOAD_DIR:-apps/web/public/uploads}" ./.venv/bin/uv run uvicorn main:app --host "$API_HOST" --port "$API_PORT"
   ) >"$API_LOG" 2>&1 &
   API_PID=$!
-  wait_for_http "200" "GET" "$API_BASE_URL/health" "api health ready"
+  wait_for_http "200" "GET" "$API_BASE_URL/health" "api health ready" "$API_PID" "$API_LOG"
 }
 
 start_web() {
+  assert_port_free "$WEB_HOST" "$WEB_PORT" "WEB"
   WEB_LOG="$(mktemp)"
   log "Building web"
   pnpm --dir apps/web run build >/dev/null
@@ -263,7 +290,7 @@ start_web() {
       pnpm --dir apps/web exec next start --hostname "$WEB_HOST" --port "$WEB_PORT"
   ) >"$WEB_LOG" 2>&1 &
   WEB_PID=$!
-  wait_for_http "200" "GET" "$WEB_BASE_URL/" "web ready"
+  wait_for_http "200" "GET" "$WEB_BASE_URL/" "web ready" "$WEB_PID" "$WEB_LOG"
 }
 
 log "Smoke start"
@@ -309,6 +336,18 @@ ok "public order create"
 encoded_order_phone="${order_phone/+/%2B}"
 request_expect "200" "GET" "$API_BASE_URL/api/public/orders/history?phone=${encoded_order_phone}&limit=1"
 ok "public order history"
+
+checkout_phone="+7992000${stamp: -4}"
+checkout_payload="$(cat <<EOF
+{"source":"checkout","customer_name":"Smoke Checkout","customer_phone":"$checkout_phone","delivery_method":"pickup","payment_method":"invoice","legal_entity_name":"ООО Тест","legal_entity_inn":"2465001234","consent_given":true,"consent_version":"v1.0","items":[{"product_name":"Smoke Checkout Item","quantity":1}]}
+EOF
+)"
+request_expect "201" "POST" "$API_BASE_URL/api/public/orders" "$checkout_payload"
+ok "public checkout order create"
+
+encoded_checkout_phone="${checkout_phone/+/%2B}"
+request_expect "200" "GET" "$API_BASE_URL/api/public/orders/history?phone=${encoded_checkout_phone}&limit=1"
+ok "public checkout order history"
 
 bootstrap_smoke_admin_user
 

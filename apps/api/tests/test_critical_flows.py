@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from models import AuditLog, ImportRun  # noqa: E402
 from routers import admin, public  # noqa: E402
-from schemas import LeadCreate, ServiceRequestCreate, VinRequestCreate  # noqa: E402
+from schemas import LeadCreate, OrderCreate, ServiceRequestCreate, VinRequestCreate  # noqa: E402
 
 
 class _ScalarsResult:
@@ -211,3 +211,95 @@ async def test_import_products_skip_invalid_allows_completion(monkeypatch):
     assert result["failed"] == 1
     assert result["created"] == 0
     assert result["updated"] == 0
+
+
+def test_snapshot_product_normalization_keeps_compatibilities():
+    normalized = public._normalize_snapshot_product(
+        {
+            "id": 10,
+            "category_id": 3,
+            "sku": "SKU-10",
+            "name": "Тестовый товар",
+            "is_active": True,
+            "compatibilities": [
+                {
+                    "id": 77,
+                    "make": "GAZ",
+                    "model": "GAZelle",
+                    "year_from": 2014,
+                    "year_to": 2024,
+                    "engine": "Cummins",
+                }
+            ],
+        }
+    )
+
+    assert normalized is not None
+    assert normalized["compatibilities"] == [
+        {
+            "id": 77,
+            "make": "GAZ",
+            "model": "GAZelle",
+            "year_from": 2014,
+            "year_to": 2024,
+            "engine": "Cummins",
+        }
+    ]
+
+
+def test_snapshot_vehicle_filters_match_compatibilities():
+    products = [
+        {
+            "id": 1,
+            "category_id": 1,
+            "sku": "SKU-1",
+            "name": "Совместимый товар",
+            "is_active": True,
+            "compatibilities": [
+                {
+                    "make": "kamaz",
+                    "model": "6520",
+                    "year_from": 2018,
+                    "year_to": 2025,
+                    "engine": "diesel",
+                }
+            ],
+        },
+        {
+            "id": 2,
+            "category_id": 1,
+            "sku": "SKU-2",
+            "name": "Несовместимый товар",
+            "is_active": True,
+            "compatibilities": [],
+        },
+    ]
+
+    filtered = public._apply_snapshot_filters(
+        products,
+        vehicle_make="KAMAZ",
+        vehicle_model="6520",
+        vehicle_year=2020,
+        vehicle_engine="diesel",
+    )
+
+    assert [item["id"] for item in filtered] == [1]
+
+
+@pytest.mark.asyncio
+async def test_public_create_order_invoice_requires_legal_entity_inn():
+    public._rate_limit_buckets.clear()
+    db = FakeAsyncSession()
+    payload = OrderCreate(
+        source="checkout",
+        customer_phone="+79991112233",
+        payment_method="invoice",
+        consent_given=True,
+        items=[{"product_name": "Тест", "quantity": 1}],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await public.create_order(payload, _make_request("/api/public/orders"), db)
+
+    assert exc.value.status_code == 400
+    assert "INN" in str(exc.value.detail)

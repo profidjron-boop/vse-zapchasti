@@ -44,6 +44,24 @@ function getStatusLabel(status: string): string {
   return map[status] ?? status;
 }
 
+function getDeliveryLabel(value: string | null): string {
+  if (value === "courier") return "Курьер";
+  if (value === "pickup") return "Самовывоз";
+  return "—";
+}
+
+function getPaymentLabel(value: string | null): string {
+  if (value === "invoice") return "По счёту";
+  if (value === "cash_on_delivery") return "При получении";
+  return "—";
+}
+
+function getSourceLabel(value: string): string {
+  if (value === "one_click") return "Быстрый заказ";
+  if (value === "checkout") return "Оформление корзины";
+  return value;
+}
+
 export default function AccountOrdersPage() {
   const [phone, setPhone] = useState("");
   const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -160,8 +178,9 @@ export default function AccountOrdersPage() {
                 </div>
 
                 <div className="mt-3 grid gap-2 text-sm text-neutral-700 sm:grid-cols-2">
-                  <p>Доставка: {order.delivery_method === "courier" ? "Курьер" : "Самовывоз"}</p>
-                  <p>Оплата: {order.payment_method === "invoice" ? "По счёту" : "При получении"}</p>
+                  <p>Источник: {getSourceLabel(order.source)}</p>
+                  <p>Доставка: {getDeliveryLabel(order.delivery_method)}</p>
+                  <p>Оплата: {getPaymentLabel(order.payment_method)}</p>
                 </div>
 
                 <div className="mt-3 space-y-1 text-sm text-neutral-700">
@@ -179,4 +198,3 @@ export default function AccountOrdersPage() {
     </main>
   );
 }
-
