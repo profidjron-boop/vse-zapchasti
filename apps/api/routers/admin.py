@@ -24,6 +24,8 @@ from schemas import (
     ProductCreate,
     ProductResponse,
     ProductUpdate,
+    ServiceRequestResponse,
+    ServiceRequestStatusUpdate,
     SiteContentCreate,
     SiteContentResponse,
     SiteContentUpdate,
@@ -680,17 +682,105 @@ async def admin_delete_category(
     return None
 
 # ---------- Service Requests ----------
-@router.get("/service-requests")
+@router.get("/service-requests", response_model=List[ServiceRequestResponse])
 async def admin_get_service_requests(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    search: Optional[str] = Query(None, min_length=2, description="Search by name or phone"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_service_requests_user)
+    current_user: User = Depends(get_service_requests_user),
 ):
-    """Get all service requests"""
-    query = select(ServiceRequest).order_by(ServiceRequest.created_at.desc()).offset(skip).limit(limit)
+    """Get service requests with filters"""
+    query = select(ServiceRequest)
+
+    if status:
+        query = query.where(ServiceRequest.status == status.strip().lower())
+
+    if search:
+        search_pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                ServiceRequest.phone.ilike(search_pattern),
+                ServiceRequest.name.ilike(search_pattern),
+            )
+        )
+
+    query = query.order_by(ServiceRequest.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
+
+
+@router.get("/service-requests/{request_id}", response_model=ServiceRequestResponse)
+async def admin_get_service_request(
+    request_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_service_requests_user),
+):
+    """Get service request by ID"""
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+    service_request = result.scalar_one_or_none()
+
+    if not service_request:
+        raise HTTPException(status_code=404, detail="Service request not found")
+
+    return service_request
+
+
+@router.put("/service-requests/{request_id}/status", response_model=ServiceRequestResponse)
+async def admin_update_service_request_status(
+    request_id: int,
+    payload: ServiceRequestStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_service_requests_user),
+):
+    """Update service request status and operator comment"""
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+    service_request = result.scalar_one_or_none()
+
+    if not service_request:
+        raise HTTPException(status_code=404, detail="Service request not found")
+
+    valid_transitions = {
+        "new": {"in_progress"},
+        "in_progress": {"closed"},
+        "closed": set(),
+    }
+
+    next_status = payload.status
+    current_status = service_request.status or "new"
+    if next_status != current_status and next_status not in valid_transitions.get(current_status, set()):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status transition: {current_status} -> {next_status}",
+        )
+
+    old_values = {
+        "status": current_status,
+        "operator_comment": service_request.operator_comment,
+    }
+
+    service_request.status = next_status
+    service_request.operator_comment = payload.operator_comment
+    service_request.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(service_request)
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="update_status",
+        entity_type="service_request",
+        entity_id=request_id,
+        old_values=old_values,
+        new_values={
+            "status": service_request.status,
+            "operator_comment": service_request.operator_comment,
+        },
+    )
+    db.add(audit)
+    await db.commit()
+
+    return service_request
 
 # ---------- Site Content ----------
 @router.get("/content", response_model=List[SiteContentResponse])

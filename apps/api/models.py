@@ -125,6 +125,7 @@ class ServiceRequest(Base):
     mileage = Column(Integer, nullable=True)
     
     description = Column(Text, nullable=True)
+    operator_comment = Column(Text, nullable=True)
     preferred_date = Column(DateTime, nullable=True)
     
     # Метаданные

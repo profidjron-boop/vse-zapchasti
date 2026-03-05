@@ -4,6 +4,22 @@ import Link from "next/link";
 import { useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
+function normalizePhone(value: string): string {
+  let digits = value.replace(/\D/g, "");
+
+  if (digits.length === 11 && digits.startsWith("8")) {
+    digits = `7${digits.slice(1)}`;
+  } else if (digits.length === 10) {
+    digits = `7${digits}`;
+  }
+
+  if (digits.length !== 11 || !digits.startsWith("7")) {
+    throw new Error("Укажите корректный телефон РФ");
+  }
+
+  return `+${digits}`;
+}
+
 export default function ServicePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -15,25 +31,33 @@ export default function ServicePage() {
     setError("");
 
     const formData = new FormData(event.currentTarget);
-    const data = {
-      vehicle_type: formData.get("vehicle_type") === "truck" ? "truck" : "passenger",
-      service_type: formData.get("service_type"),
-      name: formData.get("name"),
-      phone: formData.get("phone"),
-      email: formData.get("email") || undefined,
-      vehicle_make: formData.get("vehicle_make") || undefined,
-      vehicle_model: formData.get("vehicle_model") || undefined,
-      vehicle_year: formData.get("vehicle_year") ? parseInt(formData.get("vehicle_year") as string) : undefined,
-      vin: formData.get("vin") || undefined,
-      mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string) : undefined,
-      description: formData.get("description") || undefined,
-      preferred_date: formData.get("preferred_date") || undefined,
-      consent_given: formData.get("consent") === "on",
-      consent_version: "v1.0",
-      consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
-    };
 
     try {
+      const rawPhone = String(formData.get("phone") || "");
+      const normalizedPhone = normalizePhone(rawPhone);
+      const description = String(formData.get("description") || "").trim();
+      if (!description) {
+        throw new Error("Опишите проблему или задачу для сервиса");
+      }
+
+      const data = {
+        vehicle_type: formData.get("vehicle_type") === "truck" ? "truck" : "passenger",
+        service_type: formData.get("service_type"),
+        name: formData.get("name"),
+        phone: normalizedPhone,
+        email: formData.get("email") || undefined,
+        vehicle_make: formData.get("vehicle_make") || undefined,
+        vehicle_model: formData.get("vehicle_model") || undefined,
+        vehicle_year: formData.get("vehicle_year") ? parseInt(formData.get("vehicle_year") as string) : undefined,
+        vin: formData.get("vin") || undefined,
+        mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string) : undefined,
+        description,
+        preferred_date: formData.get("preferred_date") || undefined,
+        consent_given: formData.get("consent") === "on",
+        consent_version: "v1.0",
+        consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
+      };
+
       const apiBaseUrl = getClientApiBaseUrl();
       const response = await fetch(withApiBase(apiBaseUrl, "/api/public/service-requests"), {
         method: "POST",
@@ -44,14 +68,14 @@ export default function ServicePage() {
       });
 
       if (!response.ok) {
-        throw new Error("Ошибка при отправке заявки");
+        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(payload?.detail || "Ошибка при отправке заявки");
       }
 
       setIsSuccess(true);
       event.currentTarget.reset();
     } catch (err) {
-      setError("Не удалось отправить заявку. Попробуйте позже.");
-      console.error(err);
+      setError(err instanceof Error ? err.message : "Не удалось отправить заявку. Попробуйте позже.");
     } finally {
       setIsSubmitting(false);
     }
@@ -216,7 +240,13 @@ export default function ServicePage() {
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Телефон *</label>
-              <input type="tel" name="phone" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
+              <input
+                type="tel"
+                name="phone"
+                required
+                placeholder="+7 (___) ___-__-__"
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+              />
             </div>
 
             <div>
@@ -235,8 +265,8 @@ export default function ServicePage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-neutral-700">Причина обращения</label>
-              <textarea name="description" rows={3} className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
+              <label className="text-sm font-medium text-neutral-700">Причина обращения *</label>
+              <textarea name="description" required rows={3} className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
             </div>
 
             <div className="flex items-start gap-2">

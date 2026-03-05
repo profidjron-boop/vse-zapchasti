@@ -1,6 +1,22 @@
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+import re
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+
+SERVICE_REQUEST_STATUSES = {"new", "in_progress", "closed"}
+
+
+def normalize_phone(value: str) -> str:
+    digits = re.sub(r"\D", "", value)
+
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
+    if len(digits) == 10:
+        digits = "7" + digits
+    if len(digits) != 11 or not digits.startswith("7"):
+        raise ValueError("Phone must be a valid RU number")
+
+    return f"+{digits}"
 
 # ---------- Category Schemas ----------
 class CategoryBase(BaseModel):
@@ -127,11 +143,41 @@ class ServiceRequestBase(BaseModel):
     vehicle_year: Optional[int] = None
     vin: Optional[str] = None
     mileage: Optional[int] = None
-    description: Optional[str] = None
+    description: str
+    operator_comment: Optional[str] = None
     preferred_date: Optional[datetime] = None
     consent_given: bool = False
     consent_version: Optional[str] = None
     consent_text: Optional[str] = None
+
+    @field_validator("vehicle_type")
+    @classmethod
+    def validate_vehicle_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"passenger", "truck"}:
+            raise ValueError("vehicle_type must be 'passenger' or 'truck'")
+        return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        return normalize_phone(value)
+
+    @field_validator("name", "service_type", "description")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field must not be empty")
+        return normalized
+
+    @field_validator("operator_comment")
+    @classmethod
+    def validate_operator_comment(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 class ServiceRequestCreate(ServiceRequestBase):
     pass
@@ -147,6 +193,27 @@ class ServiceRequestResponse(ServiceRequestBase):
     updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class ServiceRequestStatusUpdate(BaseModel):
+    status: str
+    operator_comment: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in SERVICE_REQUEST_STATUSES:
+            raise ValueError(f"status must be one of: {', '.join(sorted(SERVICE_REQUEST_STATUSES))}")
+        return normalized
+
+    @field_validator("operator_comment")
+    @classmethod
+    def validate_comment(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 # ---------- User Schemas ----------
 class UserBase(BaseModel):

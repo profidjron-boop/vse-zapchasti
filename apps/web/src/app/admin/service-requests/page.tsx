@@ -29,6 +29,8 @@ export default function AdminServiceRequestsPage() {
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
 
   const fetchServiceRequests = useCallback(async () => {
     setError("");
@@ -41,7 +43,11 @@ export default function AdminServiceRequestsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, "/api/admin/service-requests?limit=50"), {
+      const query = new URLSearchParams({ limit: "100" });
+      if (status) query.set("status", status);
+      if (search.trim()) query.set("search", search.trim());
+
+      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/service-requests?${query.toString()}`), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -65,7 +71,7 @@ export default function AdminServiceRequestsPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, search, status]);
 
   useEffect(() => {
     void fetchServiceRequests();
@@ -89,6 +95,32 @@ export default function AdminServiceRequestsPage() {
         </div>
       )}
 
+      <div className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Статус</label>
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+          >
+            <option value="">Все</option>
+            <option value="new">Новая</option>
+            <option value="in_progress">В работе</option>
+            <option value="closed">Закрыта</option>
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Имя или телефон"
+            className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+          />
+        </div>
+      </div>
+
       {requests.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">
           <p>Заявок пока нет</p>
@@ -107,6 +139,7 @@ export default function AdminServiceRequestsPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Имя</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Согласие</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Карточка</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
@@ -127,7 +160,7 @@ export default function AdminServiceRequestsPage() {
                   <td className="px-4 py-3 text-sm">{request.service_type}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
-                      {request.status}
+                      {request.status === "new" ? "Новая" : request.status === "in_progress" ? "В работе" : "Закрыта"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">{request.phone}</td>
@@ -135,6 +168,11 @@ export default function AdminServiceRequestsPage() {
                   <td className="px-4 py-3 text-sm">{request.consent_given ? "Да" : "Нет"}</td>
                   <td className="px-4 py-3 text-sm">
                     {new Date(request.created_at).toLocaleString("ru-RU")}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <a className="text-[#1F3B73] hover:underline" href={`/admin/service-requests/${request.id}`}>
+                      Открыть
+                    </a>
                   </td>
                 </tr>
               ))}

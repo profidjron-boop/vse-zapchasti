@@ -10,7 +10,7 @@ from typing import List, Optional
 import uuid
 
 from database import get_db
-from models import Category, Product, Lead, ServiceRequest, SiteContent
+from models import AuditLog, Category, Product, Lead, ServiceRequest, SiteContent
 from schemas import (
     CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
     ServiceRequestCreate, ServiceRequestResponse
@@ -208,6 +208,24 @@ async def create_service_request(
     db.add(db_request)
     await db.commit()
     await db.refresh(db_request)
+
+    audit = AuditLog(
+        action="create_public_service_request",
+        entity_type="service_request",
+        entity_id=db_request.id,
+        new_values={
+            "consent_given": db_request.consent_given,
+            "consent_version": db_request.consent_version,
+            "consent_text": db_request.consent_text,
+            "consent_at": db_request.consent_at.isoformat() if db_request.consent_at else None,
+            "phone": db_request.phone,
+            "status": db_request.status,
+        },
+        ip_address=db_request.ip_address,
+    )
+    db.add(audit)
+    await db.commit()
+
     return db_request
 
 # ---------- Public Content ----------
