@@ -26,7 +26,7 @@ const navItems: NavItem[] = [
   { href: "/admin/imports", label: "Импорты", roles: ["admin"] },
   { href: "/admin/users", label: "Пользователи", roles: ["admin"] },
   { href: "/admin/leads", label: "Заявки (запчасти)", roles: ["admin", "manager"] },
-  { href: "/admin/orders", label: "Заказы", roles: ["admin", "manager"] },
+  { href: "/admin/orders", label: "Заказы", roles: ["admin"] },
   { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
   { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },
   { href: "/admin/categories", label: "Категории", roles: ["admin", "manager"] },
@@ -58,8 +58,6 @@ function canAccessPath(pathname: string, role: UserRole): boolean {
     return (
       pathname === "/admin/leads" ||
       pathname.startsWith("/admin/leads/") ||
-      pathname === "/admin/orders" ||
-      pathname.startsWith("/admin/orders/") ||
       pathname === "/admin/vin-requests" ||
       pathname.startsWith("/admin/vin-requests/") ||
       pathname === "/admin/products" ||

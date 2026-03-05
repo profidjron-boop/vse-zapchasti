@@ -152,7 +152,7 @@ def require_roles(*allowed_roles: str):
 get_admin_user = require_roles("admin")
 get_catalog_user = require_roles("admin", "manager")
 get_leads_user = require_roles("admin", "manager")
-get_orders_user = require_roles("admin", "manager")
+get_orders_user = require_roles("admin")
 get_service_requests_user = require_roles("admin", "service_manager")
 get_service_catalog_user = require_roles("admin")
 get_content_user = require_roles("admin")
