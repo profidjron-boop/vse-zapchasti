@@ -17,6 +17,12 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/api/public", tags=["public"])
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 def _env_positive_int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None:
@@ -371,7 +377,7 @@ async def create_lead(
         lead.consent_text
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
-    lead_data["consent_at"] = datetime.now(UTC)
+    lead_data["consent_at"] = _utcnow()
 
     db_lead = Lead(
         **lead_data,
@@ -404,7 +410,7 @@ async def create_service_request(
         request_data.consent_text
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
-    service_request_data["consent_at"] = datetime.now(UTC)
+    service_request_data["consent_at"] = _utcnow()
 
     db_request = ServiceRequest(
         **service_request_data,
@@ -455,7 +461,7 @@ async def create_vin_request(
         request_data.consent_text
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
-    vin_request_data["consent_at"] = datetime.now(UTC)
+    vin_request_data["consent_at"] = _utcnow()
 
     db_request = VinRequest(
         **vin_request_data,

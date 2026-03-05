@@ -15,22 +15,24 @@
    - `apps/api/.env` (`DATABASE_URL` и пр.)
 
 ## Release Procedure
-1. Verify gates (локально/CI):
+1. Release readiness (локально/CI):
+   - `bash scripts/release-check.sh`
+2. Verify gates (локально/CI):
    - `pnpm web:lint`
    - `pnpm web:typecheck`
    - `pnpm --dir apps/web run build`
    - `cd apps/api && make lint`
    - `cd apps/api && make test`
    - `cd apps/api && make migrate-check`
-2. Build + deploy:
+3. Build + deploy:
    - `docker-compose build`
    - `docker-compose up -d`
-3. Применить миграции:
+4. Применить миграции:
    - `cd apps/api && make migrate`
-4. Запустить smoke:
+5. Запустить smoke:
    - `bash scripts/smoke.sh`
    - `bash scripts/smoke.sh --with-write` (проверка форм с записью)
-5. Если smoke зеленый, релиз считается успешным.
+6. Если smoke зеленый, релиз считается успешным.
 
 ## Rollback Procedure
 1. Немедленно зафиксировать инцидент:

@@ -19,6 +19,10 @@ make migrate-check # текущее состояние миграций (alembic
 - `docker-compose down` — остановка
 
 ## Release gates (перед публикацией)
+0. `bash scripts/release-check.sh` — единый прогон release readiness:
+   - backup (`docs/backup.sh`)
+   - restore-check (`docs/restore-check.sh`)
+   - smoke (`scripts/smoke.sh` + `--with-write`)
 1. `pnpm web:lint && pnpm web:typecheck && pnpm --dir apps/web run build`
 2. `cd apps/api && make lint && make test && make migrate-check`
 3. `docker-compose build`
