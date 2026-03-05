@@ -107,9 +107,11 @@ export default function ContactsPage() {
                   </div>
                   <div>
                     <div className="font-medium">Адрес</div>
-                    <div className="mt-1 text-neutral-600">г. Красноярск, пр. Металлургов, 2В</div>
+                    <div className="mt-1 text-neutral-600">660000, г. Красноярск, пр. Металлургов, 2В</div>
                     <div className="mt-2 text-sm text-neutral-500">
-                      Вход с торца здания, вывеска &quot;Все запчасти&quot;
+                      Вход с торца здания, вывеска &quot;Все запчасти&quot;.
+                      <br />
+                      Пункт выдачи и приемка в сервис: тот же адрес.
                     </div>
                   </div>
                 </div>
@@ -122,11 +124,14 @@ export default function ContactsPage() {
                     <div className="font-medium">Режим работы</div>
                     <div className="mt-1 grid grid-cols-2 gap-2 text-neutral-600">
                       <div>Пн–Пт</div>
-                      <div>9:00 – 19:00</div>
+                      <div>09:00 – 19:00</div>
                       <div>Сб</div>
                       <div>10:00 – 17:00</div>
                       <div>Вс</div>
                       <div>Выходной</div>
+                    </div>
+                    <div className="mt-2 text-sm text-neutral-500">
+                      Приём онлайн-заявок: круглосуточно. Обработка менеджером в рабочее время (Красноярск, UTC+7).
                     </div>
                   </div>
                 </div>
@@ -150,6 +155,12 @@ export default function ContactsPage() {
                           +7 (391) 258-95-01
                         </a>
                       </div>
+                      <div>
+                        <div className="text-sm text-neutral-500">Единая линия</div>
+                        <a href="tel:+73912589500" className="text-lg font-semibold text-[#1F3B73] hover:underline">
+                          +7 (391) 258-95-00
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -160,9 +171,17 @@ export default function ContactsPage() {
                   </div>
                   <div>
                     <div className="font-medium">Email</div>
-                    <a href="mailto:info@vsezapchasti.ru" className="mt-1 text-[#1F3B73] hover:underline">
-                      info@vsezapchasti.ru
-                    </a>
+                    <div className="mt-1 space-y-1">
+                      <a href="mailto:info@vsezapchasti.ru" className="block text-[#1F3B73] hover:underline">
+                        info@vsezapchasti.ru
+                      </a>
+                      <a href="mailto:service@vsezapchasti.ru" className="block text-[#1F3B73] hover:underline">
+                        service@vsezapchasti.ru
+                      </a>
+                      <a href="mailto:privacy@vsezapchasti.ru" className="block text-[#1F3B73] hover:underline">
+                        privacy@vsezapchasti.ru
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -175,6 +194,9 @@ export default function ContactsPage() {
                 <p>ИНН 246500123456</p>
                 <p>ОГРНИП 321246800123456</p>
                 <p>Юридический адрес: 660000, г. Красноярск, ул. Ленина, 1</p>
+                <p>Расчетный счет: 40802810900001234567</p>
+                <p>Банк: ПАО Сбербанк г. Красноярск</p>
+                <p>БИК: 040407123</p>
               </div>
             </div>
           </div>
@@ -187,7 +209,7 @@ export default function ContactsPage() {
                   <div className="text-6xl mb-4">🗺️</div>
                   <p className="text-neutral-600">Карта проезда</p>
                   <p className="mt-2 text-sm text-neutral-500">
-                    г. Красноярск, пр. Металлургов, 2В<br />
+                    660000, г. Красноярск, пр. Металлургов, 2В<br />
                     (Яндекс.Карты / 2GIS — подключение только после решения по провайдеру)
                   </p>
                 </div>
