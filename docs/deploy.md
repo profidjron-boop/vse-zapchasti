@@ -19,6 +19,25 @@
 - Только через `.env` (права 600) или Vault (если появится по scope).
 - Не коммитить секреты.
 
+## API env (обязательно)
+- `apps/api/.env`:
+  - `JWT_SECRET_KEY` — обязательный ключ подписи JWT (только env, без хардкода).
+  - `JWT_PREVIOUS_SECRET_KEY` — опционально для миграции при ротации ключа.
+  - `UPLOAD_DIR` — директория self-hosted загрузок (absolute path или путь относительно корня репо).
+- `dev` пример:
+  - `JWT_SECRET_KEY=change-me-long-random-secret`
+  - `UPLOAD_DIR=apps/web/public/uploads`
+- `prod` правило:
+  - задавать уникальный длинный `JWT_SECRET_KEY` в окружении;
+  - при ротации сначала задать новый `JWT_SECRET_KEY` и старый в `JWT_PREVIOUS_SECRET_KEY`,
+    затем после пере-логина пользователей убрать `JWT_PREVIOUS_SECRET_KEY`.
+
+## Admin auth strategy (текущее состояние)
+- API использует Bearer JWT (`/api/admin/auth/token`), без refresh endpoint.
+- Web сейчас хранит токен в `localStorage` (`admin_token`) и дублирует его в cookie для middleware.
+- Logout выполняется клиентом (удаление токена); серверного blacklist/revoke пока нет.
+- Для более строгой модели безопасности следующий шаг по scope: переход на HttpOnly cookie-схему.
+
 ## Web env (обязательно)
 - `apps/web/.env`:
   - `API_BASE_URL` — base URL API для server-side fetch в Next.js.

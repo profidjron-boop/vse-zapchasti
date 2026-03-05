@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime, timedelta
 import io
+import os
 from pathlib import Path
 import shutil
 from typing import Any, List, Optional
@@ -50,7 +51,10 @@ from schemas import (
 )
 
 # JWT settings
-SECRET_KEY = "your-secret-key-change-in-production"
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or os.getenv("SECRET_KEY")
+JWT_PREVIOUS_SECRET_KEY = os.getenv("JWT_PREVIOUS_SECRET_KEY")
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is required")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -70,7 +74,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 async def get_current_user(
@@ -83,12 +87,21 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
+    payload = None
+    for candidate_key in (JWT_SECRET_KEY, JWT_PREVIOUS_SECRET_KEY):
+        if not candidate_key:
+            continue
+        try:
+            payload = jwt.decode(token, candidate_key, algorithms=[ALGORITHM])
+            break
+        except JWTError:
+            continue
+
+    if payload is None:
+        raise credentials_exception
+
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
         raise credentials_exception
     
     query = select(User).where(User.id == int(user_id))
@@ -124,7 +137,12 @@ get_service_requests_user = require_roles("admin", "service_manager")
 get_content_user = require_roles("admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-UPLOAD_DIR = Path("/home/greka/vse-zapchasti/apps/web/public/uploads")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_UPLOAD_DIR = REPO_ROOT / "apps" / "web" / "public" / "uploads"
+raw_upload_dir = os.getenv("UPLOAD_DIR")
+UPLOAD_DIR = Path(raw_upload_dir).expanduser() if raw_upload_dir else DEFAULT_UPLOAD_DIR
+if not UPLOAD_DIR.is_absolute():
+    UPLOAD_DIR = (REPO_ROOT / UPLOAD_DIR).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
 LEAD_STATUSES = ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]
@@ -453,6 +471,7 @@ async def admin_create_product(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="create",
         entity_type="product",
         entity_id=db_product.id,
@@ -499,6 +518,7 @@ async def admin_attach_product_image(
     await db.refresh(db_image)
 
     audit = AuditLog(
+        user_id=current_user.id,
         action="attach_image",
         entity_type="product",
         entity_id=product_id,
@@ -553,6 +573,7 @@ async def admin_update_product(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="update",
         entity_type="product",
         entity_id=product_id,
@@ -583,6 +604,7 @@ async def admin_delete_product(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="delete",
         entity_type="product",
         entity_id=product_id
@@ -597,6 +619,7 @@ async def admin_delete_product(
 async def admin_import_products(
     file: UploadFile = File(...),
     default_category_id: Optional[int] = Query(None, ge=1),
+    skip_invalid: bool = Query(False, description="Skip invalid rows and import valid rows only"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
@@ -703,6 +726,15 @@ async def admin_import_products(
             except ValueError as exc:
                 collected_errors.append(f"Row {row_index}: {exc}")
 
+        if collected_errors and not skip_invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Import validation failed: {len(collected_errors)} row(s) contain errors. "
+                    "Use skip_invalid=true to import valid rows only."
+                ),
+            )
+
         await db.commit()
 
         snapshot_result = await db.execute(
@@ -741,11 +773,13 @@ async def admin_import_products(
             )
 
         audit = AuditLog(
+            user_id=current_user.id,
             action="import",
             entity_type="product",
             new_values={
                 "run_id": run.id,
                 "file": file.filename,
+                "skip_invalid": skip_invalid,
                 "total": len(rows),
                 "created": created,
                 "updated": updated,
@@ -912,6 +946,7 @@ async def admin_create_category(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="create",
         entity_type="category",
         entity_id=db_category.id,
@@ -969,6 +1004,7 @@ async def admin_update_category(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="update",
         entity_type="category",
         entity_id=category_id,
@@ -999,6 +1035,7 @@ async def admin_delete_category(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="delete",
         entity_type="category",
         entity_id=category_id
@@ -1265,6 +1302,7 @@ async def admin_create_content(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="create",
         entity_type="content",
         entity_id=db_content.id,
@@ -1303,6 +1341,7 @@ async def admin_update_content(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="update",
         entity_type="content",
         entity_id=content.id,
@@ -1335,6 +1374,7 @@ async def admin_delete_content(
     await db.commit()
 
     audit = AuditLog(
+        user_id=current_user.id,
         action="delete",
         entity_type="content",
         entity_id=content_id,
@@ -1371,6 +1411,7 @@ async def admin_upload_file(
     
     # Аудит
     audit = AuditLog(
+        user_id=current_user.id,
         action="upload",
         entity_type="file",
         new_values={"filename": filename, "url": file_url}
@@ -1395,6 +1436,8 @@ async def admin_get_leads(
 ):
     """Get all leads with filters"""
     query = select(Lead)
+    date_from_dt: Optional[datetime] = None
+    date_to_dt: Optional[datetime] = None
     
     if status:
         query = query.where(Lead.status == status.strip().lower())
@@ -1416,9 +1459,24 @@ async def admin_get_leads(
             )
         )
     if date_from:
-        query = query.where(Lead.created_at >= date_from)
+        try:
+            date_from_dt = datetime.strptime(date_from.strip(), "%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="date_from must be in YYYY-MM-DD format") from exc
+
     if date_to:
-        query = query.where(Lead.created_at <= date_to + " 23:59:59")
+        try:
+            date_to_dt = datetime.strptime(date_to.strip(), "%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="date_to must be in YYYY-MM-DD format") from exc
+
+    if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
+        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
+
+    if date_from_dt:
+        query = query.where(Lead.created_at >= date_from_dt)
+    if date_to_dt:
+        query = query.where(Lead.created_at < date_to_dt + timedelta(days=1))
     
     query = query.order_by(Lead.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
@@ -1484,6 +1542,7 @@ async def admin_update_lead_status(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="update_status",
         entity_type="lead",
         entity_id=lead_id,
@@ -1514,6 +1573,7 @@ async def admin_delete_lead(
     
     # Audit log
     audit = AuditLog(
+        user_id=current_user.id,
         action="delete",
         entity_type="lead",
         entity_id=lead_id
