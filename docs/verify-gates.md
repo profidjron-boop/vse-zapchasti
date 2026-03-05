@@ -25,7 +25,12 @@ make dev         # запуск dev сервера
 2. `cd apps/api && make lint && make migrate-check`
 3. `docker-compose build`
 4. `bash docs/backup.sh` (TODO) — бэкап БД
-5. Smoke-тесты вручную: главная, поиск, форма заявки
+5. Smoke:
+   - `bash scripts/smoke.sh`
+   - `bash scripts/smoke.sh --with-write`
+
+## Runbook
+- `docs/release-rollback-runbook.md` — пошаговый release/rollback процесс
 
 ## Запрещено
 - Запускать команды, не описанные здесь или в package.json/Makefile

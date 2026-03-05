@@ -1,8 +1,12 @@
+import csv
 from datetime import datetime, timedelta
+import io
 from pathlib import Path
 import shutil
-from typing import List, Optional
+from typing import Any, List, Optional
 import uuid
+import zipfile
+from xml.etree import ElementTree as ET
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -78,14 +82,220 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-async def get_admin_user(current_user: User = Depends(get_current_active_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    return current_user
+def require_roles(*allowed_roles: str):
+    allowed = set(allowed_roles)
+
+    async def _require(current_user: User = Depends(get_current_active_user)):
+        if current_user.role not in allowed:
+            allowed_str = ", ".join(sorted(allowed))
+            raise HTTPException(status_code=403, detail=f"Not enough permissions. Required roles: {allowed_str}")
+        return current_user
+
+    return _require
+
+
+get_admin_user = require_roles("admin")
+get_catalog_user = require_roles("admin", "manager")
+get_leads_user = require_roles("admin", "manager")
+get_service_requests_user = require_roles("admin", "service_manager")
+get_content_user = require_roles("admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 UPLOAD_DIR = Path("/home/greka/vse-zapchasti/apps/web/public/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+
+
+def _normalize_header(value: str) -> str:
+    return value.strip().lower().replace(" ", "_")
+
+
+PRODUCT_IMPORT_COLUMN_ALIASES = {
+    "артикул": "sku",
+    "article": "sku",
+    "product_sku": "sku",
+    "название": "name",
+    "product_name": "name",
+    "категория": "category_id",
+    "category": "category_id",
+    "categoryid": "category_id",
+    "category_slug": "category_slug",
+    "slug": "category_slug",
+    "category_name": "category_name",
+    "категория_название": "category_name",
+    "бренд": "brand",
+    "цена": "price",
+    "остаток": "stock_quantity",
+    "stock": "stock_quantity",
+    "quantity": "stock_quantity",
+    "активен": "is_active",
+    "active": "is_active",
+    "описание": "description",
+}
+
+
+def _canonicalize_import_row(row: dict[str, Any]) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for key, value in row.items():
+        if key is None:
+            continue
+        normalized_key = _normalize_header(str(key))
+        canonical_key = PRODUCT_IMPORT_COLUMN_ALIASES.get(normalized_key, normalized_key)
+        normalized[canonical_key] = str(value or "").strip()
+    return normalized
+
+
+def _decode_csv_content(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "cp1251", "utf-8"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise HTTPException(status_code=400, detail="Cannot decode CSV file. Use UTF-8 or CP1251.")
+
+
+def _extract_csv_rows(content: bytes) -> list[dict[str, str]]:
+    csv_text = _decode_csv_content(content)
+    reader = csv.DictReader(io.StringIO(csv_text))
+
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV header row is required.")
+
+    rows: list[dict[str, str]] = []
+    for row in reader:
+        normalized_row = _canonicalize_import_row(row)
+        if any(value for value in normalized_row.values()):
+            rows.append(normalized_row)
+    return rows
+
+
+def _xlsx_column_to_index(cell_ref: str) -> int:
+    column = "".join(char for char in cell_ref if char.isalpha()).upper()
+    if not column:
+        return -1
+
+    index = 0
+    for char in column:
+        index = index * 26 + (ord(char) - ord("A") + 1)
+    return index - 1
+
+
+def _extract_xlsx_rows(content: bytes) -> list[dict[str, str]]:
+    namespace = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    rel_namespace = {"r": "http://schemas.openxmlformats.org/package/2006/relationships"}
+    shared_strings: list[str] = []
+
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        try:
+            shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+            for item in shared_root.findall(".//x:si", namespace):
+                text_parts = [(node.text or "") for node in item.findall(".//x:t", namespace)]
+                shared_strings.append("".join(text_parts))
+        except KeyError:
+            shared_strings = []
+
+        worksheet_path = "xl/worksheets/sheet1.xml"
+        try:
+            workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+            rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+            first_sheet = workbook.find(".//x:sheets/x:sheet", namespace)
+            if first_sheet is not None:
+                rel_id = first_sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+                if rel_id:
+                    rel_target = rels.find(f'.//r:Relationship[@Id="{rel_id}"]', rel_namespace)
+                    if rel_target is not None:
+                        worksheet_path = f"xl/{rel_target.attrib.get('Target', '').lstrip('/')}"
+        except KeyError:
+            worksheet_path = "xl/worksheets/sheet1.xml"
+
+        try:
+            worksheet = ET.fromstring(archive.read(worksheet_path))
+        except KeyError as exc:
+            raise HTTPException(status_code=400, detail="XLSX worksheet not found.") from exc
+
+    header: list[str] = []
+    rows: list[dict[str, str]] = []
+
+    for row_node in worksheet.findall(".//x:sheetData/x:row", namespace):
+        indexed_values: dict[int, str] = {}
+        for cell in row_node.findall("x:c", namespace):
+            cell_ref = cell.attrib.get("r", "")
+            column_index = _xlsx_column_to_index(cell_ref)
+            if column_index < 0:
+                continue
+
+            cell_type = cell.attrib.get("t")
+            value = ""
+
+            if cell_type == "s":
+                raw = cell.find("x:v", namespace)
+                if raw is not None and raw.text and raw.text.isdigit():
+                    shared_index = int(raw.text)
+                    if 0 <= shared_index < len(shared_strings):
+                        value = shared_strings[shared_index]
+            elif cell_type == "inlineStr":
+                raw = cell.find("x:is/x:t", namespace)
+                value = raw.text if raw is not None and raw.text else ""
+            else:
+                raw = cell.find("x:v", namespace)
+                value = raw.text if raw is not None and raw.text else ""
+
+            indexed_values[column_index] = value
+
+        if not indexed_values:
+            continue
+
+        max_index = max(indexed_values.keys())
+        row_values = [indexed_values.get(index, "") for index in range(max_index + 1)]
+
+        if not header:
+            header = [_normalize_header(value) for value in row_values]
+            continue
+
+        normalized_row: dict[str, str] = {}
+        for index, key in enumerate(header):
+            if not key:
+                continue
+            normalized_row[key] = row_values[index].strip() if index < len(row_values) else ""
+
+        normalized_row = _canonicalize_import_row(normalized_row)
+        if any(value for value in normalized_row.values()):
+            rows.append(normalized_row)
+
+    return rows
+
+
+def _parse_import_rows(filename: str, content: bytes) -> list[dict[str, str]]:
+    extension = Path(filename).suffix.lower()
+
+    if extension not in PRODUCT_IMPORT_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only CSV and XLSX files are supported.")
+
+    if extension == ".csv":
+        return _extract_csv_rows(content)
+
+    return _extract_xlsx_rows(content)
+
+
+def _parse_optional_int(value: str) -> Optional[int]:
+    raw = value.strip()
+    if not raw:
+        return None
+    return int(raw)
+
+
+def _parse_optional_float(value: str) -> Optional[float]:
+    raw = value.strip().replace(" ", "").replace(",", ".")
+    if not raw:
+        return None
+    return float(raw)
+
+
+def _parse_bool(value: str, default: bool = True) -> bool:
+    raw = value.strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "y", "on", "да"}
 
 # ---------- Authentication ----------
 @router.post("/auth/token", response_model=TokenResponse)
@@ -119,7 +329,7 @@ async def admin_get_products(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Get all products (admin only)"""
     query = select(Product).offset(skip).limit(limit).order_by(Product.id)
@@ -130,7 +340,7 @@ async def admin_get_products(
 async def admin_get_product(
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Get product by ID (admin)"""
     query = select(Product).where(Product.id == product_id)
@@ -145,7 +355,7 @@ async def admin_get_product(
 async def admin_create_product(
     product: ProductCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Create new product"""
     # Check if SKU exists
@@ -175,7 +385,7 @@ async def admin_update_product(
     product_id: int,
     product_update: ProductUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Update product"""
     query = select(Product).where(Product.id == product_id)
@@ -242,11 +452,112 @@ async def admin_delete_product(
     
     return None
 
+
+@router.post("/products/import")
+async def admin_import_products(
+    file: UploadFile = File(...),
+    default_category_id: Optional[int] = Query(None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_catalog_user),
+):
+    """Import products from CSV/XLSX with upsert by SKU."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    rows = _parse_import_rows(file.filename, content)
+    if not rows:
+        return {"file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0, "errors": []}
+
+    categories_result = await db.execute(select(Category))
+    categories = categories_result.scalars().all()
+    category_by_slug = {category.slug.lower(): category.id for category in categories if category.slug}
+    category_by_name = {category.name.lower(): category.id for category in categories if category.name}
+
+    created = 0
+    updated = 0
+    errors: list[str] = []
+
+    for row_index, row in enumerate(rows, start=2):
+        try:
+            sku = row.get("sku", "").strip()
+            name = row.get("name", "").strip()
+            if not sku or not name:
+                errors.append(f"Row {row_index}: 'sku' and 'name' are required.")
+                continue
+
+            category_id: Optional[int] = None
+            if row.get("category_id"):
+                category_id = _parse_optional_int(row["category_id"])
+            elif row.get("category_slug"):
+                category_id = category_by_slug.get(row["category_slug"].strip().lower())
+            elif row.get("category_name"):
+                category_id = category_by_name.get(row["category_name"].strip().lower())
+            else:
+                category_id = default_category_id
+
+            if not category_id:
+                errors.append(f"Row {row_index}: category is required.")
+                continue
+
+            payload = {
+                "category_id": category_id,
+                "oem": row.get("oem") or None,
+                "brand": row.get("brand") or None,
+                "name": name,
+                "description": row.get("description") or None,
+                "price": _parse_optional_float(row.get("price", "")),
+                "stock_quantity": _parse_optional_int(row.get("stock_quantity", "")) or 0,
+                "is_active": _parse_bool(row.get("is_active", ""), default=True),
+            }
+
+            existing_result = await db.execute(select(Product).where(Product.sku == sku))
+            existing_product = existing_result.scalar_one_or_none()
+
+            if existing_product:
+                for field, value in payload.items():
+                    setattr(existing_product, field, value)
+                updated += 1
+            else:
+                db.add(Product(sku=sku, **payload))
+                created += 1
+
+        except ValueError as exc:
+            errors.append(f"Row {row_index}: {exc}")
+
+    await db.commit()
+
+    audit = AuditLog(
+        action="import",
+        entity_type="product",
+        new_values={
+            "file": file.filename,
+            "total": len(rows),
+            "created": created,
+            "updated": updated,
+            "failed": len(errors),
+        },
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "file": file.filename,
+        "total": len(rows),
+        "created": created,
+        "updated": updated,
+        "failed": len(errors),
+        "errors": errors[:100],
+    }
+
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])
 async def admin_get_categories(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Get all categories (admin)"""
     query = select(Category).order_by(Category.sort_order)
@@ -257,7 +568,7 @@ async def admin_get_categories(
 async def admin_create_category(
     category: CategoryCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Create new category"""
     # Check if slug exists
@@ -286,7 +597,7 @@ async def admin_create_category(
 async def admin_get_category(
     category_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Get category by ID"""
     query = select(Category).where(Category.id == category_id)
@@ -302,7 +613,7 @@ async def admin_update_category(
     category_id: int,
     category_update: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_catalog_user)
 ):
     """Update category"""
     query = select(Category).where(Category.id == category_id)
@@ -374,7 +685,7 @@ async def admin_get_service_requests(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_service_requests_user)
 ):
     """Get all service requests"""
     query = select(ServiceRequest).order_by(ServiceRequest.created_at.desc()).offset(skip).limit(limit)
@@ -385,7 +696,7 @@ async def admin_get_service_requests(
 @router.get("/content", response_model=List[SiteContentResponse])
 async def admin_get_content(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_content_user)
 ):
     """Get all site content blocks"""
     query = select(SiteContent).order_by(SiteContent.key)
@@ -396,7 +707,7 @@ async def admin_get_content(
 async def admin_get_content_by_key(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_content_user)
 ):
     """Get site content by key"""
     query = select(SiteContent).where(SiteContent.key == key)
@@ -411,7 +722,7 @@ async def admin_get_content_by_key(
 async def admin_create_content(
     content: SiteContentCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_content_user)
 ):
     """Create new content block"""
     # Check if key exists
@@ -441,7 +752,7 @@ async def admin_update_content(
     key: str,
     content_update: SiteContentUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_content_user)
 ):
     """Update content block"""
     query = select(SiteContent).where(SiteContent.key == key)
@@ -480,7 +791,7 @@ async def admin_update_content(
 async def admin_delete_content(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_content_user),
 ):
     """Delete content block by key"""
     result = await db.execute(select(SiteContent).where(SiteContent.key == key))
@@ -510,7 +821,7 @@ async def admin_delete_content(
 async def admin_upload_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_content_user)
 ):
     """Upload a file (image, etc.)"""
     # Проверяем расширение
@@ -552,7 +863,7 @@ async def admin_get_leads(
     date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_leads_user)
 ):
     """Get all leads with filters"""
     query = select(Lead)
@@ -584,7 +895,7 @@ async def admin_get_leads(
 async def admin_get_lead(
     lead_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_leads_user)
 ):
     """Get single lead by ID"""
     query = select(Lead).where(Lead.id == lead_id)
@@ -601,7 +912,7 @@ async def admin_update_lead_status(
     status: str,
     comment: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_leads_user)
 ):
     """Update lead status"""
     query = select(Lead).where(Lead.id == lead_id)
@@ -660,7 +971,7 @@ async def admin_delete_lead(
 
 @router.get("/leads/statuses", response_model=List[str])
 async def admin_get_lead_statuses(
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_leads_user)
 ):
     """Get all possible lead statuses"""
     return ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]

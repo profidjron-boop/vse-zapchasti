@@ -1,7 +1,11 @@
+from collections import defaultdict, deque
 from datetime import datetime
+import os
+from threading import Lock
+import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from typing import List, Optional
 import uuid
 
@@ -13,6 +17,26 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/api/public", tags=["public"])
+FORM_RATE_LIMIT_PER_MINUTE = int(os.getenv("PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", "20"))
+FORM_RATE_LIMIT_WINDOW_SECONDS = 60
+_rate_limit_buckets: dict[str, deque[float]] = defaultdict(deque)
+_rate_limit_lock = Lock()
+
+
+def _enforce_form_rate_limit(request: Request, scope: str) -> None:
+    ip_address = request.client.host if request.client else "unknown"
+    bucket_key = f"{scope}:{ip_address}"
+    now = time.time()
+
+    with _rate_limit_lock:
+        bucket = _rate_limit_buckets[bucket_key]
+        while bucket and now - bucket[0] > FORM_RATE_LIMIT_WINDOW_SECONDS:
+            bucket.popleft()
+
+        if len(bucket) >= FORM_RATE_LIMIT_PER_MINUTE:
+            raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+
+        bucket.append(now)
 
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])
@@ -67,14 +91,34 @@ async def get_products(
         query = query.where(Product.stock_quantity > 0)
     
     if search:
+        search_text = " ".join(search.strip().split())
         search_pattern = f"%{search}%"
-        query = query.where(
-            (Product.name.ilike(search_pattern)) |
-            (Product.sku.ilike(search_pattern)) |
-            (Product.oem.ilike(search_pattern))
+        search_vector = func.to_tsvector(
+            "russian",
+            func.concat_ws(
+                " ",
+                Product.name,
+                func.coalesce(Product.sku, ""),
+                func.coalesce(Product.oem, ""),
+                func.coalesce(Product.brand, ""),
+            ),
         )
-    
-    query = query.order_by(Product.id).offset(offset).limit(limit)
+        ts_query = func.plainto_tsquery("russian", search_text)
+
+        query = query.where(
+            search_vector.op("@@")(ts_query)
+            | Product.name.ilike(search_pattern)
+            | Product.sku.ilike(search_pattern)
+            | Product.oem.ilike(search_pattern)
+        )
+        query = query.order_by(
+            func.ts_rank(search_vector, ts_query).desc(),
+            Product.id.desc(),
+        )
+    else:
+        query = query.order_by(Product.id)
+
+    query = query.offset(offset).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -108,6 +152,8 @@ async def create_lead(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new lead (parts request, VIN request, callback, etc.)"""
+    _enforce_form_rate_limit(request, "leads")
+
     if not lead.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
 
@@ -139,6 +185,8 @@ async def create_service_request(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new service request (repair appointment)"""
+    _enforce_form_rate_limit(request, "service_requests")
+
     if not request_data.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
 
