@@ -105,6 +105,30 @@ class Lead(Base):
     # Relationships
     product = relationship("Product")
 
+class VinRequest(Base):
+    __tablename__ = "vin_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), default=lambda: str(uuid.uuid4()), unique=True, index=True)
+    status = Column(String(50), default="new")  # new, in_progress, closed
+
+    vin = Column(String(50), nullable=False)
+    name = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=False)
+    email = Column(String(255), nullable=True)
+    message = Column(Text, nullable=True)
+
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    consent_given = Column(Boolean, default=False)
+    consent_version = Column(String(50), nullable=True)
+    consent_text = Column(Text, nullable=True)
+    consent_at = Column(DateTime, nullable=True)
+    operator_comment = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class ServiceRequest(Base):
     __tablename__ = "service_requests"
     

@@ -10,10 +10,10 @@ from typing import List, Optional
 import uuid
 
 from database import get_db
-from models import AuditLog, Category, Product, Lead, ServiceRequest, SiteContent
+from models import AuditLog, Category, Product, Lead, ServiceRequest, SiteContent, VinRequest
 from schemas import (
     CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
-    ServiceRequestCreate, ServiceRequestResponse
+    ServiceRequestCreate, ServiceRequestResponse, VinRequestCreate, VinRequestResponse
 )
 
 router = APIRouter(prefix="/api/public", tags=["public"])
@@ -220,6 +220,58 @@ async def create_service_request(
             "consent_at": db_request.consent_at.isoformat() if db_request.consent_at else None,
             "phone": db_request.phone,
             "status": db_request.status,
+        },
+        ip_address=db_request.ip_address,
+    )
+    db.add(audit)
+    await db.commit()
+
+    return db_request
+
+# ---------- VIN Requests ----------
+@router.post("/vin-requests", response_model=VinRequestResponse, status_code=201)
+async def create_vin_request(
+    request_data: VinRequestCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new VIN request"""
+    _enforce_form_rate_limit(request, "vin_requests")
+
+    if not request_data.consent_given:
+        raise HTTPException(status_code=400, detail="Consent is required")
+
+    vin_request_data = request_data.model_dump()
+    vin_request_data["consent_version"] = request_data.consent_version or "v1.0"
+    vin_request_data["consent_text"] = (
+        request_data.consent_text
+        or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
+    )
+    vin_request_data["consent_at"] = datetime.utcnow()
+
+    db_request = VinRequest(
+        **vin_request_data,
+        uuid=str(uuid.uuid4()),
+        status="new",
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(db_request)
+    await db.commit()
+    await db.refresh(db_request)
+
+    audit = AuditLog(
+        action="create_public_vin_request",
+        entity_type="vin_request",
+        entity_id=db_request.id,
+        new_values={
+            "vin": db_request.vin,
+            "phone": db_request.phone,
+            "status": db_request.status,
+            "consent_given": db_request.consent_given,
+            "consent_version": db_request.consent_version,
+            "consent_text": db_request.consent_text,
+            "consent_at": db_request.consent_at.isoformat() if db_request.consent_at else None,
         },
         ip_address=db_request.ip_address,
     )

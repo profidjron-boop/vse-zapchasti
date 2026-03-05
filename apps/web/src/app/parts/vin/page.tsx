@@ -16,12 +16,11 @@ export default function VinRequestPage() {
 
     const formData = new FormData(event.currentTarget);
     const data = {
-      type: "vin",
-      name: formData.get("name") || undefined,
-      phone: formData.get("phone"),
+      vin: formData.get("vin")?.toString().trim().toUpperCase(),
+      name: formData.get("name")?.toString().trim() || undefined,
+      phone: formData.get("phone")?.toString().trim(),
       email: formData.get("email") || undefined,
-      vin: formData.get("vin"),
-      message: formData.get("message") || undefined,
+      message: formData.get("message")?.toString().trim() || undefined,
       consent_given: formData.get("consent") === "on",
       consent_version: "v1.0",
       consent_text: "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности",
@@ -29,7 +28,7 @@ export default function VinRequestPage() {
 
     try {
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/leads"), {
+      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/vin-requests"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -38,7 +37,8 @@ export default function VinRequestPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Ошибка при отправке заявки");
+        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(payload?.detail || "Ошибка при отправке заявки");
       }
 
       setIsSuccess(true);

@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 SERVICE_REQUEST_STATUSES = {"new", "in_progress", "closed"}
+VIN_REQUEST_STATUSES = {"new", "in_progress", "closed"}
 
 
 def normalize_phone(value: str) -> str:
@@ -130,6 +131,77 @@ class LeadResponse(LeadBase):
     updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+# ---------- VIN Request Schemas ----------
+class VinRequestBase(BaseModel):
+    vin: str
+    phone: str
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    message: Optional[str] = None
+    operator_comment: Optional[str] = None
+    consent_given: bool = False
+    consent_version: Optional[str] = None
+    consent_text: Optional[str] = None
+
+    @field_validator("vin")
+    @classmethod
+    def validate_vin(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if len(normalized) != 17 or not re.fullmatch(r"[A-HJ-NPR-Z0-9]{17}", normalized):
+            raise ValueError("VIN must contain 17 symbols")
+        return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        return normalize_phone(value)
+
+    @field_validator("name", "message", "operator_comment")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class VinRequestCreate(VinRequestBase):
+    pass
+
+
+class VinRequestResponse(VinRequestBase):
+    id: int
+    uuid: str
+    status: str
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    consent_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VinRequestStatusUpdate(BaseModel):
+    status: str
+    operator_comment: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in VIN_REQUEST_STATUSES:
+            raise ValueError(f"status must be one of: {', '.join(sorted(VIN_REQUEST_STATUSES))}")
+        return normalized
+
+    @field_validator("operator_comment")
+    @classmethod
+    def normalize_comment(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 # ---------- Service Request Schemas ----------
 class ServiceRequestBase(BaseModel):

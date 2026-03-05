@@ -49,6 +49,7 @@ export default function AdminLayout({
   const navItems = [
     { href: "/admin/content", label: "Редактор сайта" },
     { href: "/admin", label: "Дашборд" },
+    { href: "/admin/vin-requests", label: "VIN-заявки" },
     { href: "/admin/leads", label: "Заявки (запчасти)" },
     { href: "/admin/service-requests", label: "Заявки (сервис)" },
     { href: "/admin/products", label: "Товары" },
