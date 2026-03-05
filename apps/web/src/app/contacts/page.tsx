@@ -1,16 +1,114 @@
 'use client';
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+
+function normalizePhone(value: string): string | null {
+  const digits = value.replace(/\D/g, "");
+  let normalized = digits;
+
+  if (normalized.length === 11 && normalized.startsWith("8")) normalized = `7${normalized.slice(1)}`;
+  if (normalized.length === 10) normalized = `7${normalized}`;
+
+  if (normalized.length !== 11 || !normalized.startsWith("7")) return null;
+  return `+${normalized}`;
+}
 
 export default function ContactsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [contentMap, setContentMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchPublicContent() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        if (!Array.isArray(payload)) return;
+
+        const nextMap: Record<string, string> = {};
+        for (const item of payload) {
+          if (item?.key && typeof item.value === "string") {
+            nextMap[item.key] = item.value;
+          }
+        }
+
+        if (!cancelled) {
+          setContentMap(nextMap);
+        }
+      } catch {
+        // Keep defaults when content API is unavailable.
+      }
+    }
+
+    void fetchPublicContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const contentValue = useMemo(
+    () => (key: string, fallback: string): string => {
+      const value = contentMap[key];
+      return value && value.trim() ? value : fallback;
+    },
+    [contentMap]
+  );
+
+  const toTelHref = useMemo(
+    () => (displayPhone: string, fallbackHref: string): string => {
+      const digits = displayPhone.replace(/\D/g, "");
+      if (!digits) return fallbackHref;
+      if (digits.length === 11 && digits.startsWith("8")) {
+        return `tel:+7${digits.slice(1)}`;
+      }
+      if (digits.length === 11 && digits.startsWith("7")) {
+        return `tel:+${digits}`;
+      }
+      return fallbackHref;
+    },
+    []
+  );
+
+  const contactAddress = contentValue("contacts_address", "660000, г. Красноярск, пр. Металлургов, 2В");
+  const scheduleWeekdays = contentValue("contacts_schedule_weekdays", "09:00 – 19:00");
+  const scheduleSaturday = contentValue("contacts_schedule_saturday", "10:00 – 17:00");
+  const scheduleSunday = contentValue("contacts_schedule_sunday", "Выходной");
+
+  const phoneParts = contentValue("contacts_phone_parts", "+7 (391) 258-95-00");
+  const phoneService = contentValue("contacts_phone_service", "+7 (391) 258-95-01");
+  const phoneMain = contentValue("contacts_phone_main", "+7 (391) 258-95-00");
+
+  const emailInfo = contentValue("contacts_email_info", "info@vsezapchasti.ru");
+  const emailService = contentValue("contacts_email_service", "service@vsezapchasti.ru");
+  const emailPrivacy = contentValue("contacts_email_privacy", "privacy@vsezapchasti.ru");
+
+  const legalName = contentValue("contacts_legal_name", "ИП Иванов Иван Иванович");
+  const legalInn = contentValue("contacts_inn", "246500123456");
+  const legalOgrnip = contentValue("contacts_ogrnip", "321246800123456");
+  const legalAddress = contentValue("contacts_legal_address", "660000, г. Красноярск, ул. Ленина, 1");
+  const legalBankAccount = contentValue("contacts_bank_account", "40802810900001234567");
+  const legalBankName = contentValue("contacts_bank_name", "ПАО Сбербанк г. Красноярск");
+  const legalBik = contentValue("contacts_bank_bik", "040407123");
+
+  const mapYandexUrl = contentValue(
+    "contacts_map_yandex_url",
+    "https://yandex.ru/maps/?text=%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D1%8F%D1%80%D1%81%D0%BA%2C%20%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%2C%202%D0%92"
+  );
+  const map2gisUrl = contentValue(
+    "contacts_map_2gis_url",
+    "https://2gis.ru/krasnoyarsk/search/%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%202%D0%92"
+  );
 
   async function handleCallbackSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError("");
     setSuccess("");
     setIsSubmitting(true);
@@ -18,11 +116,19 @@ export default function ContactsPage() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const consentGiven = formData.get("consent") === "on";
+    const rawPhone = formData.get("phone")?.toString().trim() || "";
+    const phone = normalizePhone(rawPhone);
+
+    if (!phone) {
+      setError("Проверьте телефон. Нужен формат РФ: +7XXXXXXXXXX.");
+      setIsSubmitting(false);
+      return;
+    }
 
     const payload = {
       type: "callback",
       name: formData.get("name")?.toString().trim() || undefined,
-      phone: formData.get("phone")?.toString().trim() || "",
+      phone,
       email: formData.get("email")?.toString().trim() || undefined,
       message: formData.get("message")?.toString().trim() || undefined,
       consent_given: consentGiven,
@@ -40,14 +146,15 @@ export default function ContactsPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create callback lead");
+        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(body?.detail || "Не удалось отправить заявку");
       }
 
       form.reset();
       setSuccess("Заявка на обратный звонок отправлена. Менеджер свяжется с вами в рабочее время.");
     } catch (submitError) {
       console.error(submitError);
-      setError("Не удалось отправить заявку. Попробуйте позже.");
+      setError(submitError instanceof Error ? submitError.message : "Не удалось отправить заявку. Попробуйте позже.");
     } finally {
       setIsSubmitting(false);
     }
@@ -109,7 +216,7 @@ export default function ContactsPage() {
                   </div>
                   <div>
                     <div className="font-medium">Адрес</div>
-                    <div className="mt-1 text-neutral-600">660000, г. Красноярск, пр. Металлургов, 2В</div>
+                    <div className="mt-1 text-neutral-600">{contactAddress}</div>
                     <div className="mt-2 text-sm text-neutral-500">
                       Вход с торца здания, вывеска &quot;Все запчасти&quot;.
                       <br />
@@ -126,11 +233,11 @@ export default function ContactsPage() {
                     <div className="font-medium">Режим работы</div>
                     <div className="mt-1 grid grid-cols-2 gap-2 text-neutral-600">
                       <div>Пн–Пт</div>
-                      <div>09:00 – 19:00</div>
+                      <div>{scheduleWeekdays}</div>
                       <div>Сб</div>
-                      <div>10:00 – 17:00</div>
+                      <div>{scheduleSaturday}</div>
                       <div>Вс</div>
-                      <div>Выходной</div>
+                      <div>{scheduleSunday}</div>
                     </div>
                     <div className="mt-2 text-sm text-neutral-500">
                       Приём онлайн-заявок: круглосуточно. Обработка менеджером в рабочее время (Красноярск, UTC+7).
@@ -147,20 +254,20 @@ export default function ContactsPage() {
                     <div className="mt-1 space-y-1">
                       <div>
                         <div className="text-sm text-neutral-500">Отдел запчастей</div>
-                        <a href="tel:+73912589500" className="text-lg font-semibold text-[#1F3B73] hover:underline">
-                          +7 (391) 258-95-00
+                        <a href={toTelHref(phoneParts, "tel:+73912589500")} className="text-lg font-semibold text-[#1F3B73] hover:underline">
+                          {phoneParts}
                         </a>
                       </div>
                       <div>
                         <div className="text-sm text-neutral-500">Автосервис</div>
-                        <a href="tel:+73912589501" className="text-lg font-semibold text-[#1F3B73] hover:underline">
-                          +7 (391) 258-95-01
+                        <a href={toTelHref(phoneService, "tel:+73912589501")} className="text-lg font-semibold text-[#1F3B73] hover:underline">
+                          {phoneService}
                         </a>
                       </div>
                       <div>
                         <div className="text-sm text-neutral-500">Единая линия</div>
-                        <a href="tel:+73912589500" className="text-lg font-semibold text-[#1F3B73] hover:underline">
-                          +7 (391) 258-95-00
+                        <a href={toTelHref(phoneMain, "tel:+73912589500")} className="text-lg font-semibold text-[#1F3B73] hover:underline">
+                          {phoneMain}
                         </a>
                       </div>
                     </div>
@@ -174,14 +281,14 @@ export default function ContactsPage() {
                   <div>
                     <div className="font-medium">Email</div>
                     <div className="mt-1 space-y-1">
-                      <a href="mailto:info@vsezapchasti.ru" className="block text-[#1F3B73] hover:underline">
-                        info@vsezapchasti.ru
+                      <a href={`mailto:${emailInfo}`} className="block text-[#1F3B73] hover:underline">
+                        {emailInfo}
                       </a>
-                      <a href="mailto:service@vsezapchasti.ru" className="block text-[#1F3B73] hover:underline">
-                        service@vsezapchasti.ru
+                      <a href={`mailto:${emailService}`} className="block text-[#1F3B73] hover:underline">
+                        {emailService}
                       </a>
-                      <a href="mailto:privacy@vsezapchasti.ru" className="block text-[#1F3B73] hover:underline">
-                        privacy@vsezapchasti.ru
+                      <a href={`mailto:${emailPrivacy}`} className="block text-[#1F3B73] hover:underline">
+                        {emailPrivacy}
                       </a>
                     </div>
                   </div>
@@ -192,13 +299,13 @@ export default function ContactsPage() {
             <div className="rounded-3xl bg-white p-8 shadow-xl">
               <h2 className="text-xl font-bold text-[#1F3B73]">Реквизиты</h2>
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
-                <p>ИП Иванов Иван Иванович</p>
-                <p>ИНН 246500123456</p>
-                <p>ОГРНИП 321246800123456</p>
-                <p>Юридический адрес: 660000, г. Красноярск, ул. Ленина, 1</p>
-                <p>Расчетный счет: 40802810900001234567</p>
-                <p>Банк: ПАО Сбербанк г. Красноярск</p>
-                <p>БИК: 040407123</p>
+                <p>{legalName}</p>
+                <p>ИНН {legalInn}</p>
+                <p>ОГРНИП {legalOgrnip}</p>
+                <p>Юридический адрес: {legalAddress}</p>
+                <p>Расчетный счет: {legalBankAccount}</p>
+                <p>Банк: {legalBankName}</p>
+                <p>БИК: {legalBik}</p>
               </div>
             </div>
           </div>
@@ -210,7 +317,7 @@ export default function ContactsPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-[#1F3B73]">Карта проезда</h3>
                   <p className="mt-2 text-sm text-neutral-600">
-                    660000, г. Красноярск, пр. Металлургов, 2В
+                    {contactAddress}
                   </p>
                   <p className="mt-1 text-xs text-neutral-500">
                     Без встраивания внешних скриптов: открытие в отдельной вкладке.
@@ -218,7 +325,7 @@ export default function ContactsPage() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <a
-                    href="https://yandex.ru/maps/?text=%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D1%8F%D1%80%D1%81%D0%BA%2C%20%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%2C%202%D0%92"
+                    href={mapYandexUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
@@ -226,7 +333,7 @@ export default function ContactsPage() {
                     Открыть в Яндекс Картах
                   </a>
                   <a
-                    href="https://2gis.ru/krasnoyarsk/search/%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%202%D0%92"
+                    href={map2gisUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-2xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"

@@ -24,14 +24,40 @@ const STATUS_LABELS: Record<VinRequest["status"], string> = {
   closed: "Закрыта",
 };
 
+type VinFilters = {
+  status: string;
+  search: string;
+};
+
+type FilterPreset = {
+  id: string;
+  name: string;
+  filters: VinFilters;
+};
+
+const FILTER_PRESETS_STORAGE_KEY = "admin_vin_requests_filter_presets_v1";
+
 export default function AdminVinRequestsPage() {
   const router = useRouter();
   const [requests, setRequests] = useState<VinRequest[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<VinFilters>({ status: "", search: "" });
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [presetName, setPresetName] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<number[]>([]);
+  const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -51,9 +77,11 @@ export default function AdminVinRequestsPage() {
     }
   }, []);
 
-  const fetchRequests = useCallback(async () => {
+  const fetchRequests = useCallback(async (showRefreshing = false) => {
     setError("");
-    setLoading(true);
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    }
 
     try {
       const token = localStorage.getItem("admin_token");
@@ -62,9 +90,12 @@ export default function AdminVinRequestsPage() {
         return;
       }
 
-      const query = new URLSearchParams({ limit: "100" });
-      if (status) query.set("status", status);
-      if (search.trim()) query.set("search", search.trim());
+      const query = new URLSearchParams({
+        skip: String((page - 1) * pageSize),
+        limit: String(pageSize + 1),
+      });
+      if (appliedFilters.status) query.set("status", appliedFilters.status);
+      if (appliedFilters.search.trim()) query.set("search", appliedFilters.search.trim());
 
       const apiBaseUrl = getClientApiBaseUrl();
       const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/vin-requests?${query.toString()}`), {
@@ -81,14 +112,20 @@ export default function AdminVinRequestsPage() {
       }
 
       const data = (await res.json()) as VinRequest[];
-      setRequests(data);
+      const nextPageAvailable = data.length > pageSize;
+      const pageRows = nextPageAvailable ? data.slice(0, pageSize) : data;
+      setRequests(pageRows);
+      setHasNextPage(nextPageAvailable);
+      setSelectedRequestIds((prev) => prev.filter((id) => pageRows.some((request) => request.id === id)));
+      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       console.error(fetchError);
       setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки VIN-заявок");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [router, search, status]);
+  }, [appliedFilters.search, appliedFilters.status, page, pageSize, router]);
 
   useEffect(() => {
     void fetchStatuses();
@@ -97,6 +134,213 @@ export default function AdminVinRequestsPage() {
   useEffect(() => {
     void fetchRequests();
   }, [fetchRequests]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTER_PRESETS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as FilterPreset[];
+      if (Array.isArray(parsed)) {
+        setPresets(parsed);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  function handleApplyFilters(event: React.FormEvent) {
+    event.preventDefault();
+    if (page !== 1) {
+      setPage(1);
+      return;
+    }
+    setAppliedFilters({ status, search });
+  }
+
+  function handleResetFilters() {
+    setStatus("");
+    setSearch("");
+    setAppliedFilters({ status: "", search: "" });
+    setPage(1);
+    setError("");
+  }
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) {
+      setError("Введите имя пресета");
+      return;
+    }
+    const preset: FilterPreset = {
+      id: `${Date.now()}`,
+      name,
+      filters: { status, search },
+    };
+    const next = [preset, ...presets];
+    setPresets(next);
+    setPresetName("");
+    localStorage.setItem(FILTER_PRESETS_STORAGE_KEY, JSON.stringify(next));
+    setSuccess(`Пресет "${name}" сохранён`);
+  };
+
+  const handleApplyPreset = () => {
+    const preset = presets.find((item) => item.id === selectedPresetId);
+    if (!preset) {
+      setError("Выберите пресет");
+      return;
+    }
+    setStatus(preset.filters.status);
+    setSearch(preset.filters.search);
+    setAppliedFilters(preset.filters);
+    setPage(1);
+    setSuccess(`Применён пресет "${preset.name}"`);
+  };
+
+  const handleDeletePreset = () => {
+    if (!selectedPresetId) {
+      setError("Выберите пресет для удаления");
+      return;
+    }
+    const next = presets.filter((item) => item.id !== selectedPresetId);
+    setPresets(next);
+    setSelectedPresetId("");
+    localStorage.setItem(FILTER_PRESETS_STORAGE_KEY, JSON.stringify(next));
+    setSuccess("Пресет удалён");
+  };
+
+  async function handleBulkStatusUpdate() {
+    if (selectedRequestIds.length === 0) {
+      setError("Выберите хотя бы одну VIN-заявку");
+      return;
+    }
+    if (!bulkStatus) {
+      setError("Выберите статус для массового обновления");
+      return;
+    }
+
+    setBulkUpdating(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      let updated = 0;
+      let failed = 0;
+      let firstError = "";
+
+      for (const requestId of selectedRequestIds) {
+        const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/vin-requests/${requestId}/status`), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem("admin_token");
+          router.push("/admin/login");
+          return;
+        }
+
+        if (!response.ok) {
+          failed += 1;
+          if (!firstError) {
+            const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+            firstError = payload?.detail || `Ошибка обновления ID ${requestId}`;
+          }
+          continue;
+        }
+
+        updated += 1;
+      }
+
+      if (updated > 0) {
+        setSuccess(`Обновлено: ${updated}. Ошибок: ${failed}.`);
+      }
+      if (failed > 0) {
+        setError(firstError || `Не удалось обновить ${failed} VIN-заявок`);
+      }
+
+      setSelectedRequestIds([]);
+      setBulkStatus("");
+      await fetchRequests(true);
+    } finally {
+      setBulkUpdating(false);
+    }
+  }
+
+  const allSelected = requests.length > 0 && selectedRequestIds.length === requests.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedRequestIds([]);
+      return;
+    }
+    setSelectedRequestIds(requests.map((request) => request.id));
+  };
+
+  const toggleSelectRequest = (requestId: number) => {
+    setSelectedRequestIds((prev) =>
+      prev.includes(requestId)
+        ? prev.filter((id) => id !== requestId)
+        : [...prev, requestId]
+    );
+  };
+
+  const getStatusColor = (requestStatus: VinRequest["status"]) => {
+    if (requestStatus === "new") return "bg-blue-100 text-blue-700";
+    if (requestStatus === "in_progress") return "bg-amber-100 text-amber-700";
+    return "bg-green-100 text-green-700";
+  };
+
+  const toCsvCell = (value: string) => {
+    const normalized = value.replace(/"/g, '""');
+    return /[;"\n]/.test(normalized) ? `"${normalized}"` : normalized;
+  };
+
+  const handleExportCsv = () => {
+    if (requests.length === 0) {
+      setError("Нет данных для экспорта");
+      return;
+    }
+
+    const headers = ["ID", "Статус", "VIN", "Имя", "Телефон", "Email", "Согласие", "Дата"];
+    const rows = requests.map((request) => [
+      String(request.id),
+      STATUS_LABELS[request.status],
+      request.vin || "",
+      request.name || "",
+      request.phone || "",
+      request.email || "",
+      request.consent_given ? "Да" : "Нет",
+      new Date(request.created_at).toLocaleString("ru-RU"),
+    ]);
+
+    const csv = [
+      headers.map(toCsvCell).join(";"),
+      ...rows.map((row) => row.map(toCsvCell).join(";")),
+    ].join("\n");
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `vin-requests-${dateLabel}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setSuccess("CSV экспортирован");
+  };
 
   if (loading) {
     return (
@@ -110,9 +354,22 @@ export default function AdminVinRequestsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[#1F3B73]">VIN-заявки</h1>
+        <div className="flex items-center gap-3">
+          {lastUpdated ? (
+            <span className="text-xs text-neutral-500">Обновлено: {lastUpdated}</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void fetchRequests(true)}
+            disabled={isRefreshing}
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {isRefreshing ? "Обновление..." : "Обновить"}
+          </button>
+        </div>
       </div>
 
-      <div className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-3">
+      <form onSubmit={handleApplyFilters} className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-3">
         <div>
           <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Статус</label>
           <select
@@ -138,11 +395,78 @@ export default function AdminVinRequestsPage() {
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
         </div>
+        <div className="md:col-span-3 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="rounded-xl border border-neutral-300 bg-white px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          >
+            Сбросить
+          </button>
+          <button
+            type="submit"
+            disabled={isRefreshing}
+            className="rounded-xl bg-[#1F3B73] px-5 py-2 text-sm font-medium text-white hover:bg-[#14294F] disabled:opacity-50"
+          >
+            {isRefreshing ? "Загрузка..." : "Применить"}
+          </button>
+        </div>
+      </form>
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px_auto_auto]">
+          <input
+            type="text"
+            value={presetName}
+            onChange={(event) => setPresetName(event.target.value)}
+            placeholder="Имя пресета фильтров"
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+          />
+          <select
+            value={selectedPresetId}
+            onChange={(event) => setSelectedPresetId(event.target.value)}
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+          >
+            <option value="">Выберите пресет</option>
+            {presets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleSavePreset}
+            className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          >
+            Сохранить пресет
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleApplyPreset}
+              className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
+            >
+              Применить
+            </button>
+            <button
+              type="button"
+              onClick={handleDeletePreset}
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+            >
+              Удалить
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          {success}
         </div>
       )}
 
@@ -153,9 +477,64 @@ export default function AdminVinRequestsPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+          <div className="border-b border-neutral-200 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-neutral-500">Найдено заявок: {requests.length}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-sm text-neutral-600">Выбрано: {selectedRequestIds.length}</div>
+                <select
+                  value={bulkStatus}
+                  onChange={(event) => setBulkStatus(event.target.value)}
+                  className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+                >
+                  <option value="">Статус для выбранных</option>
+                  {statuses.map((statusValue) => (
+                    <option key={statusValue} value={statusValue}>
+                      {STATUS_LABELS[statusValue as VinRequest["status"]] || statusValue}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleBulkStatusUpdate()}
+                  disabled={bulkUpdating || selectedRequestIds.length === 0 || !bulkStatus}
+                  className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F] disabled:opacity-50"
+                >
+                  {bulkUpdating ? "Обновление..." : "Применить к выбранным"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+                >
+                  Экспорт CSV
+                </button>
+                <select
+                  value={String(pageSize)}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+                >
+                  <option value="25">25 на странице</option>
+                  <option value="50">50 на странице</option>
+                  <option value="100">100 на странице</option>
+                </select>
+              </div>
+            </div>
+          </div>
           <table className="w-full">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Выбрать все VIN-заявки"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">VIN</th>
@@ -169,9 +548,17 @@ export default function AdminVinRequestsPage() {
             <tbody className="divide-y divide-neutral-200">
               {requests.map((request) => (
                 <tr key={request.id} className="hover:bg-neutral-50">
+                  <td className="px-4 py-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedRequestIds.includes(request.id)}
+                      onChange={() => toggleSelectRequest(request.id)}
+                      aria-label={`Выбрать VIN-заявку ${request.id}`}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-sm">#{request.id}</td>
                   <td className="px-4 py-3 text-sm">
-                    <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700">
+                    <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
                       {STATUS_LABELS[request.status]}
                     </span>
                   </td>
@@ -189,6 +576,29 @@ export default function AdminVinRequestsPage() {
               ))}
             </tbody>
           </table>
+          <div className="border-t border-neutral-200 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-neutral-500">Страница: {page}</div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page <= 1 || isRefreshing}
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  Назад
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => prev + 1)}
+                  disabled={!hasNextPage || isRefreshing}
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  Вперёд
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,17 +1,73 @@
 import Link from "next/link";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
-export default function Page() {
+async function getPublicContentMap(): Promise<Record<string, string>> {
+  try {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+    if (!response.ok) return {};
+    const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+    if (!Array.isArray(payload)) return {};
+
+    const map: Record<string, string> = {};
+    for (const item of payload) {
+      if (item?.key && typeof item.value === "string") {
+        map[item.key] = item.value;
+      }
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export default async function Page() {
+  const contentMap = await getPublicContentMap();
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const heroTitle = contentValue("home_hero_title", "Все запчасти и автосервис в одном месте");
+  const heroSubtitle = contentValue(
+    "home_hero_subtitle",
+    "Оригинальные запчасти и профессиональный ремонт легковых и грузовых автомобилей в Красноярске"
+  );
+  const heroCtaParts = contentValue("home_hero_cta_parts_label", "Подобрать запчасти");
+  const heroCtaService = contentValue("home_hero_cta_service_label", "Записаться на сервис");
+  const orderPartsTitle = contentValue("home_order_parts_title", "Не нашли нужную запчасть?");
+  const orderPartsSubtitle = contentValue("home_order_parts_subtitle", "Закажите обратный звонок — мы подберём и привезём");
+  const orderPartsCta = contentValue("home_order_parts_cta_label", "Оставьте заявку");
+  const homeContactsAddress = contentValue("home_contacts_address", "г. Красноярск, пр. Металлургов, 2В");
+  const homeContactsSchedule = contentValue("home_contacts_schedule", "Пн–Пт 9:00–19:00, Сб 10:00–17:00, Вс выходной");
+  const homeContactsPhone = contentValue("home_contacts_phone", "+7 (391) 258-95-00");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN (self-hosted assets)");
+  const legalPrivacyLabel = contentValue("site_legal_privacy_label", "Политика конфиденциальности");
+  const legalOfferLabel = contentValue("site_legal_offer_label", "Публичная оферта");
+
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="text-2xl font-bold text-[#1F3B73]">Все запчасти</div>
+            <div className="text-2xl font-bold text-[#1F3B73]">{brandName}</div>
             <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+              <Link href="/about" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navAbout}</Link>
+              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
+              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
+              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
             </nav>
             <div className="flex items-center gap-3">
               <Link
@@ -39,23 +95,23 @@ export default function Page() {
         <div className="relative mx-auto max-w-6xl px-6">
           <div className="max-w-2xl">
             <h1 className="text-4xl font-bold text-white sm:text-5xl">
-              Все запчасти и автосервис<br />в одном месте
+              {heroTitle}
             </h1>
             <p className="mt-4 text-lg text-white/80">
-              Оригинальные запчасти и профессиональный ремонт легковых и грузовых автомобилей в Красноярске
+              {heroSubtitle}
             </p>
             <div className="mt-8 flex gap-4">
               <Link
                 href="/parts"
                 className="rounded-2xl bg-white px-6 py-3 font-medium text-[#1F3B73] shadow-lg transition hover:bg-white/90"
               >
-                Подобрать запчасти
+                {heroCtaParts}
               </Link>
               <Link
                 href="/service"
                 className="rounded-2xl border border-white/30 bg-white/10 px-6 py-3 font-medium text-white backdrop-blur-sm transition hover:bg-white/20"
               >
-                Записаться на сервис
+                {heroCtaService}
               </Link>
             </div>
           </div>
@@ -188,15 +244,15 @@ export default function Page() {
         <div className="rounded-3xl bg-gradient-to-r from-[#1F3B73] to-[#14294F] p-8 text-white lg:p-12">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
             <div>
-              <h2 className="text-2xl font-bold">Не нашли нужную запчасть?</h2>
+              <h2 className="text-2xl font-bold">{orderPartsTitle}</h2>
               <p className="mt-2 text-white/80">
-                Закажите обратный звонок — мы подберём и привезём
+                {orderPartsSubtitle}
               </p>
               <Link
                 href="/contacts#callback-form"
                 className="mt-6 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white shadow-lg shadow-black/20"
               >
-                Оставьте заявку
+                {orderPartsCta}
               </Link>
             </div>
             <div className="h-48 rounded-2xl bg-white/10" />
@@ -215,21 +271,21 @@ export default function Page() {
                   <span className="text-[#FF7A00]">📍</span>
                   <div>
                     <div className="font-medium">Адрес</div>
-                    <div className="text-neutral-600">г. Красноярск, пр. Металлургов, 2В</div>
+                    <div className="text-neutral-600">{homeContactsAddress}</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[#FF7A00]">🕒</span>
                   <div>
                     <div className="font-medium">Время работы</div>
-                    <div className="text-neutral-600">Пн–Пт 9:00–19:00, Сб 10:00–17:00, Вс выходной</div>
+                    <div className="text-neutral-600">{homeContactsSchedule}</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[#FF7A00]">📞</span>
                   <div>
                     <div className="font-medium">Телефон</div>
-                    <div className="text-neutral-600">+7 (391) 258-95-00</div>
+                    <div className="text-neutral-600">{homeContactsPhone}</div>
                   </div>
                 </div>
               </div>
@@ -242,17 +298,17 @@ export default function Page() {
       {/* Footer */}
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
+          © {new Date().getFullYear()} {footerText}
         </div>
       </footer>
       {/* Legal links */}
       <div className="mx-auto max-w-6xl px-6 pb-10">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-neutral-600">
           <Link href="/privacy" className="hover:text-[#1F3B73]">
-            Политика конфиденциальности
+            {legalPrivacyLabel}
           </Link>
           <Link href="/offer" className="hover:text-[#1F3B73]">
-            Публичная оферта
+            {legalOfferLabel}
           </Link>
         </div>
       </div>

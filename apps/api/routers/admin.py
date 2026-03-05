@@ -23,6 +23,7 @@ from models import (
     Category,
     ImportRun,
     Lead,
+    Order,
     Product,
     ProductImage,
     ServiceRequest,
@@ -34,6 +35,8 @@ from schemas import (
     CategoryCreate,
     CategoryResponse,
     LeadResponse,
+    OrderResponse,
+    OrderStatusUpdate,
     CategoryUpdate,
     ProductCreate,
     ProductImageBase,
@@ -143,6 +146,7 @@ def require_roles(*allowed_roles: str):
 get_admin_user = require_roles("admin")
 get_catalog_user = require_roles("admin", "manager")
 get_leads_user = require_roles("admin", "manager")
+get_orders_user = require_roles("admin", "manager")
 get_service_requests_user = require_roles("admin", "service_manager")
 get_content_user = require_roles("admin")
 
@@ -164,6 +168,14 @@ LEAD_VALID_TRANSITIONS = {
     "won": set(),
     "lost": set(),
     "cancelled": set(),
+}
+ORDER_STATUSES = ["new", "in_progress", "ready", "closed", "canceled"]
+ORDER_VALID_TRANSITIONS = {
+    "new": {"in_progress", "canceled"},
+    "in_progress": {"ready", "canceled"},
+    "ready": {"closed", "canceled"},
+    "closed": set(),
+    "canceled": set(),
 }
 
 
@@ -1560,6 +1572,140 @@ async def admin_upload_file(
     await db.commit()
     
     return {"url": file_url, "filename": filename}
+
+
+# ---------- Orders ----------
+@router.get("/orders", response_model=List[OrderResponse])
+async def admin_get_orders(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    search: Optional[str] = Query(None, min_length=2, description="Search by phone, name, email, order UUID"),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_orders_user),
+):
+    """Get all orders with filters."""
+    query = select(Order).options(selectinload(Order.items))
+    date_from_dt: Optional[datetime] = None
+    date_to_dt: Optional[datetime] = None
+
+    if status:
+        query = query.where(Order.status == status.strip().lower())
+
+    if search:
+        search_pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                Order.customer_phone.ilike(search_pattern),
+                Order.customer_name.ilike(search_pattern),
+                Order.customer_email.ilike(search_pattern),
+                Order.uuid.ilike(search_pattern),
+                Order.legal_entity_inn.ilike(search_pattern),
+            )
+        )
+
+    if date_from:
+        try:
+            date_from_dt = datetime.strptime(date_from.strip(), "%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="date_from must be in YYYY-MM-DD format") from exc
+
+    if date_to:
+        try:
+            date_to_dt = datetime.strptime(date_to.strip(), "%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="date_to must be in YYYY-MM-DD format") from exc
+
+    if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
+        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
+
+    if date_from_dt:
+        query = query.where(Order.created_at >= date_from_dt)
+    if date_to_dt:
+        query = query.where(Order.created_at < date_to_dt + timedelta(days=1))
+
+    query = query.order_by(Order.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/orders/{order_id}", response_model=OrderResponse)
+async def admin_get_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_orders_user),
+):
+    """Get single order by ID."""
+    query = select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
+    result = await db.execute(query)
+    order = result.scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+@router.put("/orders/{order_id}/status", response_model=OrderResponse)
+async def admin_update_order_status(
+    order_id: int,
+    payload: OrderStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_orders_user),
+):
+    """Update order status and manager comment."""
+    query = select(Order).where(Order.id == order_id)
+    result = await db.execute(query)
+    order = result.scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    next_status = payload.status.strip().lower()
+    current_status = order.status or "new"
+    if next_status not in ORDER_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Unknown status: {next_status}")
+
+    if next_status != current_status and next_status not in ORDER_VALID_TRANSITIONS.get(current_status, set()):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status transition: {current_status} -> {next_status}",
+        )
+
+    old_values = {
+        "status": current_status,
+        "manager_comment": order.manager_comment,
+    }
+
+    order.status = next_status
+    if payload.manager_comment is not None:
+        order.manager_comment = payload.manager_comment
+    order.updated_at = _utcnow()
+    await db.commit()
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="update_order_status",
+        entity_type="order",
+        entity_id=order_id,
+        old_values=old_values,
+        new_values={"status": order.status, "manager_comment": order.manager_comment},
+    )
+    db.add(audit)
+    await db.commit()
+
+    result = await db.execute(select(Order).options(selectinload(Order.items)).where(Order.id == order_id))
+    updated_order = result.scalar_one()
+    return updated_order
+
+
+@router.get("/orders/statuses", response_model=List[str])
+async def admin_get_order_statuses(
+    current_user: User = Depends(get_orders_user),
+):
+    """Get all possible order statuses."""
+    return ORDER_STATUSES
 
 # ---------- Leads ----------
 @router.get("/leads", response_model=List[LeadResponse])

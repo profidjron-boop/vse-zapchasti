@@ -1,24 +1,110 @@
 'use client';
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+
+function normalizePhone(value: string): string | null {
+  const digits = value.replace(/\D/g, "");
+  let normalized = digits;
+
+  if (normalized.length === 11 && normalized.startsWith("8")) normalized = `7${normalized.slice(1)}`;
+  if (normalized.length === 10) normalized = `7${normalized}`;
+
+  if (normalized.length !== 11 || !normalized.startsWith("7")) return null;
+  return `+${normalized}`;
+}
+
+function normalizeVin(value: string): string | null {
+  const normalized = value.trim().toUpperCase();
+  return /^[A-HJ-NPR-Z0-9]{17}$/.test(normalized) ? normalized : null;
+}
 
 export default function VinRequestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [contentMap, setContentMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContent() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        if (!Array.isArray(payload) || cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const item of payload) {
+          if (item?.key && typeof item.value === "string") {
+            map[item.key] = item.value;
+          }
+        }
+        setContentMap(map);
+      } catch {
+        // keep defaults
+      }
+    }
+
+    loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+  const heroTitle = contentValue("vin_hero_title", "VIN-заявка");
+  const heroSubtitle = contentValue(
+    "vin_hero_subtitle",
+    "Не знаете точный артикул? Оставьте VIN — мы подберём запчасти по вашему автомобилю"
+  );
+  const vinFieldTitle = contentValue("vin_form_title", "VIN-номер *");
+  const submitLabel = contentValue("vin_form_submit_label", "Отправить заявку");
+  const successTitle = contentValue("vin_success_title", "Заявка отправлена!");
+  const successText = contentValue(
+    "vin_success_text",
+    "Менеджер свяжется с вами в рабочее время для уточнения деталей."
+  );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setError("");
 
     const formData = new FormData(event.currentTarget);
+    const vin = normalizeVin(formData.get("vin")?.toString() || "");
+    const phone = normalizePhone(formData.get("phone")?.toString() || "");
+
+    if (!vin) {
+      setError("Проверьте VIN. Нужны 17 символов без I, O, Q.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!phone) {
+      setError("Проверьте телефон. Нужен формат РФ: +7XXXXXXXXXX.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const data = {
-      vin: formData.get("vin")?.toString().trim().toUpperCase(),
+      vin,
       name: formData.get("name")?.toString().trim() || undefined,
-      phone: formData.get("phone")?.toString().trim(),
+      phone,
       email: formData.get("email") || undefined,
       message: formData.get("message")?.toString().trim() || undefined,
       consent_given: formData.get("consent") === "on",
@@ -43,8 +129,8 @@ export default function VinRequestPage() {
       setIsSuccess(true);
       event.currentTarget.reset();
     } catch (err) {
-      setError("Не удалось отправить заявку. Попробуйте позже.");
       console.error(err);
+      setError(err instanceof Error ? err.message : "Не удалось отправить заявку. Попробуйте позже.");
     } finally {
       setIsSubmitting(false);
     }
@@ -56,11 +142,11 @@ export default function VinRequestPage() {
         <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
           <div className="mx-auto max-w-6xl px-6 py-4">
             <div className="flex items-center justify-between">
-              <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+              <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
               <nav className="hidden items-center gap-8 md:flex">
-                <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
-                <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-                <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+                <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navParts}</Link>
+                <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+                <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
               </nav>
             </div>
           </div>
@@ -69,9 +155,9 @@ export default function VinRequestPage() {
         <section className="mx-auto max-w-3xl px-6 py-16">
           <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
             <div className="text-6xl mb-4">✅</div>
-            <h1 className="text-2xl font-bold text-[#1F3B73]">Заявка отправлена!</h1>
+            <h1 className="text-2xl font-bold text-[#1F3B73]">{successTitle}</h1>
             <p className="mt-2 text-neutral-600">
-              Менеджер свяжется с вами в рабочее время для уточнения деталей.
+              {successText}
             </p>
             <Link
               href="/"
@@ -84,7 +170,7 @@ export default function VinRequestPage() {
 
         <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
           <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-            © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+            © {new Date().getFullYear()} {footerText}
           </div>
         </footer>
       </main>
@@ -96,11 +182,11 @@ export default function VinRequestPage() {
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+              <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navParts}</Link>
+              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
             </nav>
           </div>
         </div>
@@ -111,9 +197,9 @@ export default function VinRequestPage() {
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-6">
-          <h1 className="text-4xl font-bold text-white">VIN-заявка</h1>
+          <h1 className="text-4xl font-bold text-white">{heroTitle}</h1>
           <p className="mt-4 max-w-2xl text-lg text-white/80">
-            Не знаете точный артикул? Оставьте VIN — мы подберём запчасти по вашему автомобилю
+            {heroSubtitle}
           </p>
         </div>
       </section>
@@ -128,7 +214,7 @@ export default function VinRequestPage() {
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-sm font-medium text-neutral-700">VIN-номер *</label>
+              <label className="text-sm font-medium text-neutral-700">{vinFieldTitle}</label>
               <input 
                 type="text" 
                 name="vin"
@@ -191,7 +277,7 @@ export default function VinRequestPage() {
                 disabled={isSubmitting}
                 className="flex-1 rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e66e00] transition"
               >
-                {isSubmitting ? "Отправка..." : "Отправить заявку"}
+                {isSubmitting ? "Отправка..." : submitLabel}
               </button>
               <Link 
                 href="/parts" 
@@ -216,7 +302,7 @@ export default function VinRequestPage() {
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+          © {new Date().getFullYear()} {footerText}
         </div>
       </footer>
     </main>

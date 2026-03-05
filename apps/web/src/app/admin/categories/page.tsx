@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
@@ -17,10 +17,16 @@ export default function AdminCategoriesPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
-  const fetchCategories = useCallback(async () => {
+  const fetchCategories = useCallback(async (showRefreshing = false) => {
     setError("");
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    }
     try {
       const token = localStorage.getItem("admin_token");
       if (!token) {
@@ -42,22 +48,32 @@ export default function AdminCategoriesPage() {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to fetch categories");
+        throw new Error("Не удалось загрузить категории");
       }
 
       const data = (await response.json()) as Category[];
       setCategories(data);
+      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       console.error(fetchError);
       setError("Ошибка загрузки категорий");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [router]);
 
   useEffect(() => {
     void fetchCategories();
   }, [fetchCategories]);
+
+  const filteredCategories = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) return categories;
+    return categories.filter((category) =>
+      `${category.name} ${category.slug}`.toLowerCase().includes(normalizedSearch)
+    );
+  }, [categories, search]);
 
   if (loading) {
     return (
@@ -71,12 +87,36 @@ export default function AdminCategoriesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[#1F3B73]">Управление категориями</h1>
-        <Link
-          href="/admin/categories/new"
-          className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00]"
-        >
-          + Добавить категорию
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void fetchCategories(true)}
+            disabled={isRefreshing}
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {isRefreshing ? "Обновление..." : "Обновить"}
+          </button>
+          <Link
+            href="/admin/categories/new"
+            className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00]"
+          >
+            + Добавить категорию
+          </Link>
+        </div>
+      </div>
+      {lastUpdated && (
+        <div className="mb-4 text-xs text-neutral-500">Обновлено: {lastUpdated}</div>
+      )}
+
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Название или slug"
+          className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+        />
       </div>
 
       {error && (
@@ -85,13 +125,25 @@ export default function AdminCategoriesPage() {
         </div>
       )}
 
-      {categories.length === 0 ? (
+      {filteredCategories.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">
-          <p>Категорий пока нет</p>
-          <p className="mt-2 text-sm">Добавьте первую категорию через кнопку выше</p>
+          {categories.length === 0 ? (
+            <>
+              <p>Категорий пока нет</p>
+              <p className="mt-2 text-sm">Добавьте первую категорию через кнопку выше</p>
+            </>
+          ) : (
+            <>
+              <p>По текущему фильтру категории не найдены</p>
+              <p className="mt-2 text-sm">Измените поисковый запрос</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+          <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
+            Найдено категорий: {filteredCategories.length}
+          </div>
           <table className="w-full">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
@@ -103,7 +155,7 @@ export default function AdminCategoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
-              {categories.map((category) => (
+              {filteredCategories.map((category) => (
                 <tr key={category.id} className="hover:bg-neutral-50">
                   <td className="px-4 py-3 text-sm">{category.id}</td>
                   <td className="px-4 py-3 text-sm font-medium">{category.name}</td>

@@ -44,6 +44,10 @@ export default function VinRequestDetailsPage() {
   const [selectedStatus, setSelectedStatus] = useState<VinRequest["status"]>("new");
   const [operatorComment, setOperatorComment] = useState("");
 
+  const getStatusLabel = (statusValue: string) => {
+    return STATUS_OPTIONS.find((option) => option.value === statusValue)?.label || statusValue;
+  };
+
   const fetchStatuses = useCallback(async () => {
     try {
       const token = localStorage.getItem("admin_token");
@@ -187,7 +191,7 @@ export default function VinRequestDetailsPage() {
           <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Данные заявки</h2>
           <dl className="space-y-3 text-sm">
             <div><dt className="text-neutral-500">UUID</dt><dd className="font-mono">{request.uuid}</dd></div>
-            <div><dt className="text-neutral-500">Статус</dt><dd>{request.status}</dd></div>
+            <div><dt className="text-neutral-500">Статус</dt><dd>{getStatusLabel(request.status)}</dd></div>
             <div><dt className="text-neutral-500">VIN</dt><dd className="font-mono">{request.vin}</dd></div>
             <div><dt className="text-neutral-500">Имя</dt><dd>{request.name || "—"}</dd></div>
             <div><dt className="text-neutral-500">Телефон</dt><dd>{request.phone}</dd></div>
@@ -216,7 +220,7 @@ export default function VinRequestDetailsPage() {
               >
                 {(statuses.length > 0 ? statuses : STATUS_OPTIONS.map((option) => option.value)).map((statusValue) => (
                   <option key={statusValue} value={statusValue}>
-                    {STATUS_OPTIONS.find((option) => option.value === statusValue)?.label || statusValue}
+                    {getStatusLabel(statusValue)}
                   </option>
                 ))}
               </select>

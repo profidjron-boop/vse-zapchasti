@@ -158,6 +158,31 @@ export default function LeadDetailPage() {
     );
   }
 
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'product': return 'Запрос по товару';
+      case 'callback': return 'Обратный звонок';
+      case 'vin': return 'VIN';
+      case 'parts_search': return 'Подбор';
+      default: return type;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'new': return 'Новая';
+      case 'in_progress': return 'В работе';
+      case 'contacted': return 'Связались';
+      case 'offer_sent': return 'Предложение отправлено';
+      case 'won': return 'Успешно';
+      case 'lost': return 'Неуспешно';
+      case 'closed': return 'Закрыта';
+      case 'canceled': return 'Отменена';
+      case 'scheduled': return 'Запланирована';
+      default: return status;
+    }
+  };
+
   const statusColors = {
     new: 'bg-blue-100 text-blue-700',
     in_progress: 'bg-yellow-100 text-yellow-700',
@@ -165,7 +190,10 @@ export default function LeadDetailPage() {
     offer_sent: 'bg-indigo-100 text-indigo-700',
     won: 'bg-green-100 text-green-700',
     lost: 'bg-red-100 text-red-700',
+    closed: 'bg-gray-100 text-gray-700',
+    canceled: 'bg-gray-100 text-gray-700',
     cancelled: 'bg-gray-100 text-gray-700',
+    scheduled: 'bg-cyan-100 text-cyan-700',
   };
 
   return (
@@ -199,17 +227,14 @@ export default function LeadDetailPage() {
                 <dt className="text-sm text-neutral-500">Статус</dt>
                 <dd>
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[lead.status as keyof typeof statusColors] || 'bg-gray-100 text-gray-700'}`}>
-                    {lead.status}
+                    {getStatusLabel(lead.status)}
                   </span>
                 </dd>
               </div>
               <div>
                 <dt className="text-sm text-neutral-500">Тип</dt>
                 <dd className="font-medium">
-                  {lead.type === 'product' ? 'Product inquiry' :
-                   lead.type === 'callback' ? 'Callback' :
-                   lead.type === 'vin' ? 'VIN' :
-                   lead.type === 'parts_search' ? 'Подбор' : lead.type}
+                  {getTypeLabel(lead.type)}
                 </dd>
               </div>
               <div>
@@ -310,7 +335,7 @@ export default function LeadDetailPage() {
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
                 >
                   {statuses.map(s => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>{getStatusLabel(s)}</option>
                   ))}
                 </select>
               </div>

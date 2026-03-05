@@ -1,65 +1,135 @@
 # Requirements (SRS/PRD-lite) — Все запчасти
 
-**Version:** v1.0  
-**Date:** 2026-03-04  
-**Status:** Ready for Release (local verify + smoke green, 2026-03-05)
-**Refs:** `docs/project-header.md`, `docs/stack.md`, `docs/ui-direction.md`, `docs/design-system.md`, `docs/ux-copy.md`  
-**ADR:** `docs/decisions/ADR-0001-import-sources-and-scheduling.md`
+**Version:** v1.1 (с дополнениями, без самодобавлений)
+**Date:** 2026-03-05
+**Status:** Ready for Implementation
+**Refs:** `docs/project-header.md`, `docs/stack.md`, `docs/ui-direction.md`, `docs/design-system.md`, `docs/ux-copy.md`, `docs/verify-gates.md`, `docs/deploy.md`, `docs/release-rollback-runbook.md`
+**ADR:** `docs/decisions/ADR-0001-import-sources-and-scheduling.md`, `docs/decisions/ADR-0002-rate-limit-scope-and-redis-trigger.md`
 
-## 1) Summary
-Сайт “Все запчасти” (Красноярск): продажа/заказ автозапчастей + запись на ремонт (легковые и грузовые).
-Runtime policy: NO CDN. Данные/инфра в РФ. Без MVP/демо/заглушек.
+## 1) Краткое описание
+Единый сайт для каталога товаров (запчасти для коммерческого транспорта + масла/расходники), оформления заказа/заявки через корзину (guest) и быстрый заказ, а также записи на сервис/ремонт как заявки с подтверждением менеджером.
 
-## 2) Scope
-### Included
-- Public: Home, Catalog, Product, Search, Parts Leads, Service/Repair Leads, Content pages (Contacts/Policies).
-- Admin: Catalog mgmt, Leads mgmt, Service requests mgmt, Imports mgmt, RBAC.
-- Import pipeline “1C-ready” (ручной файл сейчас; сеть/1С позже без переделки витрины).
+Ограничения среды:
+- Runtime policy: NO CDN (self-hosted assets).
+- Регион: РФ (data+infra in RF).
+- Юрисдикция: РФ (152-ФЗ).
 
-### Excluded (default)
-- Payments/online checkout, delivery calculators, full ERP sync, personal account.
+## 2) Объём и границы
+### Входит (обязательно в v1.1)
+- Публичная часть:
+  - Главная с блоками: “Запчасти”, “Запчасти под заказ” + CTA “Закажите обратный звонок”, “Сервис”, “Виды работ/услуг”, “Контакты”.
+  - Каталог: 2 направления (запчасти для коммерческого транспорта, масла/расходники), категории → список → карточка.
+  - Поиск/подбор: по артикулу/OEM, по названию, подбор по авто (марка/модель/год/двигатель), VIN-подбор только как заявка менеджеру.
+  - Корзина/заказ: корзина гостя, оформление заказа, “быстрый заказ в 1 клик” (телефон + согласие), избранное/отложить.
+  - Личный кабинет: история заказов, статусы заказов.
+  - Доставка: самовывоз, курьер.
+  - Оплата: при получении, по счёту (юрлица).
+  - Сервис/ремонт: один сервис-центр, справочник услуг (название, длительность, цена), запись только как заявка.
+- Админка:
+  - Товары/категории/цены и связанные сущности карточки товара.
+  - Записи/статусы (календарь не обязателен).
+  - Отчёты (минимально).
+  - Контент: “О компании”, “Контакты”.
 
-## 3) Roles
-- Guest
-- Manager (parts)
-- Service Manager
-- Admin
+### Не входит (по умолчанию)
+- Онлайн-оплата (эквайринг/СБП), 54-ФЗ/ОФД.
+- Автоматические интеграции доставок/ПВЗ/карт с внешним JS.
+- Полноценное планирование ресурсов сервиса (слоты/посты/мастера) без отдельного утверждения.
 
-## 4) Key journeys
-- Search (SKU/OEM/name) → product/list → lead to manager
-- “Запчасти под заказ” → callback lead
-- VIN request lead
-- Service request (car/truck) → lead → processing in admin
-- Admin updates catalog/imports → public catalog updated
+## 3) Данные карточки товара (обязательно)
+- Артикул / OEM-номер.
+- Бренд/производитель.
+- Совместимость: марка/модель/год/двигатель.
+- Аналоги/кроссы.
+- Фото (self-hosted upload).
+- Характеристики/параметры.
+- Акции/скидки (карточка + листинг).
 
-## 5) Modules
-### Public catalog
-- Categories → listing → product
-- Search + filters + FTS
-- Self-hosted images/fonts
+## 4) Источник данных и обновления
+Поддерживаемые источники:
+- Ручное наполнение (админка).
+- Импорт Excel/CSV.
+- 1С / МойСклад / ERP (универсально, целевой кейс: 1С Торговля/Склад).
 
-### Leads (parts)
-- Types: product inquiry / callback / VIN / подбор
-- Status workflow + manager notes
+Поддерживаемые режимы обновления:
+- Ручной запуск.
+- По расписанию.
+- По событию.
 
-### Service requests
-- Vehicle type: car/truck
-- Work directions (configurable)
-- Status workflow + service manager notes
-- Calendar: not in v1 (manual confirmation); may be added later
+Условия:
+- Без “магии” без выбранного протокола интеграции.
+- Для 1С/ERP обязателен Tech Design (формат обмена, поля, конфликт-резолюция).
+- Базовый подход и расширение каналов импорта фиксируются ADR-0001.
 
-### Admin
-- CRUD categories/products/assets
-- Imports: runs, errors report, scheduling settings (future)
-- RBAC
-- Audit logs for critical actions
+## 5) Корзина/заказ
+- Корзина гостя (без регистрации).
+- Избранное/отложить.
+- Быстрый заказ “1 клик”: телефон + согласие.
+- Оформление заказа: контакты, доставка (самовывоз/курьер), оплата (при получении/по счёту), комментарий.
+- Статусы: `new → in_progress → ready → closed/canceled`.
 
-## 6) Non-functional
-- Security baseline: RBAC, rate limit on public forms, secure headers/CSP, secrets env, audit.
-- Observability: structured logs + trace_id, health endpoints, backup/restore documented.
-- Legal: 152-FZ for leads (phone required; consent + logging).
+## 6) Сервис/ремонт
+- Один сервис-центр.
+- Справочник услуг: название, длительность, цена.
+- Запись только как заявка, подтверждает менеджер.
+- Данные клиента и авто:
+  - Контакты: имя (опц), телефон (обяз), email (опц).
+  - Авто: марка/модель/год (опц), двигатель (опц), VIN (опц), пробег (опц).
 
-## 7) “Always accurate” data strategy
-- Single import pipeline and normalized catalog.
-- Multiple sources (file_upload now; 1C network later) per ADR-0001.
-- Public reads from normalized catalog; last successful snapshot preserved if import fails.
+## 7) Предоплата за запись (anti no-show)
+Система должна поддерживать возможность предоплаты за запись.
+
+Правило включения:
+- Если предоплата включается, требуется отдельный техдизайн платёжной схемы (провайдер, чек/54-ФЗ, возвраты).
+- Если предоплата не включена, запись работает как обычная заявка без оплаты.
+
+## 8) Связка “Запчасть + установка” (опционально)
+- Возможность создать заявку на установку выбранной запчасти.
+- Предварительный расчёт (работы + запчасти) как оценка, финально подтверждает менеджер.
+
+## 9) Уведомления
+Поддерживаемые каналы:
+- Email.
+- SMS.
+- Мессенджер.
+
+Правило включения:
+- Каналы активируются по фактически выбранной реализации (провайдеры/инфра в РФ).
+
+## 10) Разделы админки (фиксированный минимум)
+- Товары / категории / цены.
+- Записи / (календарь только при включении) / статусы.
+- Отчёты.
+- О компании.
+- Контакты.
+
+## 11) Безопасность baseline + 152-ФЗ
+- RBAC в админке.
+- Rate limit на формы: быстрый заказ, сервис-заявка, VIN-заявка, обратный звонок.
+- Secure headers + CSP, без CDN runtime.
+- Secrets только через env.
+- ПДн: телефон (обяз), имя/email/VIN/данные авто (опц), данные юрлица (если счёт).
+- Consent-чекбокс + логирование согласия (timestamp, IP, user-agent, версия текста).
+
+## 12) Ops/наблюдаемость
+- `health`/`ready` endpoints.
+- Structured logs + `trace_id`.
+- Бэкапы Postgres + проверка восстановления перед релизом.
+
+## 13) Definition of Done / Release-Rollback
+- Без заглушек.
+- Verify gates зелёные.
+- Документация актуальна.
+- Backup/restore проверены.
+- Smoke пройден.
+
+## 14) Assumptions
+- VIN-подбор всегда оформляется как заявка менеджеру, без авто-матча.
+- Запись на сервис всегда заявка с подтверждением менеджера.
+- Онлайн-оплаты нет, кроме отдельно включённой предоплаты с утверждённой платёжной схемой.
+
+## 15) Open Questions
+1. Для 1С/ERP в v1.1: сначала импорт, синхронизация вторым этапом, или сразу синхронизация.
+2. Частота обновления: ручной режим / раз в сутки / раз в час (или другое значение) с возможностью переключения.
+3. “Акции/скидки”: достаточно ли формата “старая/новая цена + бейдж”.
+4. Предоплата за запись: включается в v1.1 или остаётся выключенной на старте.

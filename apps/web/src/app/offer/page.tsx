@@ -1,6 +1,31 @@
 import Link from "next/link";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
-export default function OfferPage() {
+async function getPublicContentMap(): Promise<Record<string, string>> {
+  try {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+    if (!response.ok) return {};
+    const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+    if (!Array.isArray(payload)) return {};
+
+    const map: Record<string, string> = {};
+    for (const item of payload) {
+      if (item?.key && typeof item.value === "string") {
+        map[item.key] = item.value;
+      }
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export default async function OfferPage() {
+  const contentMap = await getPublicContentMap();
+  const lastUpdated = contentMap.offer_last_updated?.trim() || "5 марта 2026 г.";
+  const contentHtml = contentMap.offer_content_html?.trim() || "";
+
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       {/* Header */}
@@ -19,9 +44,12 @@ export default function OfferPage() {
 
       <section className="mx-auto max-w-4xl px-6 py-16">
         <h1 className="text-3xl font-bold text-[#1F3B73]">Публичная оферта</h1>
-        <p className="mt-2 text-sm text-neutral-500">Последнее обновление: 5 марта 2026 г.</p>
-        
-        <div className="mt-8 space-y-6 text-neutral-700">
+        <p className="mt-2 text-sm text-neutral-500">Последнее обновление: {lastUpdated}</p>
+
+        {contentHtml ? (
+          <div className="mt-8 space-y-4 text-neutral-700" dangerouslySetInnerHTML={{ __html: contentHtml }} />
+        ) : (
+          <div className="mt-8 space-y-6 text-neutral-700">
           <div>
             <h2 className="text-xl font-semibold text-[#1F3B73]">1. Термины и определения</h2>
             <p className="mt-2">
@@ -114,6 +142,7 @@ export default function OfferPage() {
             </div>
           </div>
         </div>
+        )}
       </section>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">

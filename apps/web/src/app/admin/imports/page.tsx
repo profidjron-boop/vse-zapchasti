@@ -30,19 +30,39 @@ export default function AdminImportsPage() {
   const router = useRouter();
   const [runs, setRuns] = useState<ImportRun[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadResult, setUploadResult] = useState<ImportResponse | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [defaultCategoryId, setDefaultCategoryId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const createdLabel = useMemo(() => {
     if (!uploadResult) return "";
-    return `Run #${uploadResult.run_id}: created ${uploadResult.created}, updated ${uploadResult.updated}, failed ${uploadResult.failed}`;
+    return `Запуск #${uploadResult.run_id}: создано ${uploadResult.created}, обновлено ${uploadResult.updated}, ошибок ${uploadResult.failed}`;
   }, [uploadResult]);
 
-  const fetchRuns = useCallback(async () => {
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "success":
+        return "Успешно";
+      case "failed":
+        return "Ошибка";
+      case "processing":
+        return "В обработке";
+      default:
+        return status;
+    }
+  };
+
+  const fetchRuns = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    }
+
     try {
       setError("");
       const token = localStorage.getItem("admin_token");
@@ -67,16 +87,23 @@ export default function AdminImportsPage() {
 
       const data = (await response.json()) as ImportRun[];
       setRuns(data);
+      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить список импортов");
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [router]);
 
   useEffect(() => {
     void fetchRuns();
   }, [fetchRuns]);
+
+  const filteredRuns = useMemo(() => {
+    if (!statusFilter) return runs;
+    return runs.filter((run) => run.status === statusFilter);
+  }, [runs, statusFilter]);
 
   async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,10 +167,23 @@ export default function AdminImportsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1F3B73]">Импорты каталога</h1>
-        <p className="mt-2 text-sm text-neutral-600">
-          История запусков импорта и загрузка нового CSV/XLSX файла.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1F3B73]">Импорты каталога</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              История запусков импорта и загрузка нового CSV/XLSX файла.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchRuns(true)}
+            disabled={isRefreshing}
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {isRefreshing ? "Обновление..." : "Обновить"}
+          </button>
+        </div>
+        {lastUpdated && <div className="mt-2 text-xs text-neutral-500">Обновлено: {lastUpdated}</div>}
       </div>
 
       <form onSubmit={handleUpload} className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -158,7 +198,7 @@ export default function AdminImportsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Default category ID</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">ID категории по умолчанию</label>
             <input
               type="number"
               min={1}
@@ -200,24 +240,52 @@ export default function AdminImportsPage() {
         <div className="py-12 text-center text-neutral-500">Запусков импорта пока нет</div>
       ) : (
         <div className="overflow-x-auto">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-neutral-500">Найдено запусков: {filteredRuns.length}</div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs uppercase tracking-wide text-neutral-500">Статус</label>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+              >
+                <option value="">Все</option>
+                <option value="success">Успешно</option>
+                <option value="failed">Ошибка</option>
+                <option value="processing">В обработке</option>
+              </select>
+            </div>
+          </div>
           <table className="w-full">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Source</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Created by</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Created/Updated/Failed</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Кто запустил</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Создано/Обновлено/Ошибок</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Детали</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
-              {runs.map((run) => (
+              {filteredRuns.map((run) => (
                 <tr key={run.id} className="hover:bg-neutral-50">
                   <td className="px-4 py-3 text-sm">
                     {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm">{run.status}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs ${
+                        run.status === "success"
+                          ? "bg-green-100 text-green-700"
+                          : run.status === "failed"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {getStatusLabel(run.status)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-sm">{run.source || "—"}</td>
                   <td className="px-4 py-3 text-sm">
                     {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}

@@ -17,18 +17,48 @@ type Lead = {
   created_at: string;
 };
 
+type LeadsFilters = {
+  status: string;
+  type: string;
+  search: string;
+  dateFrom: string;
+  dateTo: string;
+};
+
+type FilterPreset = {
+  id: string;
+  name: string;
+  filters: LeadsFilters;
+};
+
+const FILTER_PRESETS_STORAGE_KEY = 'admin_leads_filter_presets_v1';
+
+const defaultFilters: LeadsFilters = {
+  status: '',
+  type: '',
+  search: '',
+  dateFrom: '',
+  dateTo: '',
+};
+
 export default function LeadsPage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState('');
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({
-    status: '',
-    type: '',
-    search: '',
-    dateFrom: '',
-    dateTo: '',
-  });
+  const [success, setSuccess] = useState('');
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [filters, setFilters] = useState<LeadsFilters>(defaultFilters);
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [presetName, setPresetName] = useState('');
+  const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [statuses, setStatuses] = useState<string[]>([]);
   const searchRef = useRef(filters.search);
 
@@ -48,7 +78,11 @@ export default function LeadsPage() {
     }
   }, []);
 
-  const fetchLeads = useCallback(async (searchTerm: string) => {
+  const fetchLeads = useCallback(async (searchTerm: string, showRefreshing = false) => {
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    }
+
     try {
       const token = localStorage.getItem('admin_token');
       if (!token) {
@@ -63,9 +97,11 @@ export default function LeadsPage() {
       if (searchTerm.trim()) params.append('search', searchTerm.trim());
       if (filters.dateFrom) params.append('date_from', filters.dateFrom);
       if (filters.dateTo) params.append('date_to', filters.dateTo);
+      params.append('skip', String((page - 1) * pageSize));
+      params.append('limit', String(pageSize + 1));
       
       const apiBaseUrl = getClientApiBaseUrl();
-      const url = withApiBase(apiBaseUrl, `/api/admin/leads?limit=50&${params.toString()}`);
+      const url = withApiBase(apiBaseUrl, `/api/admin/leads?${params.toString()}`);
 
       const res = await fetch(url, {
         headers: {
@@ -79,17 +115,23 @@ export default function LeadsPage() {
         return;
       }
 
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) throw new Error('Не удалось загрузить заявки');
       
-      const data = await res.json();
-      setLeads(data);
+      const data = await res.json() as Lead[];
+      const nextPageAvailable = data.length > pageSize;
+      const pageRows = nextPageAvailable ? data.slice(0, pageSize) : data;
+      setLeads(pageRows);
+      setHasNextPage(nextPageAvailable);
+      setSelectedLeadIds((prev) => prev.filter((id) => pageRows.some((lead: Lead) => lead.id === id)));
+      setLastUpdated(new Date().toLocaleTimeString('ru-RU'));
     } catch (err) {
       setError('Ошибка загрузки заявок');
       console.error(err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [router, filters.status, filters.type, filters.dateFrom, filters.dateTo]);
+  }, [router, filters.status, filters.type, filters.dateFrom, filters.dateTo, page, pageSize]);
 
   useEffect(() => {
     searchRef.current = filters.search;
@@ -98,6 +140,19 @@ export default function LeadsPage() {
   useEffect(() => {
     void fetchStatuses();
   }, [fetchStatuses]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTER_PRESETS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as FilterPreset[];
+      if (Array.isArray(parsed)) {
+        setPresets(parsed);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   useEffect(() => {
     void fetchLeads(searchRef.current);
@@ -122,18 +177,157 @@ export default function LeadsPage() {
         return;
       }
 
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) throw new Error('Не удалось удалить заявку');
       
       setLeads(leads.filter(l => l.id !== id));
+      setSelectedLeadIds((prev) => prev.filter((leadId) => leadId !== id));
     } catch (err) {
       alert('Ошибка при удалении');
       console.error(err);
     }
   }
 
+  async function handleBulkStatusUpdate() {
+    if (selectedLeadIds.length === 0) {
+      setError('Выберите хотя бы одну заявку');
+      return;
+    }
+    if (!bulkStatus) {
+      setError('Выберите статус для массового обновления');
+      return;
+    }
+
+    setBulkUpdating(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      if (!token) {
+        router.push('/admin/login');
+        return;
+      }
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      let updated = 0;
+      let failed = 0;
+      let firstError = '';
+
+      for (const leadId of selectedLeadIds) {
+        const params = new URLSearchParams({ status: bulkStatus });
+        const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${params.toString()}`), {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem('admin_token');
+          router.push('/admin/login');
+          return;
+        }
+
+        if (!res.ok) {
+          failed += 1;
+          if (!firstError) {
+            const payload = (await res.json().catch(() => null)) as { detail?: string } | null;
+            firstError = payload?.detail || `Ошибка обновления ID ${leadId}`;
+          }
+          continue;
+        }
+
+        updated += 1;
+      }
+
+      if (updated > 0) {
+        setSuccess(`Обновлено: ${updated}. Ошибок: ${failed}.`);
+      }
+      if (failed > 0) {
+        setError(firstError || `Не удалось обновить ${failed} заявок`);
+      }
+
+      setSelectedLeadIds([]);
+      setBulkStatus('');
+      await fetchLeads(filters.search, true);
+    } finally {
+      setBulkUpdating(false);
+    }
+  }
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    void fetchLeads(filters.search);
+    if (page !== 1) {
+      setPage(1);
+      return;
+    }
+    void fetchLeads(filters.search, true);
+  };
+
+  const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedLeadIds([]);
+      return;
+    }
+    setSelectedLeadIds(leads.map((lead) => lead.id));
+  };
+
+  const toggleSelectLead = (leadId: number) => {
+    setSelectedLeadIds((prev) =>
+      prev.includes(leadId)
+        ? prev.filter((id) => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const handleResetFilters = () => {
+    setFilters(defaultFilters);
+    setPage(1);
+    setError('');
+  };
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) {
+      setError('Введите имя пресета');
+      return;
+    }
+    const preset: FilterPreset = {
+      id: `${Date.now()}`,
+      name,
+      filters,
+    };
+    const next = [preset, ...presets];
+    setPresets(next);
+    setPresetName('');
+    localStorage.setItem(FILTER_PRESETS_STORAGE_KEY, JSON.stringify(next));
+    setSuccess(`Пресет "${name}" сохранён`);
+  };
+
+  const handleApplyPreset = () => {
+    const preset = presets.find((item) => item.id === selectedPresetId);
+    if (!preset) {
+      setError('Выберите пресет');
+      return;
+    }
+    setFilters(preset.filters);
+    setPage(1);
+    setError('');
+    setSuccess(`Применён пресет "${preset.name}"`);
+  };
+
+  const handleDeletePreset = () => {
+    if (!selectedPresetId) {
+      setError('Выберите пресет для удаления');
+      return;
+    }
+    const next = presets.filter((item) => item.id !== selectedPresetId);
+    setPresets(next);
+    setSelectedPresetId('');
+    localStorage.setItem(FILTER_PRESETS_STORAGE_KEY, JSON.stringify(next));
+    setSuccess('Пресет удалён');
   };
 
   if (loading) {
@@ -146,11 +340,26 @@ export default function LeadsPage() {
 
   const getTypeLabel = (type: string) => {
     switch(type) {
-      case 'product': return 'Product inquiry';
-      case 'callback': return 'Callback';
+      case 'product': return 'Запрос по товару';
+      case 'callback': return 'Обратный звонок';
       case 'vin': return 'VIN';
       case 'parts_search': return 'Подбор';
       default: return type;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'new': return 'Новая';
+      case 'in_progress': return 'В работе';
+      case 'contacted': return 'Связались';
+      case 'offer_sent': return 'Предложение отправлено';
+      case 'won': return 'Успешно';
+      case 'lost': return 'Неуспешно';
+      case 'closed': return 'Закрыта';
+      case 'canceled': return 'Отменена';
+      case 'scheduled': return 'Запланирована';
+      default: return status;
     }
   };
 
@@ -166,10 +375,64 @@ export default function LeadsPage() {
     }
   };
 
+  const toCsvCell = (value: string) => {
+    const normalized = value.replace(/"/g, '""');
+    return /[;"\n]/.test(normalized) ? `"${normalized}"` : normalized;
+  };
+
+  const handleExportCsv = () => {
+    if (leads.length === 0) {
+      setError('Нет данных для экспорта');
+      return;
+    }
+
+    const headers = ['ID', 'Тип', 'Статус', 'Телефон', 'Имя', 'Email', 'VIN', 'Дата'];
+    const rows = leads.map((lead) => [
+      String(lead.id),
+      getTypeLabel(lead.type),
+      getStatusLabel(lead.status),
+      lead.phone || '',
+      lead.name || '',
+      lead.email || '',
+      lead.vin || '',
+      new Date(lead.created_at).toLocaleString('ru-RU'),
+    ]);
+
+    const csv = [
+      headers.map(toCsvCell).join(';'),
+      ...rows.map((row) => row.map(toCsvCell).join(';')),
+    ].join('\n');
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `leads-${dateLabel}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setSuccess('CSV экспортирован');
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-[#1F3B73]">Заявки на запчасти</h1>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <span className="text-xs text-neutral-500">Обновлено: {lastUpdated}</span>
+          )}
+          <button
+            type="button"
+            onClick={() => void fetchLeads(filters.search, true)}
+            disabled={isRefreshing}
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {isRefreshing ? 'Обновление...' : 'Обновить'}
+          </button>
+        </div>
       </div>
 
       {/* Фильтры */}
@@ -195,7 +458,7 @@ export default function LeadsPage() {
             >
               <option value="">Все</option>
               {statuses.map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{getStatusLabel(s)}</option>
               ))}
             </select>
           </div>
@@ -208,8 +471,8 @@ export default function LeadsPage() {
               className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
             >
               <option value="">Все</option>
-              <option value="product">Product inquiry</option>
-              <option value="callback">Callback</option>
+              <option value="product">Запрос по товару</option>
+              <option value="callback">Обратный звонок</option>
               <option value="vin">VIN</option>
               <option value="parts_search">Подбор</option>
             </select>
@@ -235,20 +498,79 @@ export default function LeadsPage() {
             />
           </div>
 
-          <div className="md:col-span-5 flex justify-end">
+          <div className="md:col-span-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="rounded-xl border border-neutral-300 bg-white px-6 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 transition"
+            >
+              Сбросить
+            </button>
             <button
               type="submit"
-              className="rounded-xl bg-[#1F3B73] px-6 py-2 text-sm font-medium text-white hover:bg-[#14294F] transition"
+              disabled={isRefreshing}
+              className="rounded-xl bg-[#1F3B73] px-6 py-2 text-sm font-medium text-white hover:bg-[#14294F] transition disabled:opacity-50"
             >
-              Применить фильтры
+              {isRefreshing ? 'Загрузка...' : 'Применить фильтры'}
             </button>
           </div>
         </form>
+        <div className="mt-4 border-t border-neutral-200 pt-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px_auto_auto]">
+            <input
+              type="text"
+              value={presetName}
+              onChange={(event) => setPresetName(event.target.value)}
+              placeholder="Имя пресета фильтров"
+              className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            />
+            <select
+              value={selectedPresetId}
+              onChange={(event) => setSelectedPresetId(event.target.value)}
+              className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+            >
+              <option value="">Выберите пресет</option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleSavePreset}
+              className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            >
+              Сохранить пресет
+            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleApplyPreset}
+                className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
+              >
+                Применить
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePreset}
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
         <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
           {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+          {success}
         </div>
       )}
 
@@ -259,9 +581,60 @@ export default function LeadsPage() {
         </div>
       ) : (
         <div className="overflow-x-auto">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3">
+            <div className="text-sm text-neutral-500">Найдено заявок: {leads.length}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-sm text-neutral-600">Выбрано: {selectedLeadIds.length}</div>
+              <select
+                value={bulkStatus}
+                onChange={(event) => setBulkStatus(event.target.value)}
+                className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+              >
+              <option value="">Статус для выбранных</option>
+              {statuses.map((statusValue) => (
+                  <option key={statusValue} value={statusValue}>{getStatusLabel(statusValue)}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => void handleBulkStatusUpdate()}
+                disabled={bulkUpdating || selectedLeadIds.length === 0 || !bulkStatus}
+                className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F] disabled:opacity-50"
+              >
+                {bulkUpdating ? 'Обновление...' : 'Применить к выбранным'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+              >
+                Экспорт CSV
+              </button>
+              <select
+                value={String(pageSize)}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPage(1);
+                }}
+                className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+              >
+                <option value="25">25 на странице</option>
+                <option value="50">50 на странице</option>
+                <option value="100">100 на странице</option>
+              </select>
+            </div>
+          </div>
           <table className="w-full">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
+                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Выбрать все заявки"
+                  />
+                </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">ID</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Тип</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Статус</th>
@@ -275,6 +648,14 @@ export default function LeadsPage() {
             <tbody className="divide-y divide-neutral-200">
               {leads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-neutral-50">
+                  <td className="py-3 px-4 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeadIds.includes(lead.id)}
+                      onChange={() => toggleSelectLead(lead.id)}
+                      aria-label={`Выбрать заявку ${lead.id}`}
+                    />
+                  </td>
                   <td className="py-3 px-4 text-sm">#{lead.id}</td>
                   <td className="py-3 px-4 text-sm">
                     <span className="px-2 py-1 rounded-full bg-[#1F3B73]/10 text-[#1F3B73] text-xs">
@@ -283,7 +664,7 @@ export default function LeadsPage() {
                   </td>
                   <td className="py-3 px-4 text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(lead.status)}`}>
-                      {lead.status}
+                      {getStatusLabel(lead.status)}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-sm">{lead.phone}</td>
@@ -310,6 +691,27 @@ export default function LeadsPage() {
               ))}
             </tbody>
           </table>
+          <div className="mt-3 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-3">
+            <div className="text-sm text-neutral-500">Страница: {page}</div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1 || isRefreshing}
+                className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!hasNextPage || isRefreshing}
+                className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Вперёд
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

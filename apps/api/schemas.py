@@ -5,6 +5,10 @@ from datetime import datetime
 
 SERVICE_REQUEST_STATUSES = {"new", "in_progress", "closed"}
 VIN_REQUEST_STATUSES = {"new", "in_progress", "closed"}
+ORDER_STATUSES = {"new", "in_progress", "ready", "closed", "canceled"}
+ORDER_DELIVERY_METHODS = {"pickup", "courier"}
+ORDER_PAYMENT_METHODS = {"cash_on_delivery", "invoice"}
+ORDER_SOURCES = {"checkout", "one_click"}
 LEAD_TYPES = {"product", "callback", "vin", "parts_search"}
 USER_ROLES = {"admin", "manager", "service_manager"}
 
@@ -110,6 +114,180 @@ class ProductResponse(ProductBase):
     images: List[ProductImageResponse] = []
     compatibilities: List[ProductCompatibilityResponse] = []
     
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ---------- Order Schemas ----------
+class OrderItemBase(BaseModel):
+    product_id: Optional[int] = None
+    product_sku: Optional[str] = None
+    product_name: str
+    quantity: int = Field(default=1, ge=1)
+    unit_price: Optional[float] = None
+    line_total: Optional[float] = None
+
+    @field_validator("product_name")
+    @classmethod
+    def validate_product_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("product_name is required")
+        return normalized
+
+    @field_validator("product_sku")
+    @classmethod
+    def normalize_sku(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class OrderItemCreate(OrderItemBase):
+    pass
+
+
+class OrderItemResponse(OrderItemBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderBase(BaseModel):
+    source: str = "checkout"
+    customer_name: Optional[str] = None
+    customer_phone: str
+    customer_email: Optional[EmailStr] = None
+    comment: Optional[str] = None
+
+    delivery_method: Optional[str] = None
+    payment_method: Optional[str] = None
+    legal_entity_name: Optional[str] = None
+    legal_entity_inn: Optional[str] = None
+
+    consent_given: bool = False
+    consent_version: Optional[str] = None
+    consent_text: Optional[str] = None
+    items: List[OrderItemCreate] = Field(default_factory=list)
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in ORDER_SOURCES:
+            raise ValueError(f"source must be one of: {', '.join(sorted(ORDER_SOURCES))}")
+        return normalized
+
+    @field_validator("customer_phone")
+    @classmethod
+    def validate_customer_phone(cls, value: str) -> str:
+        return normalize_phone(value)
+
+    @field_validator("delivery_method")
+    @classmethod
+    def validate_delivery_method(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in ORDER_DELIVERY_METHODS:
+            raise ValueError(
+                f"delivery_method must be one of: {', '.join(sorted(ORDER_DELIVERY_METHODS))}"
+            )
+        return normalized
+
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in ORDER_PAYMENT_METHODS:
+            raise ValueError(
+                f"payment_method must be one of: {', '.join(sorted(ORDER_PAYMENT_METHODS))}"
+            )
+        return normalized
+
+    @field_validator("customer_name", "comment", "legal_entity_name")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("legal_entity_inn")
+    @classmethod
+    def normalize_legal_inn(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = re.sub(r"\D", "", value)
+        return normalized or None
+
+
+class OrderCreate(OrderBase):
+    @field_validator("items")
+    @classmethod
+    def validate_items_for_checkout(cls, value: List[OrderItemCreate]) -> List[OrderItemCreate]:
+        return value
+
+
+class OrderResponse(OrderBase):
+    id: int
+    uuid: str
+    status: str
+    manager_comment: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    consent_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    items: List[OrderItemResponse] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderStatusUpdate(BaseModel):
+    status: str
+    manager_comment: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in ORDER_STATUSES:
+            raise ValueError(f"status must be one of: {', '.join(sorted(ORDER_STATUSES))}")
+        return normalized
+
+    @field_validator("manager_comment")
+    @classmethod
+    def normalize_manager_comment(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class OrderPublicItemResponse(BaseModel):
+    product_sku: Optional[str] = None
+    product_name: str
+    quantity: int
+    unit_price: Optional[float] = None
+    line_total: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderPublicResponse(BaseModel):
+    id: int
+    uuid: str
+    status: str
+    source: str
+    delivery_method: Optional[str] = None
+    payment_method: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    items: List[OrderPublicItemResponse] = []
+
     model_config = ConfigDict(from_attributes=True)
 
 # ---------- Lead Schemas ----------

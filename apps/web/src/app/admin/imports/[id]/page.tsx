@@ -40,6 +40,19 @@ export default function ImportRunDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "success":
+        return "Успешно";
+      case "failed":
+        return "Ошибка";
+      case "processing":
+        return "В обработке";
+      default:
+        return status;
+    }
+  };
+
   useEffect(() => {
     const loadRun = async () => {
       try {
@@ -61,7 +74,7 @@ export default function ImportRunDetailsPage() {
           return;
         }
         if (response.status === 404) {
-          setError("Run не найден");
+          setError("Запуск не найден");
           return;
         }
         if (!response.ok) {
@@ -96,7 +109,16 @@ export default function ImportRunDetailsPage() {
   }
 
   if (!run) {
-    return null;
+    return (
+      <div className="space-y-4">
+        <Link href="/admin/imports" className="inline-block text-[#1F3B73] hover:underline">
+          ← Назад к импортам
+        </Link>
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600">
+          Данные запуска импорта отсутствуют.
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -106,25 +128,25 @@ export default function ImportRunDetailsPage() {
           <Link href="/admin/imports" className="inline-block text-sm text-[#1F3B73] hover:underline">
             ← Назад к импортам
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-[#1F3B73]">Run #{run.id}</h1>
+          <h1 className="mt-2 text-2xl font-bold text-[#1F3B73]">Запуск #{run.id}</h1>
         </div>
         {run.previous_successful_run && (
           <Link
             href={`/admin/imports/${run.previous_successful_run.id}`}
             className="rounded-xl border border-neutral-300 px-3 py-2 text-sm text-[#1F3B73] hover:bg-neutral-50"
           >
-            Previous successful run #{run.previous_successful_run.id}
+            Предыдущий успешный запуск #{run.previous_successful_run.id}
           </Link>
         )}
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
-          <p><span className="text-neutral-500">Статус:</span> {run.status}</p>
-          <p><span className="text-neutral-500">Source:</span> {run.source || "—"}</p>
-          <p><span className="text-neutral-500">Entity:</span> {run.entity_type}</p>
+          <p><span className="text-neutral-500">Статус:</span> {getStatusLabel(run.status)}</p>
+          <p><span className="text-neutral-500">Источник:</span> {run.source || "—"}</p>
+          <p><span className="text-neutral-500">Сущность:</span> {run.entity_type}</p>
           <p>
-            <span className="text-neutral-500">Created by:</span>{" "}
+            <span className="text-neutral-500">Кто запустил:</span>{" "}
             {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}
           </p>
           <p>
@@ -138,33 +160,33 @@ export default function ImportRunDetailsPage() {
         </div>
 
         <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
-          <p><span className="text-neutral-500">Total:</span> {run.total}</p>
-          <p><span className="text-neutral-500">Created:</span> {run.created}</p>
-          <p><span className="text-neutral-500">Updated:</span> {run.updated}</p>
-          <p><span className="text-neutral-500">Failed:</span> {run.failed}</p>
-          <p><span className="text-neutral-500">Errors count:</span> {run.errors.length}</p>
-          <p><span className="text-neutral-500">Snapshot items:</span> {run.snapshot_metadata.items_count}</p>
+          <p><span className="text-neutral-500">Всего:</span> {run.total}</p>
+          <p><span className="text-neutral-500">Создано:</span> {run.created}</p>
+          <p><span className="text-neutral-500">Обновлено:</span> {run.updated}</p>
+          <p><span className="text-neutral-500">Ошибок:</span> {run.failed}</p>
+          <p><span className="text-neutral-500">Количество ошибок:</span> {run.errors.length}</p>
+          <p><span className="text-neutral-500">Элементов в snapshot:</span> {run.snapshot_metadata.items_count}</p>
         </div>
       </div>
 
       <div className="mb-6 rounded-2xl border border-neutral-200 p-4">
-        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Summary</h2>
+        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Сводка</h2>
         <pre className="overflow-x-auto rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
           {JSON.stringify(run.summary, null, 2)}
         </pre>
       </div>
 
       <div className="mb-6 rounded-2xl border border-neutral-200 p-4">
-        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Snapshot metadata</h2>
+        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Метаданные snapshot</h2>
         <div className="space-y-1 text-sm text-neutral-700">
-          <p>Has snapshot: {run.snapshot_metadata.has_snapshot ? "yes" : "no"}</p>
-          <p>Items count: {run.snapshot_metadata.items_count}</p>
-          <p>Sample keys: {run.snapshot_metadata.sample_keys.join(", ") || "—"}</p>
+          <p>Наличие snapshot: {run.snapshot_metadata.has_snapshot ? "да" : "нет"}</p>
+          <p>Количество элементов: {run.snapshot_metadata.items_count}</p>
+          <p>Пример ключей: {run.snapshot_metadata.sample_keys.join(", ") || "—"}</p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-neutral-200 p-4">
-        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Errors</h2>
+        <h2 className="mb-3 text-lg font-semibold text-[#1F3B73]">Ошибки</h2>
         {run.errors.length === 0 ? (
           <p className="text-sm text-neutral-500">Ошибок нет</p>
         ) : (

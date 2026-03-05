@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 function normalizePhone(value: string): string {
@@ -20,13 +20,77 @@ function normalizePhone(value: string): string {
   return `+${digits}`;
 }
 
+function normalizeVin(value: string): string | null {
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) return null;
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(normalized)) {
+    throw new Error("Проверьте VIN: нужны 17 символов без I, O, Q");
+  }
+  return normalized;
+}
+
 export default function ServicePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [contentMap, setContentMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContent() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        if (!Array.isArray(payload) || cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const item of payload) {
+          if (item?.key && typeof item.value === "string") {
+            map[item.key] = item.value;
+          }
+        }
+        setContentMap(map);
+      } catch {
+        // keep defaults
+      }
+    }
+
+    loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+  const heroTitle = contentValue("service_hero_title", "Автосервис в Красноярске");
+  const heroSubtitle = contentValue("service_hero_subtitle", "Профессиональный ремонт и обслуживание автомобилей");
+  const formTitle = contentValue("service_form_title", "Заявка на обслуживание");
+  const formSubtitle = contentValue(
+    "service_form_subtitle",
+    "Заполните форму — менеджер свяжется с вами для подтверждения"
+  );
+  const successTitle = contentValue("service_success_title", "Заявка отправлена!");
+  const successText = contentValue(
+    "service_success_text",
+    "Менеджер свяжется с вами в рабочее время для подтверждения записи."
+  );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setError("");
 
@@ -36,6 +100,7 @@ export default function ServicePage() {
       const rawPhone = String(formData.get("phone") || "");
       const normalizedPhone = normalizePhone(rawPhone);
       const description = String(formData.get("description") || "").trim();
+      const normalizedVin = normalizeVin(String(formData.get("vin") || ""));
       if (!description) {
         throw new Error("Опишите проблему или задачу для сервиса");
       }
@@ -49,7 +114,7 @@ export default function ServicePage() {
         vehicle_make: formData.get("vehicle_make") || undefined,
         vehicle_model: formData.get("vehicle_model") || undefined,
         vehicle_year: formData.get("vehicle_year") ? parseInt(formData.get("vehicle_year") as string) : undefined,
-        vin: formData.get("vin") || undefined,
+        vin: normalizedVin || undefined,
         mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string) : undefined,
         description,
         preferred_date: formData.get("preferred_date") || undefined,
@@ -86,11 +151,11 @@ export default function ServicePage() {
         <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
           <div className="mx-auto max-w-6xl px-6 py-4">
             <div className="flex items-center justify-between">
-              <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+              <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
               <nav className="hidden items-center gap-8 md:flex">
-                <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-                <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Автосервис</Link>
-                <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+                <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+                <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navService}</Link>
+                <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
               </nav>
             </div>
           </div>
@@ -99,9 +164,9 @@ export default function ServicePage() {
         <section className="mx-auto max-w-3xl px-6 py-16">
           <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
             <div className="text-6xl mb-4">✅</div>
-            <h1 className="text-2xl font-bold text-[#1F3B73]">Заявка отправлена!</h1>
+            <h1 className="text-2xl font-bold text-[#1F3B73]">{successTitle}</h1>
             <p className="mt-2 text-neutral-600">
-              Менеджер свяжется с вами в рабочее время для подтверждения записи.
+              {successText}
             </p>
             <Link
               href="/"
@@ -114,7 +179,7 @@ export default function ServicePage() {
 
         <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
           <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-            © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+            © {new Date().getFullYear()} {footerText}
           </div>
         </footer>
       </main>
@@ -145,11 +210,11 @@ export default function ServicePage() {
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+              <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navService}</Link>
+              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
             </nav>
           </div>
         </div>
@@ -160,9 +225,9 @@ export default function ServicePage() {
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-6">
-          <h1 className="text-4xl font-bold text-white">Автосервис в Красноярске</h1>
+          <h1 className="text-4xl font-bold text-white">{heroTitle}</h1>
           <p className="mt-4 max-w-2xl text-lg text-white/80">
-            Профессиональный ремонт и обслуживание автомобилей
+            {heroSubtitle}
           </p>
         </div>
       </section>
@@ -201,9 +266,9 @@ export default function ServicePage() {
 
       <section id="form" className="bg-white py-16 scroll-mt-20">
         <div className="mx-auto max-w-3xl px-6">
-          <h2 className="text-center text-2xl font-bold text-[#1F3B73]">Заявка на обслуживание</h2>
+          <h2 className="text-center text-2xl font-bold text-[#1F3B73]">{formTitle}</h2>
           <p className="mt-2 text-center text-neutral-600">
-            Заполните форму — менеджер свяжется с вами для подтверждения
+            {formSubtitle}
           </p>
           
           {error && (
@@ -288,7 +353,7 @@ export default function ServicePage() {
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+          © {new Date().getFullYear()} {footerText}
         </div>
       </footer>
     </main>

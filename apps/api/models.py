@@ -193,6 +193,54 @@ class AuditLog(Base):
     # Relationships
     user = relationship("User")
 
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), default=lambda: str(uuid.uuid4()), unique=True, index=True)
+    status = Column(String(50), nullable=False, default="new")  # new, in_progress, ready, closed, canceled
+    source = Column(String(50), nullable=False, default="checkout")  # checkout, one_click
+
+    customer_name = Column(String(255), nullable=True)
+    customer_phone = Column(String(50), nullable=False, index=True)
+    customer_email = Column(String(255), nullable=True)
+    comment = Column(Text, nullable=True)
+
+    delivery_method = Column(String(50), nullable=True)  # pickup, courier
+    payment_method = Column(String(50), nullable=True)  # cash_on_delivery, invoice
+    legal_entity_name = Column(String(255), nullable=True)
+    legal_entity_inn = Column(String(20), nullable=True)
+
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    consent_given = Column(Boolean, default=False)
+    consent_version = Column(String(50), nullable=True)
+    consent_text = Column(Text, nullable=True)
+    consent_at = Column(DateTime, nullable=True)
+    manager_comment = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    product_sku = Column(String(100), nullable=True, index=True)
+    product_name = Column(String(500), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    unit_price = Column(Float, nullable=True)
+    line_total = Column(Float, nullable=True)
+
+    order = relationship("Order", back_populates="items")
+    product = relationship("Product")
+
 class ImportRun(Base):
     __tablename__ = "import_runs"
 

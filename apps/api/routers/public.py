@@ -6,14 +6,33 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 from typing import Any, List, Optional
 import uuid
 
 from database import get_db
-from models import AuditLog, Category, ImportRun, Product, Lead, ServiceRequest, SiteContent, VinRequest
+from models import (
+    AuditLog,
+    Category,
+    ImportRun,
+    Product,
+    Lead,
+    Order,
+    OrderItem,
+    ServiceRequest,
+    SiteContent,
+    VinRequest,
+)
 from schemas import (
     CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
-    ServiceRequestCreate, ServiceRequestResponse, VinRequestCreate, VinRequestResponse
+    OrderCreate,
+    OrderPublicResponse,
+    OrderResponse,
+    ServiceRequestCreate,
+    ServiceRequestResponse,
+    VinRequestCreate,
+    VinRequestResponse,
+    normalize_phone,
 )
 
 router = APIRouter(prefix="/api/public", tags=["public"])
@@ -38,6 +57,7 @@ FORM_RATE_LIMIT_WINDOW_SECONDS = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_WIND
 DEFAULT_FORM_RATE_LIMIT_PER_MINUTE = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", 20)
 FORM_RATE_LIMITS_PER_SCOPE = {
     "leads": _env_positive_int("PUBLIC_LEADS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
+    "orders": _env_positive_int("PUBLIC_ORDERS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
     "service_requests": _env_positive_int(
         "PUBLIC_SERVICE_REQUESTS_RATE_LIMIT_PER_MINUTE",
         DEFAULT_FORM_RATE_LIMIT_PER_MINUTE,
@@ -390,6 +410,123 @@ async def create_lead(
     await db.commit()
     await db.refresh(db_lead)
     return db_lead
+
+
+# ---------- Orders ----------
+@router.post("/orders", response_model=OrderResponse, status_code=201)
+async def create_order(
+    order_data: OrderCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new order (guest checkout or one-click order)."""
+    _enforce_form_rate_limit(request, "orders")
+
+    if not order_data.consent_given:
+        raise HTTPException(status_code=400, detail="Consent is required")
+
+    if order_data.source == "checkout" and len(order_data.items) == 0:
+        raise HTTPException(status_code=400, detail="Checkout order must contain at least one item")
+
+    if order_data.payment_method == "invoice" and not order_data.legal_entity_inn:
+        raise HTTPException(status_code=400, detail="Legal entity INN is required for invoice payment")
+
+    order_payload = order_data.model_dump()
+    items_payload = order_payload.pop("items", [])
+    order_payload["consent_version"] = order_data.consent_version or "v1.0"
+    order_payload["consent_text"] = (
+        order_data.consent_text
+        or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
+    )
+    order_payload["consent_at"] = _utcnow()
+
+    db_order = Order(
+        **order_payload,
+        uuid=str(uuid.uuid4()),
+        status="new",
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(db_order)
+    await db.flush()
+
+    for raw_item in items_payload:
+        product_id_raw = raw_item.get("product_id")
+        product_id: Optional[int] = None
+        if product_id_raw is not None:
+            try:
+                candidate_id = int(product_id_raw)
+                exists_result = await db.execute(select(Product.id).where(Product.id == candidate_id))
+                if exists_result.scalar_one_or_none() is not None:
+                    product_id = candidate_id
+            except (TypeError, ValueError):
+                product_id = None
+
+        quantity = max(int(raw_item.get("quantity") or 1), 1)
+        unit_price = _to_float(raw_item.get("unit_price"))
+        line_total = _to_float(raw_item.get("line_total"))
+        if line_total is None and unit_price is not None:
+            line_total = round(unit_price * quantity, 2)
+
+        order_item = OrderItem(
+            order_id=db_order.id,
+            product_id=product_id,
+            product_sku=raw_item.get("product_sku"),
+            product_name=raw_item.get("product_name"),
+            quantity=quantity,
+            unit_price=unit_price,
+            line_total=line_total,
+        )
+        db.add(order_item)
+
+    audit = AuditLog(
+        action="create_public_order",
+        entity_type="order",
+        entity_id=db_order.id,
+        new_values={
+            "source": db_order.source,
+            "status": db_order.status,
+            "customer_phone": db_order.customer_phone,
+            "delivery_method": db_order.delivery_method,
+            "payment_method": db_order.payment_method,
+            "items_count": len(items_payload),
+            "consent_given": db_order.consent_given,
+            "consent_version": db_order.consent_version,
+            "consent_text": db_order.consent_text,
+            "consent_at": db_order.consent_at.isoformat() if db_order.consent_at else None,
+        },
+        ip_address=db_order.ip_address,
+    )
+    db.add(audit)
+    await db.commit()
+
+    order_result = await db.execute(
+        select(Order).options(selectinload(Order.items)).where(Order.id == db_order.id)
+    )
+    created_order = order_result.scalar_one()
+    return created_order
+
+
+@router.get("/orders/history", response_model=List[OrderPublicResponse])
+async def get_order_history(
+    phone: str = Query(..., min_length=10, max_length=25),
+    limit: int = Query(20, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get order history and statuses by phone number."""
+    try:
+        normalized_phone = normalize_phone(phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Phone must be a valid RU number") from exc
+
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.customer_phone == normalized_phone)
+        .order_by(Order.id.desc())
+        .limit(limit)
+    )
+    return result.scalars().all()
 
 # ---------- Service Requests ----------
 @router.post("/service-requests", response_model=ServiceRequestResponse, status_code=201)

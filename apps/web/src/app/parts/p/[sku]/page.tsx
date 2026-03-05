@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import ProductLeadForm from "./product-lead-form";
+import FavoriteToggleButton from "./favorite-toggle-button";
 
 type Product = {
   id: number;
@@ -100,6 +101,9 @@ export default async function ProductBySkuPage({
               <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
               <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
               <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
+              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
             </nav>
           </div>
         </div>
@@ -172,6 +176,13 @@ export default async function ProductBySkuPage({
             >
               Оставить VIN-заявку
             </Link>
+            <FavoriteToggleButton
+              productId={currentProduct.id}
+              sku={currentProduct.sku}
+              name={currentProduct.name}
+              price={currentProduct.price}
+              imageUrl={mainImageUrl}
+            />
             <Link
               href="/contacts"
               className="rounded-2xl border border-neutral-200 px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
