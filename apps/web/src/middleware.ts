@@ -2,18 +2,18 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('admin_token')?.value || 
-                request.headers.get('authorization')?.replace('Bearer ', '');
+  // Проверяем токен в заголовке Authorization или в cookie
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader?.replace('Bearer ', '') || 
+                request.cookies.get('admin_token')?.value;
   
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
   const isLoginRoute = request.nextUrl.pathname === '/admin/login';
   
-  // Разрешаем доступ к странице логина без токена
   if (isLoginRoute) {
     return NextResponse.next();
   }
   
-  // Для всех остальных админских маршрутов требуется токен
   if (isAdminRoute && !token) {
     return NextResponse.redirect(new URL('/admin/login', request.url));
   }

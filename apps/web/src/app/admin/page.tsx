@@ -1,41 +1,53 @@
+'use client';
+
 import Link from "next/link";
-import { cookies } from 'next/headers';
+import { useState, useEffect } from 'react';
 
-async function getStats() {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('admin_token')?.value;
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    const [leadsRes, serviceRes] = await Promise.all([
-      fetch("http://localhost:8000/api/admin/leads?limit=1", { 
-        cache: 'no-store',
-        headers 
-      }),
-      fetch("http://localhost:8000/api/admin/service-requests?limit=1", { 
-        cache: 'no-store',
-        headers 
-      })
-    ]);
-    
-    return {
-      leads: leadsRes.ok ? "Есть данные" : "Нет данных",
-      service: serviceRes.ok ? "Есть данные" : "Нет данных",
-    };
-  } catch {
-    return { leads: "API недоступно", service: "API недоступно" };
-  }
-}
+export default function AdminDashboard() {
+  const [stats, setStats] = useState({ leads: 'Загрузка...', service: 'Загрузка...' });
 
-export default async function AdminDashboard() {
-  const stats = await getStats();
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStats = async () => {
+      try {
+        const token = localStorage.getItem('admin_token');
+        if (!token) {
+          window.location.href = '/admin/login';
+          return;
+        }
+
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+        };
+
+        const [leadsRes, serviceRes] = await Promise.all([
+          fetch("http://localhost:8000/api/admin/leads?limit=1", { headers }),
+          fetch("http://localhost:8000/api/admin/service-requests?limit=1", { headers })
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setStats({
+          leads: leadsRes.ok ? "Есть данные" : "Нет данных",
+          service: serviceRes.ok ? "Есть данные" : "Нет данных",
+        });
+      } catch {
+        if (!cancelled) {
+          setStats({ leads: "API недоступно", service: "API недоступно" });
+        }
+      }
+    };
+
+    void loadStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   return (
     <div>

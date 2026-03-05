@@ -17,14 +17,10 @@ export default function LoginPage() {
     setError('');
 
     try {
-      console.log('Attempting login with:', email);
-      
       const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
 
-      console.log('Sending request to:', 'http://localhost:8000/api/admin/auth/token');
-      
       const res = await fetch('http://localhost:8000/api/admin/auth/token', {
         method: 'POST',
         headers: {
@@ -33,37 +29,24 @@ export default function LoginPage() {
         body: formData,
       });
 
-      console.log('Response status:', res.status);
-
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Ошибка ${res.status}: ${res.statusText}`);
+        throw new Error('Неверный email или пароль');
       }
 
       const data = await res.json();
-      console.log('Token received:', data.access_token ? 'yes' : 'no');
       
-      // Сохраняем токен в localStorage для клиентских запросов
+      // Сохраняем в localStorage (для клиентских запросов)
       localStorage.setItem('admin_token', data.access_token);
-      console.log('Token saved to localStorage');
       
-      // Сохраняем токен в cookie для middleware и серверных компонентов
+      // Сохраняем в cookie (для middleware)
       Cookies.set('admin_token', data.access_token, { 
         expires: 7,
         path: '/',
-        sameSite: 'strict'
       });
-      console.log('Token saved to cookies');
-      
-      // Проверяем, что cookie установилась
-      const savedCookie = Cookies.get('admin_token');
-      console.log('Cookie after set:', savedCookie ? 'exists' : 'missing');
       
       router.push('/admin');
       router.refresh();
     } catch (err) {
-      console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Ошибка входа');
     } finally {
       setIsLoading(false);
