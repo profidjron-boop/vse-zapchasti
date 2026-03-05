@@ -3,7 +3,7 @@
 **Version:** v1.1 (с дополнениями, без самодобавлений)
 **Date:** 2026-03-05
 **Status:** Ready for Implementation
-**Refs:** `docs/project-header.md`, `docs/stack.md`, `docs/ui-direction.md`, `docs/design-system.md`, `docs/ux-copy.md`, `docs/verify-gates.md`, `docs/deploy.md`, `docs/release-rollback-runbook.md`
+**Refs:** `docs/project-header.md`, `docs/stack.md`, `docs/ui-direction.md`, `docs/design-system.md`, `docs/ux-copy.md`, `docs/verify-gates.md`, `docs/deploy.md`, `docs/release-rollback-runbook.md`, `docs/integrations/1c-erp-tech-design.md`
 **ADR:** `docs/decisions/ADR-0001-import-sources-and-scheduling.md`, `docs/decisions/ADR-0002-rate-limit-scope-and-redis-trigger.md`
 
 ## 1) Краткое описание
