@@ -3,99 +3,70 @@
 ## Project
 Название: Все запчасти  
 Repo: /home/greka/vse-zapchasti  
-Режим: Strict  
-Stack: RU STACK LOCK (Next.js + FastAPI + Postgres)  
-Runtime: NO CDN (все ассеты локально)  
-Регион: РФ  
-Город: Красноярск  
+Режим: Strict (RU Stack Lock)  
+Stack: Next.js (App Router) + FastAPI + PostgreSQL  
+Runtime: NO CDN (self-hosted assets)  
+Регион/юрисдикция: РФ (152-ФЗ), г. Красноярск
 
-## Архитектура сайта
-Выбран вариант A — «Две дороги»
+## Public Web (apps/web)
+Ключевые страницы:
+- `/` — главная (hero, CTA, блоки “Запчасти/Сервис/Под заказ/Контакты”)
+- `/parts` — каталог + поиск (в т.ч. FTS/фильтры совместимости)
+- `/parts/p/[sku]` — карточка товара + форма “Уточнить/Заказать” + быстрый заказ
+- `/parts/vin` — VIN-заявка
+- `/service` — форма сервис-заявки + каталог услуг
+- `/cart` — корзина гостя + checkout (самовывоз/курьер, при получении/по счёту)
+- `/favorites` — избранное/отложенное
+- `/account/orders` — история/статусы заказов по телефону
+- `/contacts`, `/about`, `/privacy`, `/offer`
 
-Главная страница:
-1. Hero
-2. Две дороги
-   - Подбор запчастей
-   - Автосервис
-3. Категории
-4. Виды работ
-5. Запчасти под заказ
-6. Контакты
+## Admin Web (apps/web)
+Основные разделы:
+- `/admin` (дашборд), `/admin/reports`
+- `/admin/content` (редактор сайта с пресетами страниц)
+- `/admin/imports`, `/admin/imports/[id]`
+- `/admin/users`
+- `/admin/products`, `/admin/products/new`, `/admin/products/[id]`
+- `/admin/categories`, `/admin/categories/new`
+- `/admin/leads`, `/admin/leads/[id]`
+- `/admin/orders`, `/admin/orders/[id]`
+- `/admin/vin-requests`, `/admin/vin-requests/[id]`
+- `/admin/service-catalog`, `/admin/service-requests`, `/admin/service-requests/[id]`
 
-Основные страницы:
+RBAC (фактически реализовано):
+- `admin`: полный доступ
+- `manager`: каталог + leads/VIN + orders
+- `service_manager`: только service requests
 
-/ — главная  
-/parts — подбор запчастей  
-/service — автосервис  
+## API (apps/api)
+Ключевые публичные эндпоинты:
+- `GET /health`, `GET /api/health`, `GET /api/ready`
+- `GET /api/public/categories`
+- `GET /api/public/products`, `GET /api/public/products/by-sku/{sku}`
+- `POST /api/public/leads`
+- `POST /api/public/vin-requests`
+- `POST /api/public/service-requests`
+- `POST /api/public/orders`, `GET /api/public/orders/history`
+- `GET /api/public/service-catalog`
+- `GET /api/public/content`
 
-## Web
-Framework: Next.js (App Router)
+Ключевые admin эндпоинты:
+- auth/users/roles, catalog CRUD, service catalog CRUD
+- leads/VIN/service requests/orders (list/detail/status)
+- imports runs + details, content CRUD, upload
 
-Расположение:
-apps/web
+## Ops / Verify
+- Verify gates: `docs/verify-gates.md`
+- Umbrella gate: `bash scripts/verify-all.sh`
+- Smoke: `bash scripts/smoke.sh` и `bash scripts/smoke.sh --with-write`
+- Release readiness: `bash scripts/release-check.sh`
 
-Текущие страницы:
-apps/web/src/app/page.tsx
-apps/web/src/app/parts/page.tsx
+## Environment quick refs
+- Postgres (docker compose): host port `5433`
+- API dev env example: `apps/api/.env.example`
+- Web env example: `apps/web/.env.example`
 
-Verify команды:
-pnpm web:lint  
-pnpm web:typecheck  
-
-## API
-Framework: FastAPI
-
-Расположение:
-apps/api
-
-Миграции:
-Alembic
-
-Verify команды:
-make lint
-make test
-make migrate-check
-
-## База данных
-
-Postgres (docker compose)
-
-Host port:
-5433
-
-DATABASE_URL пример:
-
-postgresql+psycopg://vsez:vsez_dev_password_change_me@localhost:5433/vsez
-
-Файл:
-apps/api/.env.example
-
-## Инфраструктура
-
-docker-compose.yml
-Postgres контейнер:
-vsez_postgres
-
-## Verify gates
-
-Web:
-pnpm web:lint
-pnpm web:typecheck
-
-API:
-make lint
-make test
-make migrate-check
-
-## Как начать новый чат
-
-1. Перейти в репозиторий
-
-cd ~/vse-zapchasti
-
-2. Выполнить
-
-docs/handoff.sh
-
+## Chat bootstrap
+1. Перейти в репозиторий: `cd ~/vse-zapchasti`  
+2. Выполнить: `docs/handoff.sh`  
 3. Показать вывод ассистенту.
-
