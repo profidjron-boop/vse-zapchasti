@@ -3,17 +3,15 @@
 ## Корень проекта
 - `pnpm web:lint` — линтинг Next.js (из apps/web)
 - `pnpm web:typecheck` — проверка типов TypeScript
-- `pnpm web:test` — тесты Vitest (TODO: настроить)
-- `pnpm web:build` — сборка Next.js
+- `pnpm web:test` — тесты Vitest (если используются)
+- `pnpm --dir apps/web run build` — сборка Next.js
 
 ## API (apps/api)
 cd apps/api
 make lint        # ruff check
-make format      # ruff format
-make test        # pytest (TODO)
+make test        # pytest
 make migrate     # alembic upgrade head
-make migrate-check # проверка миграций (alembic check)
-make dev         # запуск dev сервера
+make migrate-check # текущее состояние миграций (alembic current)
 
 ## Docker (инфра)
 - `docker-compose build` — сборка образов
@@ -21,8 +19,8 @@ make dev         # запуск dev сервера
 - `docker-compose down` — остановка
 
 ## Release gates (перед публикацией)
-1. `pnpm web:lint && pnpm web:typecheck && pnpm web:build`
-2. `cd apps/api && make lint && make migrate-check`
+1. `pnpm web:lint && pnpm web:typecheck && pnpm --dir apps/web run build`
+2. `cd apps/api && make lint && make test && make migrate-check`
 3. `docker-compose build`
 4. `bash docs/backup.sh` (TODO) — бэкап БД
 5. Smoke:

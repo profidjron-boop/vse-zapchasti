@@ -91,7 +91,32 @@ ok "api:test"
 ensure_postgres
 
 log "api:migrate-check"
-( cd apps/api && make migrate-check ) || fail "api:migrate-check"
+migrate_check_output="$(
+  cd apps/api && make migrate-check
+)" || fail "api:migrate-check"
+echo "$migrate_check_output"
+
+current_revisions="$(
+  printf '%s\n' "$migrate_check_output" \
+    | awk '/^[0-9a-f]+ / {print $1}' \
+    | sort -u \
+    | tr '\n' ' ' \
+    | sed 's/[[:space:]]*$//'
+)"
+
+head_revisions="$(
+  cd apps/api && UV_CACHE_DIR=./.uv-cache ./.venv/bin/uv run alembic heads \
+    | awk '/^[0-9a-f]+ / {print $1}' \
+    | sort -u \
+    | tr '\n' ' ' \
+    | sed 's/[[:space:]]*$//'
+)"
+
+[[ -n "$current_revisions" ]] || fail "api:migrate-check: cannot parse current revision"
+[[ -n "$head_revisions" ]] || fail "api:migrate-check: cannot parse head revision"
+[[ "$current_revisions" == "$head_revisions" ]] \
+  || fail "api:migrate-check: current ($current_revisions) != head ($head_revisions). Run: cd apps/api && make migrate"
+
 ok "api:migrate-check"
 
 # Extra: Python syntax compilation (builtin, catches SyntaxError even if not imported in tests)

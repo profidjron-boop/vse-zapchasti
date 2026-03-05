@@ -20,8 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    table_name = "import_runs"
+    index_id = op.f("ix_import_runs_id")
+
+    if inspector.has_table(table_name):
+        existing_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+        if index_id not in existing_indexes:
+            op.create_index(index_id, table_name, ["id"], unique=False)
+        return
+
     op.create_table(
-        "import_runs",
+        table_name,
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("entity_type", sa.String(length=50), nullable=False),
         sa.Column("status", sa.String(length=50), nullable=False),
@@ -37,10 +48,20 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["previous_successful_run_id"], ["import_runs.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_import_runs_id"), "import_runs", ["id"], unique=False)
+    op.create_index(index_id, table_name, ["id"], unique=False)
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(op.f("ix_import_runs_id"), table_name="import_runs")
-    op.drop_table("import_runs")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    table_name = "import_runs"
+    index_id = op.f("ix_import_runs_id")
+
+    if not inspector.has_table(table_name):
+        return
+
+    existing_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+    if index_id in existing_indexes:
+        op.drop_index(index_id, table_name=table_name)
+    op.drop_table(table_name)
