@@ -33,6 +33,7 @@ from models import (
 from schemas import (
     CategoryCreate,
     CategoryResponse,
+    LeadResponse,
     CategoryUpdate,
     ProductCreate,
     ProductImageBase,
@@ -1561,7 +1562,7 @@ async def admin_upload_file(
     return {"url": file_url, "filename": filename}
 
 # ---------- Leads ----------
-@router.get("/leads", response_model=List[dict])
+@router.get("/leads", response_model=List[LeadResponse])
 async def admin_get_leads(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -1621,7 +1622,7 @@ async def admin_get_leads(
     result = await db.execute(query)
     return result.scalars().all()
 
-@router.get("/leads/{lead_id}", response_model=dict)
+@router.get("/leads/{lead_id}", response_model=LeadResponse)
 async def admin_get_lead(
     lead_id: int,
     db: AsyncSession = Depends(get_db),
