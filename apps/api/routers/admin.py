@@ -1327,7 +1327,14 @@ async def admin_create_service_catalog_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_service_catalog_user),
 ):
-    item = ServiceCatalogItem(**payload.model_dump())
+    create_data = payload.model_dump()
+    if create_data["prepayment_required"]:
+        if create_data.get("prepayment_amount") is None or create_data["prepayment_amount"] <= 0:
+            raise HTTPException(status_code=400, detail="prepayment_amount must be > 0 when prepayment is required")
+    else:
+        create_data["prepayment_amount"] = None
+
+    item = ServiceCatalogItem(**create_data)
     db.add(item)
     await db.commit()
     await db.refresh(item)
@@ -1337,7 +1344,7 @@ async def admin_create_service_catalog_item(
         action="create",
         entity_type="service_catalog_item",
         entity_id=item.id,
-        new_values=payload.model_dump(),
+        new_values=create_data,
     )
     db.add(audit)
     await db.commit()
@@ -1363,9 +1370,19 @@ async def admin_update_service_catalog_item(
         "vehicle_type": item.vehicle_type,
         "duration_minutes": item.duration_minutes,
         "price": item.price,
+        "prepayment_required": item.prepayment_required,
+        "prepayment_amount": item.prepayment_amount,
         "sort_order": item.sort_order,
         "is_active": item.is_active,
     }
+
+    next_prepayment_required = update_data.get("prepayment_required", item.prepayment_required)
+    next_prepayment_amount = update_data.get("prepayment_amount", item.prepayment_amount)
+    if next_prepayment_required:
+        if next_prepayment_amount is None or next_prepayment_amount <= 0:
+            raise HTTPException(status_code=400, detail="prepayment_amount must be > 0 when prepayment is required")
+    elif "prepayment_required" in update_data or "prepayment_amount" in update_data:
+        update_data["prepayment_amount"] = None
 
     for key, value in update_data.items():
         setattr(item, key, value)

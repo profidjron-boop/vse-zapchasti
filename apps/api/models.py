@@ -173,6 +173,8 @@ class ServiceCatalogItem(Base):
     vehicle_type = Column(String(20), nullable=False, default="passenger")  # passenger, truck, both
     duration_minutes = Column(Integer, nullable=True)
     price = Column(Float, nullable=True)
+    prepayment_required = Column(Boolean, nullable=False, default=False)
+    prepayment_amount = Column(Float, nullable=True)
     sort_order = Column(Integer, nullable=False, default=0)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

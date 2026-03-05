@@ -508,6 +508,8 @@ class ServiceCatalogItemBase(BaseModel):
     vehicle_type: str = "passenger"
     duration_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
     price: Optional[float] = Field(default=None, ge=0)
+    prepayment_required: bool = False
+    prepayment_amount: Optional[float] = Field(default=None, ge=0)
     sort_order: int = 0
     is_active: bool = True
 
@@ -539,6 +541,8 @@ class ServiceCatalogItemUpdate(BaseModel):
     vehicle_type: Optional[str] = None
     duration_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
     price: Optional[float] = Field(default=None, ge=0)
+    prepayment_required: Optional[bool] = None
+    prepayment_amount: Optional[float] = Field(default=None, ge=0)
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
 

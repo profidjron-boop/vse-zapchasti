@@ -10,6 +10,7 @@ type ServiceCard = {
   icon: string;
   duration: string;
   price: string;
+  prepaymentLabel?: string;
 };
 
 const fallbackServices: { passenger: ServiceCard[]; truck: ServiceCard[] } = {
@@ -107,6 +108,8 @@ export default function ServicePage() {
           vehicle_type?: string;
           duration_minutes?: number | null;
           price?: number | null;
+          prepayment_required?: boolean;
+          prepayment_amount?: number | null;
         }>;
 
         if (!Array.isArray(payload) || cancelled) return;
@@ -132,6 +135,10 @@ export default function ServicePage() {
             icon: "🔧",
             duration: durationLabel,
             price: priceLabel,
+            prepaymentLabel:
+              item.prepayment_required && typeof item.prepayment_amount === "number" && item.prepayment_amount > 0
+                ? `Предоплата ${Math.round(item.prepayment_amount).toLocaleString("ru-RU")} ₽`
+                : undefined,
           };
 
           const vehicleType = String(item.vehicle_type || "").toLowerCase();
@@ -339,6 +346,9 @@ export default function ServicePage() {
               <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
               <p className="mt-3 text-xs font-medium text-neutral-500">Длительность: {work.duration}</p>
               <p className="mt-1 text-sm font-semibold text-[#1F3B73]">{work.price}</p>
+              {work.prepaymentLabel ? (
+                <p className="mt-1 text-xs font-medium text-[#1F3B73]">{work.prepaymentLabel}</p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -356,6 +366,9 @@ export default function ServicePage() {
               <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
               <p className="mt-3 text-xs font-medium text-neutral-500">Длительность: {work.duration}</p>
               <p className="mt-1 text-sm font-semibold text-[#1F3B73]">{work.price}</p>
+              {work.prepaymentLabel ? (
+                <p className="mt-1 text-xs font-medium text-[#1F3B73]">{work.prepaymentLabel}</p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -384,6 +397,7 @@ export default function ServicePage() {
                     {services.passenger.map((service) => (
                       <option key={`passenger-${service.title}`} value={service.title}>
                         {service.title} · {service.duration} · {service.price}
+                        {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
                       </option>
                     ))}
                   </optgroup>
@@ -391,6 +405,7 @@ export default function ServicePage() {
                     {services.truck.map((service) => (
                       <option key={`truck-${service.title}`} value={service.title}>
                         {service.title} · {service.duration} · {service.price}
+                        {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
                       </option>
                     ))}
                   </optgroup>

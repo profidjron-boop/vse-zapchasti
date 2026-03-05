@@ -12,6 +12,8 @@ type ServiceCatalogItem = {
   vehicle_type: VehicleType;
   duration_minutes: number | null;
   price: number | null;
+  prepayment_required: boolean;
+  prepayment_amount: number | null;
   sort_order: number;
   is_active: boolean;
 };
@@ -21,6 +23,8 @@ type ServiceCatalogDraft = {
   vehicle_type: VehicleType;
   duration_minutes: string;
   price: string;
+  prepayment_required: boolean;
+  prepayment_amount: string;
   sort_order: string;
   is_active: boolean;
 };
@@ -31,6 +35,8 @@ function toDraft(item: ServiceCatalogItem): ServiceCatalogDraft {
     vehicle_type: item.vehicle_type,
     duration_minutes: item.duration_minutes !== null ? String(item.duration_minutes) : "",
     price: item.price !== null ? String(item.price) : "",
+    prepayment_required: item.prepayment_required,
+    prepayment_amount: item.prepayment_amount !== null ? String(item.prepayment_amount) : "",
     sort_order: String(item.sort_order),
     is_active: item.is_active,
   };
@@ -131,6 +137,9 @@ export default function AdminServiceCatalogPage() {
           vehicle_type: draft.vehicle_type,
           duration_minutes: draft.duration_minutes ? Number(draft.duration_minutes) : null,
           price: draft.price ? Number(draft.price) : null,
+          prepayment_required: draft.prepayment_required,
+          prepayment_amount:
+            draft.prepayment_required && draft.prepayment_amount ? Number(draft.prepayment_amount) : null,
           sort_order: Number(draft.sort_order || 0),
           is_active: draft.is_active,
         }),
@@ -203,6 +212,11 @@ export default function AdminServiceCatalogPage() {
         vehicle_type: String(formData.get("vehicle_type") || "passenger"),
         duration_minutes: formData.get("duration_minutes") ? Number(formData.get("duration_minutes")) : null,
         price: formData.get("price") ? Number(formData.get("price")) : null,
+        prepayment_required: formData.get("prepayment_required") === "on",
+        prepayment_amount:
+          formData.get("prepayment_required") === "on" && formData.get("prepayment_amount")
+            ? Number(formData.get("prepayment_amount"))
+            : null,
         sort_order: Number(formData.get("sort_order") || 0),
         is_active: formData.get("is_active") === "on",
       };
@@ -296,6 +310,18 @@ export default function AdminServiceCatalogPage() {
             placeholder="Цена, ₽"
             className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
+          <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+            <input type="checkbox" name="prepayment_required" />
+            Нужна предоплата
+          </label>
+          <input
+            type="number"
+            name="prepayment_amount"
+            min={0}
+            step="0.01"
+            placeholder="Сумма предоплаты, ₽"
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+          />
           <input
             type="number"
             name="sort_order"
@@ -331,6 +357,8 @@ export default function AdminServiceCatalogPage() {
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Тип</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Минут</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Цена</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Предоплата</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Сумма</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Сорт.</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Активна</th>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Действия</th>
@@ -381,6 +409,27 @@ export default function AdminServiceCatalogPage() {
                       />
                     </td>
                     <td className="px-3 py-2">
+                      <label className="flex items-center gap-2 text-sm text-neutral-700">
+                        <input
+                          type="checkbox"
+                          checked={draft.prepayment_required}
+                          onChange={(event) => updateDraft(item.id, "prepayment_required", event.target.checked)}
+                        />
+                        {draft.prepayment_required ? "Да" : "Нет"}
+                      </label>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={draft.prepayment_amount}
+                        onChange={(event) => updateDraft(item.id, "prepayment_amount", event.target.value)}
+                        disabled={!draft.prepayment_required}
+                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
                       <input
                         type="number"
                         value={draft.sort_order}
@@ -428,4 +477,3 @@ export default function AdminServiceCatalogPage() {
     </div>
   );
 }
-
