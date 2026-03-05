@@ -193,6 +193,24 @@ class AuditLog(Base):
     # Relationships
     user = relationship("User")
 
+class ImportRun(Base):
+    __tablename__ = "import_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_type = Column(String(50), nullable=False, default="products")
+    status = Column(String(50), nullable=False, default="started")  # started, finished, failed
+    source = Column(String(255), nullable=True)
+    summary = Column(JSON, nullable=True)
+    errors = Column(JSON, nullable=True)
+    snapshot_data = Column(JSON, nullable=True)
+    started_at = Column(DateTime, default=datetime.utcnow)
+    finished_at = Column(DateTime, nullable=True)
+    previous_successful_run_id = Column(Integer, ForeignKey("import_runs.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    previous_successful_run = relationship("ImportRun", remote_side=[id], uselist=False)
+    creator = relationship("User")
+
 class SiteContent(Base):
     __tablename__ = "site_content"
     
