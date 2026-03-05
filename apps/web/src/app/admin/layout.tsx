@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { href: "/admin", label: "Дашборд", roles: ["admin"] },
   { href: "/admin/content", label: "Редактор сайта", roles: ["admin"] },
   { href: "/admin/imports", label: "Импорты", roles: ["admin"] },
+  { href: "/admin/users", label: "Пользователи", roles: ["admin"] },
   { href: "/admin/leads", label: "Заявки (запчасти)", roles: ["admin", "manager"] },
   { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
   { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },

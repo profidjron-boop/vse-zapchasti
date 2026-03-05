@@ -45,7 +45,9 @@ from schemas import (
     SiteContentResponse,
     SiteContentUpdate,
     TokenResponse,
+    UserCreate,
     UserResponse,
+    UserUpdate,
     VinRequestResponse,
     VinRequestStatusUpdate,
 )
@@ -430,6 +432,136 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     """Get current user info"""
     return current_user
+
+# ---------- Users ----------
+@router.get("/users", response_model=List[UserResponse])
+async def admin_get_users(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None, min_length=2, description="Search by email or name"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Get users (admin only)."""
+    query = select(User)
+
+    if search:
+        search_pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                User.email.ilike(search_pattern),
+                User.name.ilike(search_pattern),
+            )
+        )
+
+    query = query.order_by(User.id).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.post("/users", response_model=UserResponse, status_code=201)
+async def admin_create_user(
+    payload: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Create user (admin only)."""
+    email = str(payload.email).strip().lower()
+    existing = await db.execute(select(User).where(User.email == email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="User with this email already exists")
+
+    db_user = User(
+        email=email,
+        name=payload.name,
+        role=payload.role,
+        is_active=payload.is_active,
+        password_hash=get_password_hash(payload.password),
+    )
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="create",
+        entity_type="user",
+        entity_id=db_user.id,
+        new_values={
+            "email": db_user.email,
+            "name": db_user.name,
+            "role": db_user.role,
+            "is_active": db_user.is_active,
+        },
+    )
+    db.add(audit)
+    await db.commit()
+
+    return db_user
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+async def admin_update_user(
+    user_id: int,
+    payload: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Update user role/status/profile (admin only)."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if (
+        payload.name is None
+        and payload.role is None
+        and payload.is_active is None
+        and payload.password is None
+    ):
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    if payload.is_active is False and target_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+
+    if payload.role is not None and target_user.id == current_user.id and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="Cannot change your own role from admin")
+
+    old_values = {
+        "name": target_user.name,
+        "role": target_user.role,
+        "is_active": target_user.is_active,
+    }
+
+    if payload.name is not None:
+        target_user.name = payload.name
+    if payload.role is not None:
+        target_user.role = payload.role
+    if payload.is_active is not None:
+        target_user.is_active = payload.is_active
+    if payload.password is not None:
+        target_user.password_hash = get_password_hash(payload.password)
+
+    await db.commit()
+    await db.refresh(target_user)
+
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="update",
+        entity_type="user",
+        entity_id=target_user.id,
+        old_values=old_values,
+        new_values={
+            "name": target_user.name,
+            "role": target_user.role,
+            "is_active": target_user.is_active,
+            "password_changed": payload.password is not None,
+        },
+    )
+    db.add(audit)
+    await db.commit()
+
+    return target_user
 
 # ---------- Products ----------
 @router.get("/products", response_model=List[ProductResponse])

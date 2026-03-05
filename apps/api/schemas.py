@@ -6,6 +6,7 @@ from datetime import datetime
 SERVICE_REQUEST_STATUSES = {"new", "in_progress", "closed"}
 VIN_REQUEST_STATUSES = {"new", "in_progress", "closed"}
 LEAD_TYPES = {"product", "callback", "vin", "parts_search"}
+USER_ROLES = {"admin", "manager", "service_manager"}
 
 
 def normalize_phone(value: str) -> str:
@@ -328,8 +329,49 @@ class UserBase(BaseModel):
     role: str = "manager"
     is_active: bool = True
 
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in USER_ROLES:
+            raise ValueError(f"role must be one of: {', '.join(sorted(USER_ROLES))}")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8, max_length=128)
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(default=None, min_length=8, max_length=128)
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in USER_ROLES:
+            raise ValueError(f"role must be one of: {', '.join(sorted(USER_ROLES))}")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 class UserLogin(BaseModel):
     email: EmailStr
