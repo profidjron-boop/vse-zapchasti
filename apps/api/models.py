@@ -90,6 +90,7 @@ class Lead(Base):
     # Для заявок по товарам
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     product_sku = Column(String(100), nullable=True)
+    manager_comment = Column(Text, nullable=True)
     
     # Метаданные
     ip_address = Column(String(50), nullable=True)

@@ -5,6 +5,7 @@ from datetime import datetime
 
 SERVICE_REQUEST_STATUSES = {"new", "in_progress", "closed"}
 VIN_REQUEST_STATUSES = {"new", "in_progress", "closed"}
+LEAD_TYPES = {"product", "callback", "vin", "parts_search"}
 
 
 def normalize_phone(value: str) -> str:
@@ -116,6 +117,29 @@ class LeadBase(BaseModel):
     consent_given: bool = False
     consent_version: Optional[str] = None
     consent_text: Optional[str] = None
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized in {"product inquiry", "product_inquiry"}:
+            normalized = "product"
+        if normalized not in LEAD_TYPES:
+            raise ValueError(f"type must be one of: {', '.join(sorted(LEAD_TYPES))}")
+        return normalized
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        return normalize_phone(value)
+
+    @field_validator("name", "message", "vin", "vehicle_make", "vehicle_model", "product_sku")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 class LeadCreate(LeadBase):
     pass

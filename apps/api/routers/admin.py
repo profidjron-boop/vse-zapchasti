@@ -108,6 +108,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 UPLOAD_DIR = Path("/home/greka/vse-zapchasti/apps/web/public/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+LEAD_STATUSES = ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]
+LEAD_VALID_TRANSITIONS = {
+    "new": {"in_progress", "contacted", "lost", "cancelled"},
+    "in_progress": {"contacted", "offer_sent", "lost", "cancelled"},
+    "contacted": {"offer_sent", "won", "lost", "cancelled"},
+    "offer_sent": {"won", "lost", "cancelled"},
+    "won": set(),
+    "lost": set(),
+    "cancelled": set(),
+}
 
 
 def _normalize_header(value: str) -> str:
@@ -1072,17 +1082,22 @@ async def admin_get_leads(
     query = select(Lead)
     
     if status:
-        query = query.where(Lead.status == status)
+        query = query.where(Lead.status == status.strip().lower())
     if type:
-        query = query.where(Lead.type == type)
+        normalized_type = type.strip().lower()
+        if normalized_type in {"product inquiry", "product_inquiry"}:
+            normalized_type = "product"
+        query = query.where(Lead.type == normalized_type)
     if search:
-        search_pattern = f"%{search}%"
+        search_pattern = f"%{search.strip()}%"
         query = query.where(
             or_(
                 Lead.phone.ilike(search_pattern),
                 Lead.name.ilike(search_pattern),
                 Lead.email.ilike(search_pattern),
-                Lead.vin.ilike(search_pattern)
+                Lead.vin.ilike(search_pattern),
+                Lead.product_sku.ilike(search_pattern),
+                Lead.message.ilike(search_pattern),
             )
         )
     if date_from:
@@ -1124,9 +1139,30 @@ async def admin_update_lead_status(
     
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    
-    old_status = lead.status
-    lead.status = status
+
+    next_status = status.strip().lower()
+    if next_status not in LEAD_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Unknown status: {next_status}")
+
+    current_status = lead.status or "new"
+    if next_status != current_status and next_status not in LEAD_VALID_TRANSITIONS.get(current_status, set()):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status transition: {current_status} -> {next_status}",
+        )
+
+    normalized_comment = None
+    if comment is not None:
+        normalized_comment = comment.strip() or None
+
+    old_values = {
+        "status": current_status,
+        "manager_comment": lead.manager_comment,
+    }
+
+    lead.status = next_status
+    if comment is not None:
+        lead.manager_comment = normalized_comment
     lead.updated_at = datetime.utcnow()
     
     await db.commit()
@@ -1136,13 +1172,13 @@ async def admin_update_lead_status(
         action="update_status",
         entity_type="lead",
         entity_id=lead_id,
-        old_values={"status": old_status},
-        new_values={"status": status, "comment": comment}
+        old_values=old_values,
+        new_values={"status": lead.status, "manager_comment": lead.manager_comment},
     )
     db.add(audit)
     await db.commit()
     
-    return {"status": "updated", "new_status": status}
+    return {"status": "updated", "new_status": lead.status, "manager_comment": lead.manager_comment}
 
 @router.delete("/leads/{lead_id}", status_code=204)
 async def admin_delete_lead(
@@ -1177,4 +1213,4 @@ async def admin_get_lead_statuses(
     current_user: User = Depends(get_leads_user)
 ):
     """Get all possible lead statuses"""
-    return ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]
+    return LEAD_STATUSES
