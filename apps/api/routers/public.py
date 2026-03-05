@@ -11,6 +11,7 @@ from typing import Any, List, Optional
 import uuid
 
 from database import get_db
+from notifications import notify_event
 from models import (
     AuditLog,
     Category,
@@ -487,6 +488,18 @@ async def create_lead(
     db.add(db_lead)
     await db.commit()
     await db.refresh(db_lead)
+
+    notify_event(
+        "lead.created",
+        {
+            "id": db_lead.id,
+            "uuid": db_lead.uuid,
+            "type": db_lead.type,
+            "status": db_lead.status,
+            "phone": db_lead.phone,
+            "created_at": db_lead.created_at.isoformat() if db_lead.created_at else None,
+        },
+    )
     return db_lead
 
 
@@ -582,6 +595,19 @@ async def create_order(
         select(Order).options(selectinload(Order.items)).where(Order.id == db_order.id)
     )
     created_order = order_result.scalar_one()
+
+    notify_event(
+        "order.created",
+        {
+            "id": created_order.id,
+            "uuid": created_order.uuid,
+            "source": created_order.source,
+            "status": created_order.status,
+            "customer_phone": created_order.customer_phone,
+            "items_count": len(created_order.items),
+            "created_at": created_order.created_at.isoformat() if created_order.created_at else None,
+        },
+    )
     return created_order
 
 
@@ -681,6 +707,19 @@ async def create_service_request(
     db.add(audit)
     await db.commit()
 
+    notify_event(
+        "service_request.created",
+        {
+            "id": db_request.id,
+            "uuid": db_request.uuid,
+            "status": db_request.status,
+            "vehicle_type": db_request.vehicle_type,
+            "service_type": db_request.service_type,
+            "phone": db_request.phone,
+            "created_at": db_request.created_at.isoformat() if db_request.created_at else None,
+        },
+    )
+
     return db_request
 
 # ---------- VIN Requests ----------
@@ -732,6 +771,18 @@ async def create_vin_request(
     )
     db.add(audit)
     await db.commit()
+
+    notify_event(
+        "vin_request.created",
+        {
+            "id": db_request.id,
+            "uuid": db_request.uuid,
+            "status": db_request.status,
+            "vin": db_request.vin,
+            "phone": db_request.phone,
+            "created_at": db_request.created_at.isoformat() if db_request.created_at else None,
+        },
+    )
 
     return db_request
 

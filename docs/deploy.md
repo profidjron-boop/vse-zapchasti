@@ -32,6 +32,19 @@
   - при ротации сначала задать новый `JWT_SECRET_KEY` и старый в `JWT_PREVIOUS_SECRET_KEY`,
     затем после пере-логина пользователей убрать `JWT_PREVIOUS_SECRET_KEY`.
 
+## Notifications env (email/sms/messenger)
+- Каналы включаются только через env и только по факту выбранной реализации.
+- Базовые переменные:
+  - `NOTIFY_EMAIL_TO` — список email получателей через запятую.
+  - `NOTIFY_EMAIL_FROM` — отправитель.
+  - `NOTIFY_SMTP_HOST`, `NOTIFY_SMTP_PORT`, `NOTIFY_SMTP_USER`, `NOTIFY_SMTP_PASSWORD`.
+  - `NOTIFY_SMTP_STARTTLS` — `true/false` (по умолчанию `true`).
+  - `NOTIFY_SMS_WEBHOOK_URL` — webhook для SMS-провайдера (РФ).
+  - `NOTIFY_MESSENGER_WEBHOOK_URL` — webhook для мессенджера (self-hosted/РФ).
+- Поведение:
+  - уведомления по публичным событиям (`lead.created`, `order.created`, `service_request.created`, `vin_request.created`);
+  - отправка best-effort: ошибка канала не ломает создание заявки.
+
 ## Admin auth strategy (текущее состояние)
 - API использует Bearer JWT (`/api/admin/auth/token`), без refresh endpoint.
 - Web сейчас хранит токен в `localStorage` (`admin_token`) и дублирует его в cookie для middleware.
