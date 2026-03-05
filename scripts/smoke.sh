@@ -172,7 +172,8 @@ start_api() {
   log "Starting API on $API_BASE_URL"
   (
     cd apps/api
-    DATABASE_URL="$DATABASE_URL" ./.venv/bin/uv run uvicorn main:app --host "$API_HOST" --port "$API_PORT"
+    DATABASE_URL="$DATABASE_URL" JWT_SECRET_KEY="${JWT_SECRET_KEY:-dev_smoke_secret_change_me}" UPLOAD_DIR="${UPLOAD_DIR:-apps/web/public/uploads}" ./.venv/bin/uv run alembic upgrade head
+    DATABASE_URL="$DATABASE_URL" JWT_SECRET_KEY="${JWT_SECRET_KEY:-dev_smoke_secret_change_me}" UPLOAD_DIR="${UPLOAD_DIR:-apps/web/public/uploads}" ./.venv/bin/uv run uvicorn main:app --host "$API_HOST" --port "$API_PORT"
   ) >"$API_LOG" 2>&1 &
   API_PID=$!
   wait_for_http "200" "GET" "$API_BASE_URL/health" "api health ready"
@@ -187,7 +188,7 @@ start_web() {
   log "Starting web on $WEB_BASE_URL"
   (
     API_BASE_URL="$API_BASE_URL" NEXT_PUBLIC_API_BASE_URL="$API_BASE_URL" \
-      pnpm --dir apps/web run start -- --hostname "$WEB_HOST" --port "$WEB_PORT"
+      pnpm --dir apps/web exec next start --hostname "$WEB_HOST" --port "$WEB_PORT"
   ) >"$WEB_LOG" 2>&1 &
   WEB_PID=$!
   wait_for_http "200" "GET" "$WEB_BASE_URL/" "web ready"
@@ -219,7 +220,7 @@ ok "catalog search"
 
 stamp="$(date +%s)"
 service_payload="$(cat <<EOF
-{"vehicle_type":"passenger","service_type":"Диагностика","name":"Smoke Service","phone":"+7888000${stamp: -4}","description":"smoke service request","consent_given":true,"consent_version":"v1.0","consent_text":"smoke consent"}
+{"vehicle_type":"passenger","service_type":"Диагностика","name":"Smoke Service","phone":"+7888000${stamp: -4}","description":"smoke service request","consent_given":true,"consent_version":"v1.0"}
 EOF
 )"
 request_expect "201" "POST" "$API_BASE_URL/api/public/service-requests" "$service_payload"
