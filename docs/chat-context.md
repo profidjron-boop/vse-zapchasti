@@ -14,7 +14,7 @@ Runtime: NO CDN (self-hosted assets)
 - `/parts` — каталог + поиск (в т.ч. FTS/фильтры совместимости)
 - `/parts/p/[sku]` — карточка товара + форма “Уточнить/Заказать” + быстрый заказ
 - `/parts/vin` — VIN-заявка
-- `/service` — форма сервис-заявки + каталог услуг
+- `/service` — форма сервис-заявки + каталог услуг (включая отображение требований предоплаты, если они заданы)
 - `/cart` — корзина гостя + checkout (самовывоз/курьер, при получении/по счёту)
 - `/favorites` — избранное/отложенное
 - `/account/orders` — история/статусы заказов по телефону
@@ -35,7 +35,7 @@ Runtime: NO CDN (self-hosted assets)
 
 RBAC (фактически реализовано):
 - `admin`: полный доступ
-- `manager`: каталог + leads/VIN + orders
+- `manager`: каталог + leads/VIN
 - `service_manager`: только service requests
 
 ## API (apps/api)
@@ -54,6 +54,10 @@ RBAC (фактически реализовано):
 - auth/users/roles, catalog CRUD, service catalog CRUD
 - leads/VIN/service requests/orders (list/detail/status)
 - imports runs + details, content CRUD, upload
+
+Service catalog:
+- поддерживаются поля `prepayment_required` и `prepayment_amount`
+- create/update валидируют консистентность предоплаты (`required=true` => сумма обязательна и > 0)
 
 ## Ops / Verify
 - Verify gates: `docs/verify-gates.md`
