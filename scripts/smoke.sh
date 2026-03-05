@@ -298,6 +298,18 @@ EOF
 request_expect "201" "POST" "$API_BASE_URL/api/public/service-requests" "$service_payload"
 ok "public service-request create"
 
+order_phone="+7991000${stamp: -4}"
+order_payload="$(cat <<EOF
+{"source":"one_click","customer_name":"Smoke Order","customer_phone":"$order_phone","consent_given":true,"consent_version":"v1.0","items":[{"product_name":"Smoke Item","quantity":1}]}
+EOF
+)"
+request_expect "201" "POST" "$API_BASE_URL/api/public/orders" "$order_payload"
+ok "public order create"
+
+encoded_order_phone="${order_phone/+/%2B}"
+request_expect "200" "GET" "$API_BASE_URL/api/public/orders/history?phone=${encoded_order_phone}&limit=1"
+ok "public order history"
+
 bootstrap_smoke_admin_user
 
 resolve_admin_token
