@@ -10,6 +10,17 @@ export default function NewProductPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+
+  async function parseError(response: Response, fallback: string): Promise<string> {
+    try {
+      const errorData = await response.json();
+      if (typeof errorData?.detail === "string" && errorData.detail.trim()) {
+        return errorData.detail;
+      }
+    } catch {}
+    return fallback;
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,8 +57,43 @@ export default function NewProductPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Ошибка при создании товара");
+        throw new Error(await parseError(response, "Ошибка при создании товара"));
+      }
+
+      const createdProduct = await response.json();
+      if (selectedImage) {
+        const uploadData = new FormData();
+        uploadData.set("file", selectedImage);
+
+        const uploadResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/upload"), {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+          body: uploadData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(await parseError(uploadResponse, "Товар создан, но изображение не загрузилось"));
+        }
+
+        const uploadedFile = await uploadResponse.json();
+        const attachResponse = await fetch(withApiBase(apiBaseUrl, `/api/admin/products/${createdProduct.id}/images`), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            url: uploadedFile.url,
+            sort_order: 0,
+            is_main: true,
+          }),
+        });
+
+        if (!attachResponse.ok) {
+          throw new Error(await parseError(attachResponse, "Товар создан, но изображение не привязалось"));
+        }
       }
 
       router.push("/admin/products");
@@ -165,6 +211,22 @@ export default function NewProductPage() {
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Изображение товара
+          </label>
+          <input
+            type="file"
+            name="product_image"
+            accept=".jpg,.jpeg,.png,.gif,.svg,.webp,image/*"
+            onChange={(event) => setSelectedImage(event.target.files?.[0] ?? null)}
+            className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 file:mr-4 file:rounded-xl file:border-0 file:bg-[#1F3B73] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#162c57] focus:border-[#1F3B73] focus:outline-none"
+          />
+          <p className="mt-1 text-xs text-neutral-500">
+            Файл сохранится локально в self-hosted `/uploads` без CDN.
+          </p>
         </div>
 
         <div>

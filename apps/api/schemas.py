@@ -51,6 +51,16 @@ class ProductImageBase(BaseModel):
     sort_order: int = 0
     is_main: bool = False
 
+    @field_validator("url")
+    @classmethod
+    def validate_self_hosted_url(cls, value: str) -> str:
+        normalized = value.strip()
+        if normalized.startswith("http://") or normalized.startswith("https://"):
+            raise ValueError("External image URLs are not allowed")
+        if not normalized.startswith("/uploads/"):
+            raise ValueError("Image URL must point to self-hosted /uploads path")
+        return normalized
+
 class ProductImageResponse(ProductImageBase):
     id: int
 
