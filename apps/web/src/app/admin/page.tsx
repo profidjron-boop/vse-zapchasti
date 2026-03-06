@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from 'react';
+import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -52,6 +53,7 @@ function toCardState(payload: unknown): StatCardState {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<Record<StatKey, StatCardState>>(initialStats);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export default function AdminDashboard() {
       try {
         const token = localStorage.getItem('admin_token');
         if (!token) {
-          window.location.href = '/admin/login';
+          router.push('/admin/login');
           return;
         }
 
@@ -107,7 +109,7 @@ export default function AdminDashboard() {
       } catch (loadError) {
         if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
           localStorage.removeItem("admin_token");
-          window.location.href = "/admin/login";
+          router.push("/admin/login");
           return;
         }
         if (!cancelled) {
@@ -136,7 +138,7 @@ export default function AdminDashboard() {
       cancelled = true;
       window.removeEventListener("admin-dashboard-refresh", refreshHandler);
     };
-  }, []);
+  }, [router]);
 
 
   return (
