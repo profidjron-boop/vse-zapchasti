@@ -190,7 +190,7 @@ export default function NewProductPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           href="/admin/products"
           className="text-[#1F3B73] hover:underline"
@@ -219,7 +219,7 @@ export default function NewProductPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Артикул (SKU) *
@@ -243,7 +243,7 @@ export default function NewProductPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Категория *
@@ -274,7 +274,7 @@ export default function NewProductPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Цена
@@ -300,7 +300,7 @@ export default function NewProductPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Количество на складе
