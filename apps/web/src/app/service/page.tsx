@@ -253,28 +253,32 @@ export default function ServicePage() {
     }
   }
 
+  const serviceHeader = (
+    <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
+      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
+          <nav className="hidden items-center gap-8 md:flex">
+            <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+            <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navService}</Link>
+            <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+          </nav>
+        </div>
+        <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+          <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+          <Link href="/service" className="shrink-0 font-medium text-[#1F3B73]">{navService}</Link>
+          <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+          <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+          <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
+        </nav>
+      </div>
+    </header>
+  );
+
   if (isSuccess) {
     return (
       <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-        <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-          <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
-              <nav className="hidden items-center gap-8 md:flex">
-                <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-                <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navService}</Link>
-                <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-              </nav>
-            </div>
-            <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-              <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-              <Link href="/service" className="shrink-0 font-medium text-[#1F3B73]">{navService}</Link>
-              <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-              <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-              <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-            </nav>
-          </div>
-        </header>
+        {serviceHeader}
 
         <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
           <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
@@ -303,25 +307,7 @@ export default function ServicePage() {
 
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-              <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navService}</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-            </nav>
-          </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-            <Link href="/service" className="shrink-0 font-medium text-[#1F3B73]">{navService}</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-          </nav>
-        </div>
-      </header>
+      {serviceHeader}
 
       <section className="relative overflow-hidden bg-gradient-to-br from-[#1F3B73] to-[#14294F] py-16">
         <div className="absolute inset-0 opacity-10">
