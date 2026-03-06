@@ -216,46 +216,77 @@ export default function AdminOrdersPage() {
           <p className="mt-2 text-sm">Заказы появятся после оформления на сайте</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
             Найдено заказов: {orders.length}
           </div>
-          <table className="w-full min-w-[980px]">
-            <thead className="border-b border-neutral-200 bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Клиент</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Доставка/Оплата</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Позиции</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Карточка</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">#{order.id}</td>
-                  <td className="px-4 py-3 text-sm">{statusLabel(order.status)}</td>
-                  <td className="px-4 py-3 text-sm">{sourceLabel(order.source)}</td>
-                  <td className="px-4 py-3 text-sm">{order.customer_name || "—"}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{order.customer_phone}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {(order.delivery_method || "—")} / {(order.payment_method || "—")}
-                  </td>
-                  <td className="px-4 py-3 text-sm">{order.items.length}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <Link className="text-[#1F3B73] hover:underline" href={`/admin/orders/${order.id}`}>
-                      Открыть
-                    </Link>
-                  </td>
+
+          <div className="divide-y divide-neutral-200 md:hidden">
+            {orders.map((order) => (
+              <article key={order.id} className="space-y-3 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-900">#{order.id}</p>
+                    <p className="mt-1 text-xs text-neutral-500">{sourceLabel(order.source)}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#1F3B73]/10 px-2 py-1 text-xs text-[#1F3B73]">
+                    {statusLabel(order.status)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 text-sm text-neutral-700">
+                  <p>Клиент: {order.customer_name || "—"}</p>
+                  <p>Телефон: {order.customer_phone}</p>
+                  <p>Доставка/Оплата: {(order.delivery_method || "—")} / {(order.payment_method || "—")}</p>
+                  <p>Позиции: {order.items.length}</p>
+                  <p className="text-xs text-neutral-500">{new Date(order.created_at).toLocaleString("ru-RU")}</p>
+                </div>
+
+                <Link className="text-sm font-medium text-[#1F3B73] hover:underline" href={`/admin/orders/${order.id}`}>
+                  Открыть карточку
+                </Link>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[980px]">
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Клиент</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Доставка/Оплата</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Позиции</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Карточка</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {orders.map((order) => (
+                  <tr key={order.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">#{order.id}</td>
+                    <td className="px-4 py-3 text-sm">{statusLabel(order.status)}</td>
+                    <td className="px-4 py-3 text-sm">{sourceLabel(order.source)}</td>
+                    <td className="px-4 py-3 text-sm">{order.customer_name || "—"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{order.customer_phone}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {(order.delivery_method || "—")} / {(order.payment_method || "—")}
+                    </td>
+                    <td className="px-4 py-3 text-sm">{order.items.length}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <Link className="text-[#1F3B73] hover:underline" href={`/admin/orders/${order.id}`}>
+                        Открыть
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
