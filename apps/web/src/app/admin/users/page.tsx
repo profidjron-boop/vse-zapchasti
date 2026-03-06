@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type UserRole = "admin" | "manager" | "service_manager";
 
@@ -67,21 +68,13 @@ export default function AdminUsersPage() {
       query.set("limit", "200");
       const endpoint = query.toString() ? `/api/admin/users?${query.toString()}` : "/api/admin/users";
 
-      const response = await fetch(withApiBase(apiBaseUrl, endpoint), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Не удалось загрузить пользователей");
-      }
-
-      const data = (await response.json()) as AdminUser[];
+      const data = await fetchJsonWithTimeout<AdminUser[]>(
+        withApiBase(apiBaseUrl, endpoint),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       setUsers(data);
       setDrafts(
         data.reduce<Record<number, UserDraft>>((acc, user) => {
@@ -95,8 +88,16 @@ export default function AdminUsersPage() {
         }, {})
       );
     } catch (loadError) {
-      console.error(loadError);
-      setError("Ошибка загрузки пользователей.");
+      if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (loadError instanceof ApiRequestError) {
+        setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
+      } else {
+        setError("Ошибка загрузки пользователей.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -128,25 +129,18 @@ export default function AdminUsersPage() {
         password: createForm.password,
       };
 
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/users"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, "/api/admin/users"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось создать пользователя");
-      }
+        12000
+      );
 
       setCreateForm({
         email: "",
@@ -158,8 +152,16 @@ export default function AdminUsersPage() {
       setSuccess("Пользователь создан.");
       await loadUsers();
     } catch (createError) {
-      console.error(createError);
-      setError(createError instanceof Error ? createError.message : "Ошибка создания пользователя.");
+      if (createError instanceof ApiRequestError && (createError.status === 401 || createError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (createError instanceof ApiRequestError) {
+        setError(createError.traceId ? `${createError.message}. Код: ${createError.traceId}` : createError.message);
+      } else {
+        setError("Ошибка создания пользователя.");
+      }
     } finally {
       setIsCreating(false);
     }
@@ -193,31 +195,32 @@ export default function AdminUsersPage() {
       };
       if (draft.password.trim()) payload.password = draft.password.trim();
 
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/users/${userId}`), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, `/api/admin/users/${userId}`),
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось обновить пользователя");
-      }
+        12000
+      );
 
       setSuccess(`Пользователь #${userId} обновлён.`);
       await loadUsers();
     } catch (updateError) {
-      console.error(updateError);
-      setError(updateError instanceof Error ? updateError.message : "Ошибка обновления пользователя.");
+      if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (updateError instanceof ApiRequestError) {
+        setError(updateError.traceId ? `${updateError.message}. Код: ${updateError.traceId}` : updateError.message);
+      } else {
+        setError("Ошибка обновления пользователя.");
+      }
     } finally {
       setSavingUserId(null);
     }
