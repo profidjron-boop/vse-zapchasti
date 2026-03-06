@@ -126,17 +126,17 @@ export default function ImportRunDetailsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Link href="/admin/imports" className="inline-block text-sm text-[#1F3B73] hover:underline">
             ← Назад к импортам
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-[#1F3B73]">Запуск #{run.id}</h1>
+          <h1 className="mt-2 text-xl font-bold text-[#1F3B73] sm:text-2xl">Запуск #{run.id}</h1>
         </div>
         {run.previous_successful_run && (
           <Link
             href={`/admin/imports/${run.previous_successful_run.id}`}
-            className="rounded-xl border border-neutral-300 px-3 py-2 text-sm text-[#1F3B73] hover:bg-neutral-50"
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-center text-sm text-[#1F3B73] hover:bg-neutral-50 sm:w-auto"
           >
             Предыдущий успешный запуск #{run.previous_successful_run.id}
           </Link>
@@ -184,7 +184,7 @@ export default function ImportRunDetailsPage() {
         <div className="space-y-1 text-sm text-neutral-700">
           <p>Наличие snapshot: {run.snapshot_metadata.has_snapshot ? "да" : "нет"}</p>
           <p>Количество элементов: {run.snapshot_metadata.items_count}</p>
-          <p>Пример ключей: {run.snapshot_metadata.sample_keys.join(", ") || "—"}</p>
+          <p className="break-all">Пример ключей: {run.snapshot_metadata.sample_keys.join(", ") || "—"}</p>
         </div>
       </div>
 
@@ -195,7 +195,7 @@ export default function ImportRunDetailsPage() {
         ) : (
           <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-700">
             {run.errors.map((item, index) => (
-              <li key={`${index}-${item.slice(0, 30)}`}>{item}</li>
+              <li key={`${index}-${item.slice(0, 30)}`} className="break-all">{item}</li>
             ))}
           </ul>
         )}
