@@ -1,48 +1,42 @@
-# ADR-0003: Admin auth token storage strategy (current and migration trigger)
+# ADR-0003: Admin auth token storage strategy (cookie-first with legacy fallback)
 
 - Status: Accepted
-- Date: 2026-03-05
+- Date: 2026-03-06
 - Deciders: Sergey (greka), project team
 
 ## Context
 
-Админская аутентификация реализована через Bearer JWT (`/api/admin/auth/token`).
-На web-клиенте токен хранится в `localStorage` (`admin_token`) и дублируется в cookie
-для middleware-проверок роутов админки.
-
-Текущая модель рабочая, но имеет повышенный риск при XSS: JavaScript может прочитать токен.
-В проекте действует RU Stack Lock и strict production-ready требования.
+Нужно снизить риск компрометации admin-сессии при XSS и перейти к browser auth-модели,
+где токен недоступен JavaScript.
 
 ## Decision
 
-1. На текущем этапе фиксируем модель как допустимую для текущего scope:
-   - Bearer JWT без refresh endpoint;
-   - хранение токена в `localStorage` + техническая cookie-копия для middleware.
-2. Сервер не хранит blacklist/revoke, logout выполняется клиентом (удаление токена).
-3. Для прод-среды обязательны:
-   - сильный `JWT_SECRET_KEY` только из env;
-   - ротация через `JWT_PREVIOUS_SECRET_KEY` (временный grace period).
+1. Browser auth в админке переведён на cookie-first:
+   - `admin_session` (HttpOnly) хранит JWT;
+   - `admin_csrf_token` используется для защиты state-changing запросов.
+2. Для write-методов admin API (`POST/PUT/PATCH/DELETE`) обязательна проверка CSRF
+   при cookie-auth.
+3. `localStorage` в web оставлен только как переходный несекретный маркер сессии
+   (`admin_token=cookie-session`) для совместимости текущих guard-ов.
+4. Legacy Bearer-авторизация оставлена как временный fallback для инструментов/скриптов
+   и staged migration.
+5. Logout выполняется сервером через `POST /api/admin/auth/logout` с очисткой auth cookies.
 
-## Migration trigger (when to move to HttpOnly cookies)
+## Migration trigger (next stage)
 
-Переход на cookie-first схему (HttpOnly + Secure + SameSite + server-side logout/revoke)
-становится обязательным при любом условии:
-
-- обнаружен XSS-инцидент или высокий риск XSS в админском контуре;
-- появляется требование комплаенса/аудита с запретом хранения auth-токена в `localStorage`;
-- вводятся refresh-токены/длительные сессии;
-- расширяется число админских пользователей и роль модели требует централизованного revoke.
+Следующий этап после текущей миграции:
+- убрать legacy Bearer fallback из web/admin кода;
+- убрать `admin_token` marker из localStorage guard-ов;
+- оставить только cookie-auth + CSRF как единственный путь.
 
 ## Consequences
 
-- Плюс сейчас: простая эксплуатация, минимальная сложность.
-- Минус сейчас: токен-доступность для JS при XSS.
-- Риск принят осознанно и ограничен:
-  - админский контур,
-  - строгий CSP/headers,
-  - регулярный verify/security review.
+- Плюс: JWT больше не хранится в `localStorage`, снижен XSS-риск для admin auth.
+- Плюс: серверный logout очищает сессию и CSRF cookie.
+- Минус: до полного удаления fallback остаётся mixed-mode совместимость.
 
 ## Links
 
 - `docs/deploy.md` (раздел Admin auth strategy)
 - `apps/api/routers/admin.py`
+- `apps/web/src/lib/fetch-json.ts`

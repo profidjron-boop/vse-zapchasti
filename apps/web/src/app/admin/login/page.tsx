@@ -2,27 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
-
-function getTokenExpiryDate(token: string): Date | undefined {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return undefined;
-    const payloadBase64Url = parts[1];
-    const payloadBase64 = payloadBase64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = payloadBase64.padEnd(Math.ceil(payloadBase64.length / 4) * 4, '=');
-    const payloadJson = window.atob(padded);
-    const payload = JSON.parse(payloadJson) as { exp?: unknown };
-    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) return undefined;
-    const expiry = new Date(payload.exp * 1000);
-    if (Number.isNaN(expiry.getTime())) return undefined;
-    return expiry;
-  } catch {
-    return undefined;
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,7 +24,7 @@ export default function LoginPage() {
       formData.append('password', password);
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const data = await fetchJsonWithTimeout<{ access_token?: string }>(
+      await fetchJsonWithTimeout<{ access_token?: string }>(
         withApiBase(apiBaseUrl, '/api/admin/auth/token'),
         {
           method: 'POST',
@@ -54,28 +35,15 @@ export default function LoginPage() {
         },
         10000
       );
-      if (!data.access_token) {
-        throw new Error('Не удалось получить токен авторизации');
-      }
-      
-      // Сохраняем в localStorage (для клиентских запросов)
-      localStorage.setItem('admin_token', data.access_token);
-      
-      // Сохраняем в cookie (для middleware)
-      const isSecureContext = window.location.protocol === 'https:';
-      const tokenExpiry = getTokenExpiryDate(data.access_token);
-      Cookies.set('admin_token', data.access_token, { 
-        expires: tokenExpiry,
-        path: '/',
-        sameSite: 'strict',
-        secure: isSecureContext,
-      });
+
+      // Transitional marker while admin pages still read localStorage for route-guard checks.
+      // Sensitive JWT is now stored in HttpOnly cookie by API.
+      localStorage.setItem('admin_token', 'cookie-session');
       
       router.push('/admin');
       router.refresh();
     } catch (err) {
       localStorage.removeItem('admin_token');
-      Cookies.remove('admin_token', { path: '/' });
       if (err instanceof ApiRequestError) {
         if (err.status === 401) {
           setError('Неверный email или пароль');

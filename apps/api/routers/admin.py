@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import io
 import os
 from pathlib import Path
+import secrets
 import shutil
 from typing import Any, List, Optional
 import uuid
@@ -11,6 +12,7 @@ from xml.etree import ElementTree as ET
 
 import bcrypt
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from sqlalchemy import delete, or_, select
@@ -69,8 +71,25 @@ if not JWT_SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY environment variable is required")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ADMIN_SESSION_COOKIE_NAME = "admin_session"
+ADMIN_CSRF_COOKIE_NAME = "admin_csrf_token"
+LEGACY_ADMIN_TOKEN_COOKIE_NAME = "admin_token"
+UNSAFE_HTTP_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/auth/token")
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+ADMIN_COOKIE_SECURE = _env_bool("ADMIN_COOKIE_SECURE", default=False)
+ADMIN_COOKIE_SAMESITE = os.getenv("ADMIN_COOKIE_SAMESITE", "lax").strip().lower()
+if ADMIN_COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    ADMIN_COOKIE_SAMESITE = "lax"
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/auth/token", auto_error=False)
 
 
 def _utcnow() -> datetime:
@@ -96,9 +115,28 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+
+def _decode_access_token(token: str) -> dict[str, Any] | None:
+    for candidate_key in (JWT_SECRET_KEY, JWT_PREVIOUS_SECRET_KEY):
+        if not candidate_key:
+            continue
+        try:
+            return jwt.decode(token, candidate_key, algorithms=[ALGORITHM])
+        except JWTError:
+            continue
+    return None
+
+
+def _validate_csrf(request: Request) -> None:
+    csrf_cookie = (request.cookies.get(ADMIN_CSRF_COOKIE_NAME) or "").strip()
+    csrf_header = (request.headers.get("x-csrf-token") or "").strip()
+    if not csrf_cookie or not csrf_header or not secrets.compare_digest(csrf_cookie, csrf_header):
+        raise HTTPException(status_code=403, detail="CSRF token is missing or invalid")
+
+
 async def get_current_user(
     request: Request,
-    token: str = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ):
     credentials_exception = HTTPException(
@@ -106,18 +144,31 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    cookie_token = (request.cookies.get(ADMIN_SESSION_COOKIE_NAME) or "").strip()
+    legacy_cookie_token = (request.cookies.get(LEGACY_ADMIN_TOKEN_COOKIE_NAME) or "").strip()
+    bearer_token = (token or "").strip()
+
+    token_candidates: list[tuple[str, str]] = []
+    if cookie_token:
+        token_candidates.append(("cookie", cookie_token))
+    if legacy_cookie_token and legacy_cookie_token != cookie_token:
+        token_candidates.append(("cookie", legacy_cookie_token))
+    if bearer_token and bearer_token not in {cookie_token, legacy_cookie_token}:
+        token_candidates.append(("bearer", bearer_token))
+
     payload = None
-    for candidate_key in (JWT_SECRET_KEY, JWT_PREVIOUS_SECRET_KEY):
-        if not candidate_key:
-            continue
-        try:
-            payload = jwt.decode(token, candidate_key, algorithms=[ALGORITHM])
+    auth_source = "none"
+    for candidate_source, candidate_token in token_candidates:
+        payload = _decode_access_token(candidate_token)
+        if payload is not None:
+            auth_source = candidate_source
             break
-        except JWTError:
-            continue
 
     if payload is None:
         raise credentials_exception
+
+    if auth_source == "cookie" and request.method.upper() in UNSAFE_HTTP_METHODS:
+        _validate_csrf(request)
 
     user_id: str | None = payload.get("sub")
     if user_id is None:
@@ -130,6 +181,7 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     request.state.user_id = user.id
+    request.state.auth_source = auth_source
     return user
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
@@ -459,7 +511,46 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    csrf_token = secrets.token_urlsafe(32)
+    max_age = int(access_token_expires.total_seconds())
+    response = JSONResponse(
+        {
+            "access_token": access_token,
+            "token_type": "bearer",
+        }
+    )
+    response.set_cookie(
+        key=ADMIN_SESSION_COOKIE_NAME,
+        value=access_token,
+        max_age=max_age,
+        expires=max_age,
+        httponly=True,
+        secure=ADMIN_COOKIE_SECURE,
+        samesite=ADMIN_COOKIE_SAMESITE,
+        path="/",
+    )
+    response.set_cookie(
+        key=ADMIN_CSRF_COOKIE_NAME,
+        value=csrf_token,
+        max_age=max_age,
+        expires=max_age,
+        httponly=False,
+        secure=ADMIN_COOKIE_SECURE,
+        samesite=ADMIN_COOKIE_SAMESITE,
+        path="/",
+    )
+    response.delete_cookie(LEGACY_ADMIN_TOKEN_COOKIE_NAME, path="/")
+    return response
+
+
+@router.post("/auth/logout")
+async def logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(ADMIN_SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(ADMIN_CSRF_COOKIE_NAME, path="/")
+    response.delete_cookie(LEGACY_ADMIN_TOKEN_COOKIE_NAME, path="/")
+    return response
 
 @router.get("/auth/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):

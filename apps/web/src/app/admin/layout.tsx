@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import Cookies from "js-cookie";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -93,34 +92,17 @@ export default function AdminLayout({
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('admin_token');
-
-      if (!token) {
-        setIsAuthenticated(false);
-        setUserRole(null);
-        if (pathname !== '/admin/login') {
-          router.push('/admin/login');
-        }
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const apiBaseUrl = getClientApiBaseUrl();
         const profile = await fetchJsonWithTimeout<{ role?: string }>(
           withApiBase(apiBaseUrl, "/api/admin/auth/me"),
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          {},
           7000
         );
 
         const role = profile.role;
         if (role !== "admin" && role !== "manager" && role !== "service_manager") {
           localStorage.removeItem("admin_token");
-          Cookies.remove("admin_token", { path: "/" });
           setIsAuthenticated(false);
           setUserRole(null);
           router.push("/admin/login");
@@ -142,7 +124,6 @@ export default function AdminLayout({
           console.error(authError);
         }
         localStorage.removeItem("admin_token");
-        Cookies.remove("admin_token", { path: "/" });
         setIsAuthenticated(false);
         setUserRole(null);
         router.push("/admin/login");
@@ -180,9 +161,18 @@ export default function AdminLayout({
     item.label.toLowerCase().includes(menuSearch.trim().toLowerCase())
   );
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const apiBaseUrl = getClientApiBaseUrl();
+    try {
+      await fetchJsonWithTimeout<{ ok: boolean }>(
+        withApiBase(apiBaseUrl, "/api/admin/auth/logout"),
+        { method: "POST" },
+        7000
+      );
+    } catch {
+      // Best effort logout: clear local marker and continue.
+    }
     localStorage.removeItem('admin_token');
-    Cookies.remove("admin_token", { path: "/" });
     router.push('/admin/login');
     router.refresh();
   };

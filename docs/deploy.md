@@ -46,10 +46,15 @@
   - отправка best-effort: ошибка канала не ломает создание заявки.
 
 ## Admin auth strategy (текущее состояние)
-- API использует Bearer JWT (`/api/admin/auth/token`), без refresh endpoint.
-- Web сейчас хранит токен в `localStorage` (`admin_token`) и дублирует его в cookie для middleware.
-- Logout выполняется клиентом (удаление токена); серверного blacklist/revoke пока нет.
-- Для более строгой модели безопасности следующий шаг по scope: переход на HttpOnly cookie-схему.
+- Browser auth: cookie-first.
+  - `admin_session` (HttpOnly cookie) хранит JWT.
+  - `admin_csrf_token` используется для CSRF-защиты write-запросов.
+- API поддерживает legacy Bearer JWT как переходную совместимость для скриптов/сторонних клиентов.
+- Web больше не хранит чувствительный JWT в `localStorage`; используется только переходный marker `admin_token=cookie-session` для существующих guard-ов.
+- Logout: `POST /api/admin/auth/logout` очищает auth cookies на сервере.
+- Параметры cookie в env:
+  - `ADMIN_COOKIE_SECURE` (`true/false`, по умолчанию `false` для dev),
+  - `ADMIN_COOKIE_SAMESITE` (`lax|strict|none`, по умолчанию `lax`).
 
 ## Web env (обязательно)
 - `apps/web/.env`:

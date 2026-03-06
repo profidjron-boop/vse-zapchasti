@@ -10,6 +10,22 @@ export class ApiRequestError extends Error {
   }
 }
 
+function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const encodedName = `${encodeURIComponent(name)}=`;
+  const parts = document.cookie.split(";").map((item) => item.trim());
+  for (const part of parts) {
+    if (part.startsWith(encodedName)) {
+      return decodeURIComponent(part.slice(encodedName.length));
+    }
+  }
+  return null;
+}
+
+function isUnsafeHttpMethod(method: string): boolean {
+  return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+}
+
 function extractErrorMessage(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
 
@@ -48,9 +64,24 @@ export async function fetchJsonWithTimeout<T>(
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   const signal = init.signal ?? controller.signal;
+  const method = (init.method || "GET").toUpperCase();
+  const headers = new Headers(init.headers || {});
+
+  if (isUnsafeHttpMethod(method) && !headers.has("X-CSRF-Token")) {
+    const csrfToken = getCookieValue("admin_csrf_token");
+    if (csrfToken) {
+      headers.set("X-CSRF-Token", csrfToken);
+    }
+  }
 
   try {
-    const response = await fetch(input, { ...init, signal });
+    const response = await fetch(input, {
+      ...init,
+      method,
+      headers,
+      credentials: init.credentials ?? "include",
+      signal,
+    });
     const isJson = (response.headers.get("content-type") || "").includes("application/json");
     const payload = isJson ? await response.json().catch(() => null) : null;
 

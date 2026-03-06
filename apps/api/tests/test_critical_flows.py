@@ -103,6 +103,20 @@ def _make_request(path: str) -> Request:
     return Request(scope)
 
 
+def _make_request_with_headers(path: str, method: str, headers: dict[str, str]) -> Request:
+    scope = {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "headers": [(key.lower().encode("utf-8"), value.encode("utf-8")) for key, value in headers.items()],
+        "client": ("127.0.0.1", 12345),
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "query_string": b"",
+    }
+    return Request(scope)
+
+
 @pytest.mark.asyncio
 async def test_public_create_lead_success():
     public._rate_limit_buckets.clear()
@@ -253,6 +267,36 @@ async def test_import_products_rejects_invalid_trigger_mode(monkeypatch):
 
     assert exc.value.status_code == 400
     assert "trigger_mode must be one of" in str(exc.value.detail)
+
+
+def test_admin_csrf_validation_accepts_matching_cookie_and_header():
+    request = _make_request_with_headers(
+        "/api/admin/leads",
+        "POST",
+        {
+            "cookie": "admin_csrf_token=test-csrf-token",
+            "x-csrf-token": "test-csrf-token",
+        },
+    )
+
+    admin._validate_csrf(request)
+
+
+def test_admin_csrf_validation_rejects_missing_or_invalid_header():
+    request = _make_request_with_headers(
+        "/api/admin/leads",
+        "POST",
+        {
+            "cookie": "admin_csrf_token=test-csrf-token",
+            "x-csrf-token": "wrong-token",
+        },
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        admin._validate_csrf(request)
+
+    assert exc.value.status_code == 403
+    assert "CSRF token is missing or invalid" in str(exc.value.detail)
 
 
 def test_snapshot_product_normalization_keeps_compatibilities():

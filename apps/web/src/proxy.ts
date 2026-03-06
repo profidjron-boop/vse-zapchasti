@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function proxy(request: NextRequest) {
-  // Проверяем токен в заголовке Authorization или в cookie
+  // Transitional auth guard: prefer new HttpOnly session cookie, keep legacy fallback.
   const authHeader = request.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '') || 
-                request.cookies.get('admin_token')?.value;
+  const token =
+    request.cookies.get('admin_session')?.value ||
+    request.cookies.get('admin_token')?.value ||
+    authHeader?.replace('Bearer ', '');
   
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
   const isLoginRoute = request.nextUrl.pathname === '/admin/login';
