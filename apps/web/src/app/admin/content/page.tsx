@@ -834,7 +834,7 @@ export default function ContentEditorPage() {
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Или загрузите файл
                   </label>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <input
                       type="file"
                       accept="image/*"
@@ -842,7 +842,7 @@ export default function ContentEditorPage() {
                         const file = e.target.files?.[0];
                         if (file) handleImageUpload(block.key, file);
                       }}
-                      className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-2xl file:border-0 file:bg-[#1F3B73] file:text-white hover:file:bg-[#14294F]"
+                      className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-2xl file:border-0 file:bg-[#1F3B73] file:text-white hover:file:bg-[#14294F] sm:flex-1"
                     />
                     {uploading && (
                       <div className="flex items-center text-sm text-neutral-500">
@@ -879,20 +879,20 @@ export default function ContentEditorPage() {
               </div>
             )}
 
-            <div className="mt-4 flex justify-between">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               {pendingDeleteKey === block.key ? (
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => void handleDeleteBlock(block.key)}
                     disabled={saving || uploading || deletingKey === block.key}
-                    className="rounded-2xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    className="w-full rounded-2xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 sm:w-auto"
                   >
                     {deletingKey === block.key ? 'Удаление...' : 'Подтвердить'}
                   </button>
                   <button
                     onClick={() => setPendingDeleteKey('')}
                     disabled={deletingKey === block.key}
-                    className="rounded-2xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 sm:w-auto"
                   >
                     Отмена
                   </button>
@@ -901,7 +901,7 @@ export default function ContentEditorPage() {
                 <button
                   onClick={() => setPendingDeleteKey(block.key)}
                   disabled={saving || uploading}
-                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 sm:w-auto"
                 >
                   Удалить
                 </button>
@@ -909,7 +909,7 @@ export default function ContentEditorPage() {
               <button
                 onClick={() => handleSave(block.key)}
                 disabled={saving || uploading}
-                className="rounded-2xl bg-[#FF7A00] px-6 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-50 transition"
+                className="w-full rounded-2xl bg-[#FF7A00] px-6 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-50 transition sm:w-auto"
               >
                 {saving ? 'Сохранение...' : 'Сохранить'}
               </button>
