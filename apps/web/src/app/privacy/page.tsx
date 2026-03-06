@@ -36,8 +36,8 @@ export default async function PrivacyPage() {
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
@@ -45,11 +45,16 @@ export default async function PrivacyPage() {
               <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
             </nav>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+          </nav>
         </div>
       </header>
 
-      <section className="mx-auto max-w-4xl px-6 py-16">
-        <h1 className="text-3xl font-bold text-[#1F3B73]">Политика конфиденциальности</h1>
+      <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+        <h1 className="text-2xl font-bold text-[#1F3B73] sm:text-3xl">Политика конфиденциальности</h1>
         <p className="mt-2 text-sm text-neutral-500">Последнее обновление: {lastUpdated}</p>
 
         {contentHtml ? (
@@ -143,7 +148,7 @@ export default async function PrivacyPage() {
       </section>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
           © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
         </div>
       </footer>
