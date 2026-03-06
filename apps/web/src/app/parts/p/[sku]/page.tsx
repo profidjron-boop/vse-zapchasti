@@ -168,7 +168,7 @@ export default async function ProductBySkuPage({
   if (!product && hasError) {
     return (
       <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-        <section className="mx-auto max-w-4xl px-6 py-16">
+        <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
           <div className="rounded-3xl border border-neutral-200 bg-white p-8 text-center">
             <h1 className="text-xl font-semibold text-[#1F3B73]">Товар временно недоступен</h1>
             <p className="mt-2 text-sm text-neutral-600">
@@ -200,8 +200,8 @@ export default async function ProductBySkuPage({
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
@@ -212,10 +212,18 @@ export default async function ProductBySkuPage({
               <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
             </nav>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-[#1F3B73]">Запчасти</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
+            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
+          </nav>
         </div>
       </header>
 
-      <section className="mx-auto max-w-4xl px-6 py-12">
+      <section className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
         <Link href="/parts" className="text-sm font-medium text-[#1F3B73] hover:underline">
           ← Вернуться в каталог
         </Link>
@@ -238,7 +246,7 @@ export default async function ProductBySkuPage({
               )}
             </div>
 
-            <div>
+            <div className="min-w-0">
               <h1 className="text-2xl font-semibold text-[#1F3B73]">{currentProduct.name}</h1>
               {discountLabel ? (
                 <span className="mt-2 inline-block rounded-full bg-[#FF7A00]/10 px-3 py-1 text-xs font-medium text-[#FF7A00]">
@@ -249,11 +257,11 @@ export default async function ProductBySkuPage({
               <dl className="mt-4 grid grid-cols-1 gap-3 text-sm text-neutral-700 sm:grid-cols-2">
                 <div className="rounded-xl bg-neutral-50 p-3">
                   <dt className="text-neutral-500">Артикул</dt>
-                  <dd className="font-medium">{currentProduct.sku}</dd>
+                  <dd className="break-all font-medium">{currentProduct.sku}</dd>
                 </div>
                 <div className="rounded-xl bg-neutral-50 p-3">
                   <dt className="text-neutral-500">OEM</dt>
-                  <dd>{currentProduct.oem || "—"}</dd>
+                  <dd className="break-all">{currentProduct.oem || "—"}</dd>
                 </div>
                 <div className="rounded-xl bg-neutral-50 p-3">
                   <dt className="text-neutral-500">Бренд</dt>
