@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -194,27 +194,27 @@ export default function ContentEditorPage() {
     description: '',
   });
 
-  const redirectToLogin = () => {
+  const redirectToLogin = useCallback(() => {
     localStorage.removeItem('admin_token');
     router.push('/admin/login');
-  };
+  }, [router]);
 
-  const getTokenOrRedirect = (): string | null => {
+  const getTokenOrRedirect = useCallback((): string | null => {
     const token = localStorage.getItem('admin_token');
     if (!token) {
       router.push('/admin/login');
       return null;
     }
     return token;
-  };
+  }, [router]);
 
-  const isAuthError = (error: unknown): boolean => {
+  const isAuthError = useCallback((error: unknown): boolean => {
     if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
       redirectToLogin();
       return true;
     }
     return false;
-  };
+  }, [redirectToLogin]);
 
   const formatError = (error: unknown, fallback: string): string => {
     if (error instanceof ApiRequestError) {
@@ -223,13 +223,7 @@ export default function ContentEditorPage() {
     return fallback;
   };
 
-  /* eslint-disable react-hooks/exhaustive-deps */
-  useEffect(() => {
-    fetchContent();
-  }, []);
-  /* eslint-enable react-hooks/exhaustive-deps */
-
-  async function fetchContent() {
+  const fetchContent = useCallback(async () => {
     try {
       const token = getTokenOrRedirect();
       if (!token) return;
@@ -257,7 +251,11 @@ export default function ContentEditorPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [getTokenOrRedirect, isAuthError]);
+
+  useEffect(() => {
+    void fetchContent();
+  }, [fetchContent]);
 
   async function handleSave(key: string) {
     setSaving(true);
