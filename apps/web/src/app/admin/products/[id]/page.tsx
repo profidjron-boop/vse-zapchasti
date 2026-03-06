@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Cookies from "js-cookie";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type Category = {
   id: number;
@@ -106,7 +106,7 @@ export default function AdminProductEditPage() {
 
     setError("");
     try {
-      const token = Cookies.get("admin_token");
+      const token = localStorage.getItem("admin_token");
       if (!token) {
         router.push("/admin/login");
         return;
@@ -115,26 +115,19 @@ export default function AdminProductEditPage() {
       const apiBaseUrl = getClientApiBaseUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [productResponse, categoriesResponse] = await Promise.all([
-        fetch(withApiBase(apiBaseUrl, `/api/admin/products/${productId}`), { headers }),
-        fetch(withApiBase(apiBaseUrl, "/api/admin/categories"), { headers }),
+      const [product, categoriesPayload] = await Promise.all([
+        fetchJsonWithTimeout<ProductPayload>(
+          withApiBase(apiBaseUrl, `/api/admin/products/${productId}`),
+          { headers },
+          12000
+        ),
+        fetchJsonWithTimeout<Category[]>(
+          withApiBase(apiBaseUrl, "/api/admin/categories"),
+          { headers },
+          12000
+        ),
       ]);
 
-      if (productResponse.status === 401 || categoriesResponse.status === 401) {
-        Cookies.remove("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-      if (productResponse.status === 404) {
-        setError("Товар не найден");
-        return;
-      }
-      if (!productResponse.ok || !categoriesResponse.ok) {
-        throw new Error("Не удалось загрузить данные товара");
-      }
-
-      const product = (await productResponse.json()) as ProductPayload;
-      const categoriesPayload = (await categoriesResponse.json()) as Category[];
       setCategories(categoriesPayload);
 
       const compatibility = product.compatibilities?.[0];
@@ -168,8 +161,18 @@ export default function AdminProductEditPage() {
         compat_engine: compatibility?.engine ?? "",
       });
     } catch (loadError) {
-      console.error(loadError);
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить данные товара");
+      if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (loadError instanceof ApiRequestError && loadError.status === 404) {
+        setError("Товар не найден");
+      } else if (loadError instanceof ApiRequestError) {
+        setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
+      } else {
+        setError("Не удалось загрузить данные товара");
+      }
     } finally {
       setLoading(false);
     }
@@ -192,7 +195,7 @@ export default function AdminProductEditPage() {
     setSuccess("");
 
     try {
-      const token = Cookies.get("admin_token");
+      const token = localStorage.getItem("admin_token");
       if (!token) {
         router.push("/admin/login");
         return;
@@ -242,31 +245,32 @@ export default function AdminProductEditPage() {
       };
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/products/${productId}`), {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      await fetchJsonWithTimeout<ProductPayload>(
+        withApiBase(apiBaseUrl, `/api/admin/products/${productId}`),
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401) {
-        Cookies.remove("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось сохранить товар");
-      }
+        12000
+      );
 
       setSuccess("Товар сохранён");
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (submitError) {
-      console.error(submitError);
-      setError(submitError instanceof Error ? submitError.message : "Не удалось сохранить товар");
+      if (submitError instanceof ApiRequestError && (submitError.status === 401 || submitError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (submitError instanceof ApiRequestError) {
+        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
+      } else {
+        setError("Не удалось сохранить товар");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -497,4 +501,3 @@ export default function AdminProductEditPage() {
     </div>
   );
 }
-
