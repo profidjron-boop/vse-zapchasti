@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from 'react';
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type DashboardStatus = "loading" | "ready" | "empty" | "error";
 type StatKey = "leads" | "orders" | "vin" | "service" | "products" | "categories" | "content";
@@ -39,10 +40,7 @@ const initialStats: Record<StatKey, StatCardState> = {
   content: { status: "loading", count: null, text: "Загрузка..." },
 };
 
-function toCardState(response: Response, payload: unknown): StatCardState {
-  if (!response.ok) {
-    return { status: "error", count: null, text: "Ошибка доступа" };
-  }
+function toCardState(payload: unknown): StatCardState {
   if (!Array.isArray(payload)) {
     return { status: "error", count: null, text: "Некорректный ответ API" };
   }
@@ -81,10 +79,20 @@ export default function AdminDashboard() {
         const entries = await Promise.all(
           statConfigs.map(async (config) => {
             try {
-              const response = await fetch(withApiBase(apiBaseUrl, config.endpoint), { headers });
-              const payload = await response.json().catch(() => null);
-              return [config.key, toCardState(response, payload)] as const;
-            } catch {
+              const payload = await fetchJsonWithTimeout<unknown>(
+                withApiBase(apiBaseUrl, config.endpoint),
+                { headers },
+                12000
+              );
+              return [config.key, toCardState(payload)] as const;
+            } catch (fetchError) {
+              if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
+                throw fetchError;
+              }
+              if (fetchError instanceof ApiRequestError) {
+                const errorText = fetchError.traceId ? `Ошибка. Код: ${fetchError.traceId}` : fetchError.message;
+                return [config.key, { status: "error", count: null, text: errorText }] as const;
+              }
               return [config.key, { status: "error", count: null, text: "API недоступно" }] as const;
             }
           })
@@ -96,7 +104,12 @@ export default function AdminDashboard() {
 
         setStats(Object.fromEntries(entries) as Record<StatKey, StatCardState>);
         setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-      } catch {
+      } catch (loadError) {
+        if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
+          localStorage.removeItem("admin_token");
+          window.location.href = "/admin/login";
+          return;
+        }
         if (!cancelled) {
           setStats({
             leads: { status: "error", count: null, text: "API недоступно" },
