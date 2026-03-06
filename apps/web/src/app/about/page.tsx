@@ -48,8 +48,8 @@ export default async function AboutPage() {
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
@@ -58,6 +58,12 @@ export default async function AboutPage() {
               <Link href="/about" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">О компании</Link>
             </nav>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+            <Link href="/about" className="shrink-0 font-medium text-[#1F3B73]">О компании</Link>
+          </nav>
         </div>
       </header>
 
@@ -65,13 +71,13 @@ export default async function AboutPage() {
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
         </div>
-        <div className="relative mx-auto max-w-6xl px-6">
-          <h1 className="text-4xl font-bold text-white">{heroTitle}</h1>
-          <p className="mt-4 max-w-3xl text-lg text-white/80">{heroSubtitle}</p>
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+          <h1 className="text-3xl font-bold text-white sm:text-4xl">{heroTitle}</h1>
+          <p className="mt-4 max-w-3xl text-base text-white/80 sm:text-lg">{heroSubtitle}</p>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-2">
           <article className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-xl">
             <h2 className="text-2xl font-bold text-[#1F3B73]">{storyTitle}</h2>
@@ -108,7 +114,7 @@ export default async function AboutPage() {
       </section>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
           © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
         </div>
       </footer>
