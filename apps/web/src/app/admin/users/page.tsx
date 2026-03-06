@@ -307,7 +307,7 @@ export default function AdminUsersPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Поиск по email/имени (от 2 символов)"
-            className="min-w-72 rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm sm:min-w-72 sm:w-auto"
           />
           <button
             type="button"
@@ -321,8 +321,100 @@ export default function AdminUsersPage() {
         {users.length === 0 ? (
           <p className="mt-4 text-sm text-neutral-500">Пользователи не найдены.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+          <div className="mt-4">
+            <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 md:hidden">
+              {users.map((user) => {
+                const draft = drafts[user.id];
+                if (!draft) return null;
+
+                return (
+                  <article key={user.id} className="space-y-3 px-3 py-4 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-neutral-500">ID: {user.id}</p>
+                        <p className="break-all font-medium text-neutral-900">{user.email}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs text-neutral-500">Имя</label>
+                      <input
+                        value={draft.name}
+                        onChange={(event) =>
+                          setDrafts((prev) => ({
+                            ...prev,
+                            [user.id]: { ...prev[user.id], name: event.target.value },
+                          }))
+                        }
+                        className="w-full rounded-lg border border-neutral-300 px-2 py-1"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs text-neutral-500">Роль</label>
+                      <select
+                        value={draft.role}
+                        onChange={(event) =>
+                          setDrafts((prev) => ({
+                            ...prev,
+                            [user.id]: { ...prev[user.id], role: event.target.value as UserRole },
+                          }))
+                        }
+                        className="w-full rounded-lg border border-neutral-300 px-2 py-1"
+                      >
+                        {roleOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={draft.is_active}
+                        onChange={(event) =>
+                          setDrafts((prev) => ({
+                            ...prev,
+                            [user.id]: { ...prev[user.id], is_active: event.target.checked },
+                          }))
+                        }
+                      />
+                      <span>{draft.is_active ? "Активен" : "Неактивен"}</span>
+                    </label>
+
+                    <div>
+                      <label className="mb-1 block text-xs text-neutral-500">Новый пароль</label>
+                      <input
+                        type="password"
+                        value={draft.password}
+                        onChange={(event) =>
+                          setDrafts((prev) => ({
+                            ...prev,
+                            [user.id]: { ...prev[user.id], password: event.target.value },
+                          }))
+                        }
+                        placeholder="мин. 8"
+                        className="w-full rounded-lg border border-neutral-300 px-2 py-1"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSaveUser(user.id)}
+                      disabled={savingUserId === user.id}
+                      className="rounded-lg bg-[#1F3B73] px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
+                    >
+                      {savingUserId === user.id ? "Сохранение..." : "Сохранить"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px]">
               <thead className="border-b border-neutral-200 text-left text-xs uppercase text-neutral-500">
                 <tr>
                   <th className="px-3 py-2">ID</th>
@@ -416,7 +508,8 @@ export default function AdminUsersPage() {
                   );
                 })}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         )}
       </div>
