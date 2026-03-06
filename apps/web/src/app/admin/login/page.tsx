@@ -82,6 +82,11 @@ export default function LoginPage() {
         } else {
           setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
         }
+      } else if (
+        err instanceof TypeError ||
+        (err instanceof Error && err.message.toLowerCase().includes('fetch'))
+      ) {
+        setError('Не удалось подключиться к API. Проверьте, что backend запущен и API_BASE_URL настроен корректно.');
       } else {
         setError(err instanceof Error ? err.message : 'Ошибка входа');
       }
