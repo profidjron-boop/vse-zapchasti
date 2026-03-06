@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
+import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
 
 type Lead = {
   id: number;
@@ -47,39 +48,58 @@ export default function LeadDetailPage() {
   const fetchLead = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin_token');
+      if (!token) {
+        router.push('/admin/login');
+        return;
+      }
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<Lead>(
+        withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`),
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-      if (!res.ok) throw new Error('Failed to fetch lead');
-      const data = await res.json();
+        12000
+      );
       setLead(data);
       setSelectedStatus(data.status);
       setComment(data.manager_comment || '');
     } catch (err) {
-      setError('Ошибка загрузки заявки');
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError('Ошибка загрузки заявки');
+      }
     } finally {
       setLoading(false);
     }
-  }, [leadId]);
+  }, [leadId, router]);
 
   const fetchStatuses = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin_token');
+      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/leads/statuses'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<string[]>(
+        withApiBase(apiBaseUrl, '/api/admin/leads/statuses'),
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-      if (!res.ok) throw new Error('Failed to fetch statuses');
-      const data = await res.json();
-      setStatuses(data);
-    } catch (err) {
-      console.error(err);
+        12000
+      );
+      if (Array.isArray(data)) {
+        setStatuses(data);
+      }
+    } catch {
+      // silent
     }
   }, []);
 
@@ -94,25 +114,39 @@ export default function LeadDetailPage() {
 
     try {
       const token = localStorage.getItem('admin_token');
+      if (!token) {
+        router.push('/admin/login');
+        return;
+      }
       const apiBaseUrl = getClientApiBaseUrl();
       const query = new URLSearchParams({ status: selectedStatus });
       query.set("comment", comment.trim());
 
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${query.toString()}`), {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      await fetchJsonWithTimeout<Lead>(
+        withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${query.toString()}`),
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-
-      if (!res.ok) throw new Error('Failed to update status');
+        12000
+      );
       
       alert('Статус обновлён');
       fetchLead();
       setComment('');
     } catch (err) {
-      setError('Ошибка обновления статуса');
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError('Ошибка обновления статуса');
+      }
     } finally {
       setSaving(false);
     }
@@ -121,21 +155,35 @@ export default function LeadDetailPage() {
   async function handleDelete() {
     try {
       const token = localStorage.getItem('admin_token');
+      if (!token) {
+        router.push('/admin/login');
+        return;
+      }
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`),
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-
-      if (!res.ok) throw new Error('Failed to delete lead');
+        12000
+      );
       
       router.push('/admin/leads');
       router.refresh();
     } catch (err) {
-      setError('Ошибка удаления заявки');
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError('Ошибка удаления заявки');
+      }
     }
   }
 
