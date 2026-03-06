@@ -162,8 +162,8 @@ export default function ServiceRequestDetailsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="min-w-0">
           <Link href="/admin/service-requests" className="text-sm text-[#1F3B73] hover:underline">
             ← Назад к списку
           </Link>
@@ -181,7 +181,7 @@ export default function ServiceRequestDetailsPage() {
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
           <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Данные заявки</h2>
           <dl className="space-y-3 text-sm">
-            <div><dt className="text-neutral-500">UUID</dt><dd className="font-mono">{request.uuid}</dd></div>
+            <div><dt className="text-neutral-500">UUID</dt><dd className="break-all font-mono text-xs sm:text-sm">{request.uuid}</dd></div>
             <div><dt className="text-neutral-500">Имя</dt><dd>{request.name}</dd></div>
             <div><dt className="text-neutral-500">Телефон</dt><dd>{request.phone}</dd></div>
             <div><dt className="text-neutral-500">Email</dt><dd>{request.email || "—"}</dd></div>
@@ -197,7 +197,7 @@ export default function ServiceRequestDetailsPage() {
             <div><dt className="text-neutral-500">Согласие 152-ФЗ</dt><dd>{request.consent_given ? "Да" : "Нет"}</dd></div>
             <div><dt className="text-neutral-500">Версия согласия</dt><dd>{request.consent_version || "—"}</dd></div>
             <div><dt className="text-neutral-500">Дата согласия</dt><dd>{request.consent_at ? new Date(request.consent_at).toLocaleString("ru-RU") : "—"}</dd></div>
-            <div><dt className="text-neutral-500">Текст согласия</dt><dd className="whitespace-pre-wrap">{request.consent_text || "—"}</dd></div>
+            <div><dt className="text-neutral-500">Текст согласия</dt><dd className="whitespace-pre-wrap break-words">{request.consent_text || "—"}</dd></div>
             <div><dt className="text-neutral-500">IP</dt><dd>{request.ip_address || "—"}</dd></div>
             <div><dt className="text-neutral-500">User-Agent</dt><dd className="break-all">{request.user_agent || "—"}</dd></div>
           </dl>
