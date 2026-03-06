@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type ImportRunDetails = {
   id: number;
@@ -64,27 +65,29 @@ export default function ImportRunDetailsPage() {
         }
 
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/imports/${params.id}`), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.status === 401) {
+        const data = await fetchJsonWithTimeout<ImportRunDetails>(
+          withApiBase(apiBaseUrl, `/api/admin/imports/${params.id}`),
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+          12000
+        );
+        setRun(data);
+      } catch (err) {
+        if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
           localStorage.removeItem("admin_token");
           router.push("/admin/login");
           return;
         }
-        if (response.status === 404) {
+        if (err instanceof ApiRequestError && err.status === 404) {
           setError("Запуск не найден");
           return;
         }
-        if (!response.ok) {
-          throw new Error("Не удалось загрузить детали импорта");
+        if (err instanceof ApiRequestError) {
+          setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+        } else {
+          setError("Не удалось загрузить детали импорта");
         }
-
-        const data = (await response.json()) as ImportRunDetails;
-        setRun(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Не удалось загрузить детали импорта");
       } finally {
         setIsLoading(false);
       }
