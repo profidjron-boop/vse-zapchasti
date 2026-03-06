@@ -132,6 +132,10 @@
   - `IMPORT_FILE_PATH` — путь до CSV/XLSX;
   - `ADMIN_TOKEN` **или** `IMPORT_ADMIN_EMAIL` + `IMPORT_ADMIN_PASSWORD`;
   - опционально: `IMPORT_DEFAULT_CATEGORY_ID`, `IMPORT_SKIP_INVALID=1`, `API_BASE_URL`.
+- Online sync env (для pull из 1C/ERP endpoint):
+  - `IMPORT_SOURCE_URL` — URL файла CSV/XLSX,
+  - `IMPORT_SOURCE_AUTH_HEADER` — optional `Authorization` значение,
+  - `IMPORT_SOURCE_USERNAME` + `IMPORT_SOURCE_PASSWORD` — optional basic auth.
 - Примеры:
   - Плановый запуск (cron/systemd timer): `IMPORT_MODE=hourly ... bash scripts/import-products.sh`
   - Внешний триггер: `IMPORT_MODE=event ... bash scripts/import-products.sh --event`

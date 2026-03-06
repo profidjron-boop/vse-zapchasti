@@ -84,3 +84,11 @@ Common pipeline for all modes:
 ## 9. v1.1 Decision
 - Production path in v1.1: **import-first**.
 - Direct online sync with 1C API/event stream can be enabled in v1.2+ by adding adapter, reusing current pipeline.
+
+## 10. Online sync implementation baseline (current)
+- Operational online sync is available via `scripts/import-products.sh`:
+  - source modes: `manual/hourly/daily/event`,
+  - direct source pull: `IMPORT_SOURCE_URL` (+ optional auth header/basic auth),
+  - import target: existing admin pipeline `/api/admin/products/import`.
+- This gives immediate 1C/ERP pull integration without changing public catalog contracts.
+- Next stage (optional): dedicated adapter service with richer protocol mapping/retries.

@@ -8,6 +8,10 @@ API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:8000}"
 IMPORT_MODE="${IMPORT_MODE:-auto}"   # auto/manual/hourly/daily/event
 IMPORT_EVENT_TRIGGER=0
 IMPORT_FILE_PATH="${IMPORT_FILE_PATH:-}"
+IMPORT_SOURCE_URL="${IMPORT_SOURCE_URL:-}"
+IMPORT_SOURCE_AUTH_HEADER="${IMPORT_SOURCE_AUTH_HEADER:-}"
+IMPORT_SOURCE_USERNAME="${IMPORT_SOURCE_USERNAME:-}"
+IMPORT_SOURCE_PASSWORD="${IMPORT_SOURCE_PASSWORD:-}"
 IMPORT_DEFAULT_CATEGORY_ID="${IMPORT_DEFAULT_CATEGORY_ID:-}"
 IMPORT_SKIP_INVALID="${IMPORT_SKIP_INVALID:-0}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
@@ -23,6 +27,8 @@ Usage:
 
 Options:
   --file <path>            CSV/XLSX file path (or env IMPORT_FILE_PATH)
+  --source-url <url>       Download CSV/XLSX from 1C/ERP URL before import
+  --source-auth <value>    Authorization header for source URL (optional)
   --mode <mode>            auto/manual/hourly/daily/event (default: auto)
   --event                  Mark this run as event-triggered (required when mode=event)
   --api <url>              API base url (default: http://127.0.0.1:8000)
@@ -34,6 +40,11 @@ Env for auth:
   ADMIN_TOKEN
   or IMPORT_ADMIN_EMAIL + IMPORT_ADMIN_PASSWORD
 
+Env for source sync:
+  IMPORT_SOURCE_URL
+  IMPORT_SOURCE_AUTH_HEADER
+  IMPORT_SOURCE_USERNAME + IMPORT_SOURCE_PASSWORD
+
 Examples:
   IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --mode hourly
   IMPORT_FILE_PATH=./imports/products.csv IMPORT_ADMIN_EMAIL=admin@x IMPORT_ADMIN_PASSWORD=... bash scripts/import-products.sh --mode event --event
@@ -44,6 +55,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --file)
       IMPORT_FILE_PATH="${2:-}"
+      shift 2
+      ;;
+    --source-url)
+      IMPORT_SOURCE_URL="${2:-}"
+      shift 2
+      ;;
+    --source-auth)
+      IMPORT_SOURCE_AUTH_HEADER="${2:-}"
       shift 2
       ;;
     --mode)
@@ -77,6 +96,14 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+TEMP_IMPORT_FILE=""
+cleanup() {
+  if [[ -n "$TEMP_IMPORT_FILE" && -f "$TEMP_IMPORT_FILE" ]]; then
+    rm -f "$TEMP_IMPORT_FILE"
+  fi
+}
+trap cleanup EXIT
 
 normalize_mode() {
   local raw="${1:-}"
@@ -175,6 +202,41 @@ PY
   rm -f "$tmp"
 }
 
+resolve_import_file() {
+  if [[ -n "$IMPORT_FILE_PATH" ]]; then
+    return
+  fi
+
+  if [[ -z "$IMPORT_SOURCE_URL" ]]; then
+    return
+  fi
+
+  local lower_url
+  lower_url="$(echo "$IMPORT_SOURCE_URL" | tr '[:upper:]' '[:lower:]')"
+  local extension=".csv"
+  if [[ "$lower_url" == *.xlsx* ]]; then
+    extension=".xlsx"
+  fi
+
+  TEMP_IMPORT_FILE="$(mktemp --suffix "$extension")"
+
+  local curl_args=("-fL" "-sS" "-o" "$TEMP_IMPORT_FILE")
+  if [[ -n "$IMPORT_SOURCE_AUTH_HEADER" ]]; then
+    curl_args+=("-H" "Authorization: $IMPORT_SOURCE_AUTH_HEADER")
+  fi
+  if [[ -n "$IMPORT_SOURCE_USERNAME" || -n "$IMPORT_SOURCE_PASSWORD" ]]; then
+    curl_args+=("-u" "${IMPORT_SOURCE_USERNAME}:${IMPORT_SOURCE_PASSWORD}")
+  fi
+
+  echo "ℹ️ downloading import source: $IMPORT_SOURCE_URL"
+  if ! curl "${curl_args[@]}" "$IMPORT_SOURCE_URL"; then
+    echo "❌ Failed to download import source URL" >&2
+    exit 1
+  fi
+
+  IMPORT_FILE_PATH="$TEMP_IMPORT_FILE"
+}
+
 mode_candidate="$IMPORT_MODE"
 if [[ "$(normalize_mode "$mode_candidate")" == "manual" && "$(echo "$mode_candidate" | tr '[:upper:]' '[:lower:]' | xargs)" == "auto" ]]; then
   mode_candidate="$(read_mode_from_public_content)"
@@ -191,8 +253,10 @@ if [[ "$mode" == "event" && "$IMPORT_EVENT_TRIGGER" -ne 1 ]]; then
   exit 0
 fi
 
+resolve_import_file
+
 if [[ -z "$IMPORT_FILE_PATH" ]]; then
-  echo "❌ IMPORT_FILE_PATH is required for mode=$mode" >&2
+  echo "❌ IMPORT_FILE_PATH or IMPORT_SOURCE_URL is required for mode=$mode" >&2
   exit 1
 fi
 
