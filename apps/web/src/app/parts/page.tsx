@@ -254,7 +254,7 @@ export default async function PartsPage({
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="flex items-center justify-between">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
@@ -269,7 +269,7 @@ export default async function PartsPage({
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="mb-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#1F3B73]/20 bg-[#1F3B73]/5 px-3 py-1 text-xs font-medium text-[#1F3B73]">
             Запчасти · Поиск · Подбор
@@ -407,7 +407,7 @@ export default async function PartsPage({
                       <div className="mt-3 grid gap-3">
                         {section.products.map((product) => (
                           <article key={product.id} className="rounded-xl border border-white bg-white p-3">
-                            <div className="flex items-start gap-3">
+                            <div className="flex min-w-0 items-start gap-3">
                               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
                                 {getMainImageUrl(product) ? (
                                   <Image
@@ -421,8 +421,11 @@ export default async function PartsPage({
                                   <div className="flex h-full items-center justify-center text-[10px] text-neutral-400">NO IMAGE</div>
                                 )}
                               </div>
-                              <div>
-                                <Link href={`/parts/p/${encodeURIComponent(product.sku)}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
+                              <div className="min-w-0">
+                                <Link
+                                  href={`/parts/p/${encodeURIComponent(product.sku)}`}
+                                  className="line-clamp-2 text-sm font-medium text-[#1F3B73] hover:underline"
+                                >
                                   {product.name}
                                 </Link>
                                 {getStringAttribute(product.attributes, "discount_label") ? (
@@ -433,7 +436,7 @@ export default async function PartsPage({
                                 {(() => {
                                   const oldPrice = getNumericAttribute(product.attributes, "old_price");
                                   return (
-                                    <div className="mt-1 text-xs text-neutral-600">
+                                    <div className="mt-1 break-words text-xs text-neutral-600">
                                       {typeof oldPrice === "number" && typeof product.price === "number" && oldPrice > product.price ? (
                                         <span className="mr-1 line-through text-neutral-500">{oldPrice.toLocaleString("ru-RU")} ₽</span>
                                       ) : null}
@@ -501,8 +504,11 @@ export default async function PartsPage({
               </div>
               <div className="grid gap-4">
                 {products.map((product: Product) => (
-                  <div key={product.id} className="flex items-start justify-between gap-4 rounded-2xl border border-neutral-200 p-4 hover:shadow-md transition">
-                    <div className="flex items-start gap-4">
+                  <div
+                    key={product.id}
+                    className="flex flex-col gap-4 rounded-2xl border border-neutral-200 p-4 transition hover:shadow-md sm:flex-row sm:items-start sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-4">
                       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
                         {getMainImageUrl(product) ? (
                           <Image
@@ -516,9 +522,9 @@ export default async function PartsPage({
                           <div className="flex h-full items-center justify-center text-[10px] text-neutral-400">NO IMAGE</div>
                         )}
                       </div>
-                      <div>
-                        <div className="font-medium text-[#1F3B73]">{product.name}</div>
-                        <div className="mt-1 text-sm text-neutral-600">
+                      <div className="min-w-0">
+                        <div className="break-words font-medium text-[#1F3B73]">{product.name}</div>
+                        <div className="mt-1 break-words text-sm text-neutral-600">
                           Артикул: {product.sku} | OEM: {product.oem || "—"} | Бренд: {product.brand || "—"}
                         </div>
                         <div className="mt-2 text-sm text-neutral-600">
@@ -552,7 +558,7 @@ export default async function PartsPage({
                     </div>
                     <Link
                       href={`/parts/p/${encodeURIComponent(product.sku)}`}
-                      className="rounded-xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
+                      className="w-full rounded-xl bg-[#1F3B73] px-4 py-2 text-center text-sm font-medium text-white hover:bg-[#14294F] sm:w-auto"
                     >
                       Подробнее
                     </Link>
@@ -565,7 +571,7 @@ export default async function PartsPage({
       </div>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
           © {new Date().getFullYear()} {footerText}
         </div>
       </footer>
