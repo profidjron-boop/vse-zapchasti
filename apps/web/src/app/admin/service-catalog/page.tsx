@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type VehicleType = "passenger" | "truck" | "both";
 
@@ -66,18 +67,13 @@ export default function AdminServiceCatalogPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/service-catalog?include_inactive=true"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-      if (!response.ok) throw new Error("Не удалось загрузить справочник услуг");
-
-      const payload = (await response.json()) as ServiceCatalogItem[];
+      const payload = await fetchJsonWithTimeout<ServiceCatalogItem[]>(
+        withApiBase(apiBaseUrl, "/api/admin/service-catalog?include_inactive=true"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       setItems(payload);
       setDrafts(
         Object.fromEntries(
@@ -85,8 +81,16 @@ export default function AdminServiceCatalogPage() {
         )
       );
     } catch (fetchError) {
-      console.error(fetchError);
-      setError("Не удалось загрузить справочник услуг");
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Не удалось загрузить справочник услуг");
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -126,35 +130,42 @@ export default function AdminServiceCatalogPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/service-catalog/${id}`), {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, `/api/admin/service-catalog/${id}`),
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: draft.name.trim(),
+            vehicle_type: draft.vehicle_type,
+            duration_minutes: draft.duration_minutes ? Number(draft.duration_minutes) : null,
+            price: draft.price ? Number(draft.price) : null,
+            prepayment_required: draft.prepayment_required,
+            prepayment_amount:
+              draft.prepayment_required && draft.prepayment_amount ? Number(draft.prepayment_amount) : null,
+            sort_order: Number(draft.sort_order || 0),
+            is_active: draft.is_active,
+          }),
         },
-        body: JSON.stringify({
-          name: draft.name.trim(),
-          vehicle_type: draft.vehicle_type,
-          duration_minutes: draft.duration_minutes ? Number(draft.duration_minutes) : null,
-          price: draft.price ? Number(draft.price) : null,
-          prepayment_required: draft.prepayment_required,
-          prepayment_amount:
-            draft.prepayment_required && draft.prepayment_amount ? Number(draft.prepayment_amount) : null,
-          sort_order: Number(draft.sort_order || 0),
-          is_active: draft.is_active,
-        }),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось сохранить услугу");
-      }
+        12000
+      );
 
       setSuccess(`Услуга #${id} сохранена`);
       await fetchCatalog();
     } catch (saveError) {
-      console.error(saveError);
-      setError(saveError instanceof Error ? saveError.message : "Не удалось сохранить услугу");
+      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (saveError instanceof ApiRequestError) {
+        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
+      } else {
+        setError("Не удалось сохранить услугу");
+      }
     } finally {
       setSavingId(null);
     }
@@ -172,21 +183,28 @@ export default function AdminServiceCatalogPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/service-catalog/${id}`), {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось деактивировать услугу");
-      }
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, `/api/admin/service-catalog/${id}`),
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
 
       setSuccess(`Услуга #${id} деактивирована`);
       await fetchCatalog();
     } catch (deleteError) {
-      console.error(deleteError);
-      setError(deleteError instanceof Error ? deleteError.message : "Не удалось деактивировать услугу");
+      if (deleteError instanceof ApiRequestError && (deleteError.status === 401 || deleteError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (deleteError instanceof ApiRequestError) {
+        setError(deleteError.traceId ? `${deleteError.message}. Код: ${deleteError.traceId}` : deleteError.message);
+      } else {
+        setError("Не удалось деактивировать услугу");
+      }
     } finally {
       setDeletingId(null);
     }
@@ -222,26 +240,33 @@ export default function AdminServiceCatalogPage() {
       };
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/service-catalog"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, "/api/admin/service-catalog"),
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось создать услугу");
-      }
+        12000
+      );
 
       event.currentTarget.reset();
       setSuccess("Услуга добавлена");
       await fetchCatalog();
     } catch (createError) {
-      console.error(createError);
-      setError(createError instanceof Error ? createError.message : "Не удалось создать услугу");
+      if (createError instanceof ApiRequestError && (createError.status === 401 || createError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (createError instanceof ApiRequestError) {
+        setError(createError.traceId ? `${createError.message}. Код: ${createError.traceId}` : createError.message);
+      } else {
+        setError("Не удалось создать услугу");
+      }
     } finally {
       setIsCreating(false);
     }
