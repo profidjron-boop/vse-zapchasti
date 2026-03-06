@@ -133,8 +133,8 @@ export default function CartPage() {
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
@@ -145,10 +145,18 @@ export default function CartPage() {
               <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
             </nav>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-[#1F3B73]">Корзина</Link>
+            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
+          </nav>
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-6 py-12">
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <h1 className="text-3xl font-bold text-[#1F3B73]">Корзина</h1>
 
         {loading ? (
@@ -170,10 +178,10 @@ export default function CartPage() {
               <div className="space-y-3">
                 {items.map((item) => (
                   <article key={item.productId} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
                         <p className="font-medium text-neutral-900">{item.name}</p>
-                        <p className="mt-1 text-xs text-neutral-500">{item.sku}</p>
+                        <p className="mt-1 break-all text-xs text-neutral-500">{item.sku}</p>
                         <p className="mt-1 text-sm text-[#1F3B73]">
                           {item.price !== null ? `${Math.round(item.price).toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
                         </p>
@@ -261,7 +269,7 @@ export default function CartPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-neutral-700">Доставка</label>
                     <select
