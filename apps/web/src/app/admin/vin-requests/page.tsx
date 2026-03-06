@@ -66,17 +66,23 @@ export default function AdminVinRequestsPage() {
       if (!token) return;
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, "/api/admin/vin-requests/statuses"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as string[];
+      const data = await fetchJsonWithTimeout<string[]>(
+        withApiBase(apiBaseUrl, "/api/admin/vin-requests/statuses"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
+      if (Array.isArray(data)) {
         setStatuses(data);
       }
     } catch (fetchError) {
-      console.error(fetchError);
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+      }
     }
-  }, []);
+  }, [router]);
 
   const fetchRequests = useCallback(async (showRefreshing = false) => {
     setError("");
@@ -113,7 +119,7 @@ export default function AdminVinRequestsPage() {
       setSelectedRequestIds((prev) => prev.filter((id) => pageRows.some((request) => request.id === id)));
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
@@ -237,31 +243,37 @@ export default function AdminVinRequestsPage() {
       let firstError = "";
 
       for (const requestId of selectedRequestIds) {
-        const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/vin-requests/${requestId}/status`), {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
-        });
-
-        if (response.status === 401) {
-          localStorage.removeItem("admin_token");
-          router.push("/admin/login");
-          return;
-        }
-
-        if (!response.ok) {
+        try {
+          await fetchJsonWithTimeout<VinRequest>(
+            withApiBase(apiBaseUrl, `/api/admin/vin-requests/${requestId}/status`),
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
+            },
+            12000
+          );
+          updated += 1;
+        } catch (updateError) {
+          if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
+            localStorage.removeItem("admin_token");
+            router.push("/admin/login");
+            return;
+          }
           failed += 1;
           if (!firstError) {
-            const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-            firstError = payload?.detail || `Ошибка обновления ID ${requestId}`;
+            if (updateError instanceof ApiRequestError) {
+              firstError = updateError.traceId
+                ? `${updateError.message}. Код: ${updateError.traceId}`
+                : updateError.message;
+            } else {
+              firstError = `Ошибка обновления ID ${requestId}`;
+            }
           }
-          continue;
         }
-
-        updated += 1;
       }
 
       if (updated > 0) {
