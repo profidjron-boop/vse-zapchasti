@@ -200,19 +200,19 @@ export default function VinRequestDetailsPage() {
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
           <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Данные заявки</h2>
           <dl className="space-y-3 text-sm">
-            <div><dt className="text-neutral-500">UUID</dt><dd className="font-mono">{request.uuid}</dd></div>
+            <div><dt className="text-neutral-500">UUID</dt><dd className="break-all font-mono text-xs sm:text-sm">{request.uuid}</dd></div>
             <div><dt className="text-neutral-500">Статус</dt><dd>{getStatusLabel(request.status)}</dd></div>
-            <div><dt className="text-neutral-500">VIN</dt><dd className="font-mono">{request.vin}</dd></div>
+            <div><dt className="text-neutral-500">VIN</dt><dd className="break-all font-mono">{request.vin}</dd></div>
             <div><dt className="text-neutral-500">Имя</dt><dd>{request.name || "—"}</dd></div>
             <div><dt className="text-neutral-500">Телефон</dt><dd>{request.phone}</dd></div>
             <div><dt className="text-neutral-500">Email</dt><dd>{request.email || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Сообщение</dt><dd className="whitespace-pre-wrap">{request.message || "—"}</dd></div>
+            <div><dt className="text-neutral-500">Сообщение</dt><dd className="whitespace-pre-wrap break-words">{request.message || "—"}</dd></div>
             <div><dt className="text-neutral-500">Дата создания</dt><dd>{new Date(request.created_at).toLocaleString("ru-RU")}</dd></div>
             <div><dt className="text-neutral-500">Дата обновления</dt><dd>{new Date(request.updated_at).toLocaleString("ru-RU")}</dd></div>
             <div><dt className="text-neutral-500">Согласие 152-ФЗ</dt><dd>{request.consent_given ? "Да" : "Нет"}</dd></div>
             <div><dt className="text-neutral-500">Версия согласия</dt><dd>{request.consent_version || "—"}</dd></div>
             <div><dt className="text-neutral-500">Дата согласия</dt><dd>{request.consent_at ? new Date(request.consent_at).toLocaleString("ru-RU") : "—"}</dd></div>
-            <div><dt className="text-neutral-500">Текст согласия</dt><dd className="whitespace-pre-wrap">{request.consent_text || "—"}</dd></div>
+            <div><dt className="text-neutral-500">Текст согласия</dt><dd className="whitespace-pre-wrap break-words">{request.consent_text || "—"}</dd></div>
             <div><dt className="text-neutral-500">IP</dt><dd>{request.ip_address || "—"}</dd></div>
             <div><dt className="text-neutral-500">User-Agent</dt><dd className="break-all">{request.user_agent || "—"}</dd></div>
           </dl>
