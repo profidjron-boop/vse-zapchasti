@@ -32,13 +32,61 @@ export default function CartPage() {
   const [error, setError] = useState("");
   const [orderId, setOrderId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash_on_delivery" | "invoice">("cash_on_delivery");
+  const [contentMap, setContentMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setItems(loadCart());
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContent() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        if (!Array.isArray(payload) || cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const item of payload) {
+          if (item?.key && typeof item.value === "string") {
+            map[item.key] = item.value;
+          }
+        }
+        setContentMap(map);
+      } catch {
+        // keep defaults
+      }
+    }
+
+    void loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const totals = useMemo(() => getCartTotals(items), [items]);
+
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const pageTitle = contentValue("cart_page_title", "Корзина");
+  const emptyCartText = contentValue("cart_empty_text", "Ваша корзина пуста");
+  const goToCatalogLabel = contentValue("cart_go_to_catalog_label", "Перейти в каталог");
+  const checkoutTitle = contentValue("cart_checkout_title", "Оформление заказа");
+  const itemsTitle = contentValue("cart_items_title", "Товары");
 
   function handleChangeQuantity(productId: number, nextQuantity: number) {
     setItems(updateCartItemQuantity(productId, nextQuantity));
@@ -135,46 +183,46 @@ export default function CartPage() {
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-              <Link href="/cart" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Корзина</Link>
-              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
+              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
+              <Link href="/cart" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navCart}</Link>
+              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
             </nav>
           </div>
           <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-[#1F3B73]">Корзина</Link>
-            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-[#1F3B73]">{navCart}</Link>
+            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
           </nav>
         </div>
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <h1 className="text-3xl font-bold text-[#1F3B73]">Корзина</h1>
+        <h1 className="text-3xl font-bold text-[#1F3B73]">{pageTitle}</h1>
 
         {loading ? (
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-500">Загрузка...</div>
         ) : items.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-8 text-center">
-            <p className="text-neutral-600">Ваша корзина пуста</p>
+            <p className="text-neutral-600">{emptyCartText}</p>
             <Link
               href="/parts"
               className="mt-4 inline-block rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
             >
-              Перейти в каталог
+              {goToCatalogLabel}
             </Link>
           </div>
         ) : (
           <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
             <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-              <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Товары</h2>
+              <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">{itemsTitle}</h2>
               <div className="space-y-3">
                 {items.map((item) => (
                   <article key={item.productId} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
@@ -211,7 +259,7 @@ export default function CartPage() {
             </div>
 
             <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-              <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Оформление заказа</h2>
+              <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">{checkoutTitle}</h2>
               <div className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm">
                 <p>Позиций: <span className="font-medium">{totals.count}</span></p>
                 <p className="mt-1">
