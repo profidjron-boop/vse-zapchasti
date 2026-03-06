@@ -1,6 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Каталог запчастей | Все запчасти",
+  description: "Каталог запчастей: поиск по артикулу, OEM и названию, подбор по авто и VIN-заявка.",
+};
 
 type Category = {
   id: number;

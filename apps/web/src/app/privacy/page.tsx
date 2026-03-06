@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Политика конфиденциальности | Все запчасти",
+  description: "Политика обработки персональных данных сайта «Все запчасти» (152-ФЗ).",
+};
 
 async function getPublicContentMap(): Promise<Record<string, string>> {
   try {

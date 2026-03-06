@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Публичная оферта | Все запчасти",
+  description: "Публичная оферта сервиса «Все запчасти» для заказа товаров и услуг.",
+};
 
 async function getPublicContentMap(): Promise<Record<string, string>> {
   try {
