@@ -490,7 +490,7 @@ export default function AdminVinRequestsPage() {
           <p className="mt-2 text-sm">Они появятся после отправки формы на странице /parts/vin</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-neutral-500">Найдено заявок: {requests.length}</div>
@@ -538,58 +538,98 @@ export default function AdminVinRequestsPage() {
               </div>
             </div>
           </div>
-          <table className="w-full min-w-[1040px]">
-            <thead className="border-b border-neutral-200 bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                    aria-label="Выбрать все VIN-заявки"
-                  />
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">VIN</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Имя</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Согласие</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Карточка</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {requests.map((request) => (
-                <tr key={request.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm">
+
+          <div className="divide-y divide-neutral-200 md:hidden">
+            {requests.map((request) => (
+              <article key={request.id} className="space-y-3 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <label className="flex items-center gap-2 text-sm text-neutral-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedRequestIds.includes(request.id)}
+                        onChange={() => toggleSelectRequest(request.id)}
+                        aria-label={`Выбрать VIN-заявку ${request.id}`}
+                      />
+                      <span>#{request.id}</span>
+                    </label>
+                    <div className="mt-2">
+                      <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
+                        {STATUS_LABELS[request.status]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-1 text-sm text-neutral-700">
+                  <p className="break-all font-mono">VIN: {request.vin}</p>
+                  <p>Телефон: {request.phone}</p>
+                  <p>Имя: {request.name || "—"}</p>
+                  <p>Согласие: {request.consent_given ? "Да" : "Нет"}</p>
+                  <p className="text-xs text-neutral-500">{new Date(request.created_at).toLocaleString("ru-RU")}</p>
+                </div>
+
+                <Link className="text-sm font-medium text-[#1F3B73] hover:underline" href={`/admin/vin-requests/${request.id}`}>
+                  Открыть карточку
+                </Link>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[1040px]">
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
                     <input
                       type="checkbox"
-                      checked={selectedRequestIds.includes(request.id)}
-                      onChange={() => toggleSelectRequest(request.id)}
-                      aria-label={`Выбрать VIN-заявку ${request.id}`}
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Выбрать все VIN-заявки"
                     />
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">#{request.id}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
-                      {STATUS_LABELS[request.status]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{request.vin}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{request.phone}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{request.name || "—"}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{request.consent_given ? "Да" : "Нет"}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(request.created_at).toLocaleString("ru-RU")}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <Link className="text-[#1F3B73] hover:underline" href={`/admin/vin-requests/${request.id}`}>
-                      Открыть
-                    </Link>
-                  </td>
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">VIN</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Имя</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Согласие</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Карточка</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {requests.map((request) => (
+                  <tr key={request.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedRequestIds.includes(request.id)}
+                        onChange={() => toggleSelectRequest(request.id)}
+                        aria-label={`Выбрать VIN-заявку ${request.id}`}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">#{request.id}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
+                        {STATUS_LABELS[request.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{request.vin}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.phone}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.name || "—"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.consent_given ? "Да" : "Нет"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(request.created_at).toLocaleString("ru-RU")}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <Link className="text-[#1F3B73] hover:underline" href={`/admin/vin-requests/${request.id}`}>
+                        Открыть
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="border-t border-neutral-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="text-sm text-neutral-500">Страница: {page}</div>
