@@ -86,14 +86,7 @@ export default function AdminReportsPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
-      const headers = { Authorization: `Bearer ${token}` };
 
       const endpoints = [
         "/api/admin/leads?limit=100",
@@ -110,7 +103,7 @@ export default function AdminReportsPage() {
         try {
           const payload = await fetchJsonWithTimeout<T[]>(
             withApiBase(apiBaseUrl, endpoint),
-            { headers },
+            {},
             12000
           );
           return Array.isArray(payload) ? payload : [];

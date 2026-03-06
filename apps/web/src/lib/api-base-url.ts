@@ -1,5 +1,6 @@
 const DEV_API_BASE_URL = "http://localhost:8000";
 const DEV_API_PORT = "8000";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 function normalizeBaseUrl(value: string | undefined): string | null {
   const trimmed = value?.trim();
@@ -7,11 +8,19 @@ function normalizeBaseUrl(value: string | undefined): string | null {
 }
 
 export function getServerApiBaseUrl(): string {
-  return (
+  const configuredBaseUrl =
     normalizeBaseUrl(process.env.API_BASE_URL) ??
-    normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL) ??
-    DEV_API_BASE_URL
-  );
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
+  if (IS_PRODUCTION) {
+    throw new Error("API_BASE_URL or NEXT_PUBLIC_API_BASE_URL must be set in production.");
+  }
+
+  return DEV_API_BASE_URL;
 }
 
 export function getClientApiBaseUrl(): string {

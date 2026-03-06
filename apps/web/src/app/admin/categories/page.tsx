@@ -29,20 +29,10 @@ export default function AdminCategoriesPage() {
       setIsRefreshing(true);
     }
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<Category[]>(
         withApiBase(apiBaseUrl, "/api/admin/categories"),
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       setCategories(data);

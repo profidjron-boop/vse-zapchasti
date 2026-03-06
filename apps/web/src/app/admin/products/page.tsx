@@ -37,18 +37,10 @@ export default function AdminProductsPage() {
     }
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<Product[]>(
         withApiBase(apiBaseUrl, "/api/admin/products?limit=100"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setProducts(data);

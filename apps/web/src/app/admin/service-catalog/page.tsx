@@ -60,18 +60,10 @@ export default function AdminServiceCatalogPage() {
     if (showRefreshing) setIsRefreshing(true);
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<ServiceCatalogItem[]>(
         withApiBase(apiBaseUrl, "/api/admin/service-catalog?include_inactive=true"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setItems(payload);
@@ -123,19 +115,12 @@ export default function AdminServiceCatalogPage() {
     setSuccess("");
     setSavingId(id);
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<{ id: number }>(
         withApiBase(apiBaseUrl, `/api/admin/service-catalog/${id}`),
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -176,18 +161,11 @@ export default function AdminServiceCatalogPage() {
     setSuccess("");
     setDeletingId(id);
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<{ id: number }>(
         withApiBase(apiBaseUrl, `/api/admin/service-catalog/${id}`),
         {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
         },
         12000
       );
@@ -218,12 +196,6 @@ export default function AdminServiceCatalogPage() {
     setSuccess("");
     setIsCreating(true);
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const formData = new FormData(event.currentTarget);
       const payload = {
         name: String(formData.get("name") || "").trim(),
@@ -245,7 +217,6 @@ export default function AdminServiceCatalogPage() {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),

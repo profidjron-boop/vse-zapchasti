@@ -67,12 +67,6 @@ export default function AdminServiceRequestsPage() {
     }
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const query = new URLSearchParams({
         skip: String((page - 1) * pageSize),
@@ -83,11 +77,7 @@ export default function AdminServiceRequestsPage() {
 
       const data = await fetchJsonWithTimeout<ServiceRequest[]>(
         withApiBase(apiBaseUrl, `/api/admin/service-requests?${query.toString()}`),
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       const nextPageAvailable = data.length > pageSize;
@@ -205,12 +195,6 @@ export default function AdminServiceRequestsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       let updated = 0;
       let failed = 0;
@@ -224,7 +208,6 @@ export default function AdminServiceRequestsPage() {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
             },

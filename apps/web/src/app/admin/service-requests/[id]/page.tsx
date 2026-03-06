@@ -55,20 +55,10 @@ export default function ServiceRequestDetailsPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<ServiceRequest>(
         withApiBase(apiBaseUrl, `/api/admin/service-requests/${requestId}`),
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       setRequest(payload);
@@ -100,12 +90,6 @@ export default function ServiceRequestDetailsPage() {
     setSaving(true);
     setError("");
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const updated = await fetchJsonWithTimeout<ServiceRequest>(
         withApiBase(apiBaseUrl, `/api/admin/service-requests/${request.id}/status`),
@@ -113,7 +97,6 @@ export default function ServiceRequestDetailsPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             status: selectedStatus,

@@ -70,14 +70,10 @@ export default function AdminOrderDetailsPage() {
 
   const fetchStatuses = useCallback(async () => {
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, "/api/admin/orders/statuses"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       if (Array.isArray(payload)) {
@@ -91,18 +87,10 @@ export default function AdminOrderDetailsPage() {
   const fetchOrder = useCallback(async () => {
     setError("");
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<OrderDetails>(
         withApiBase(apiBaseUrl, `/api/admin/orders/${orderId}`),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setOrder(payload);
@@ -139,12 +127,6 @@ export default function AdminOrderDetailsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<OrderDetails>(
         withApiBase(apiBaseUrl, `/api/admin/orders/${order.id}/status`),
@@ -152,7 +134,6 @@ export default function AdminOrderDetailsPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             status: selectedStatus,

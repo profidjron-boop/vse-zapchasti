@@ -35,15 +35,10 @@ export default function LoginPage() {
         },
         10000
       );
-
-      // Transitional marker while admin pages still read localStorage for route-guard checks.
-      // Sensitive JWT is now stored in HttpOnly cookie by API.
-      localStorage.setItem('admin_token', 'cookie-session');
       
       router.push('/admin');
       router.refresh();
     } catch (err) {
-      localStorage.removeItem('admin_token');
       if (err instanceof ApiRequestError) {
         if (err.status === 401) {
           setError('Неверный email или пароль');

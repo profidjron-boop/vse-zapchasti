@@ -66,14 +66,10 @@ export default function LeadsPage() {
 
   const fetchStatuses = useCallback(async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, '/api/admin/leads/statuses'),
-        {
-          headers: { 'Authorization': `Bearer ${token}` },
-        },
+        {},
         12000
       );
       if (Array.isArray(data)) {
@@ -93,12 +89,6 @@ export default function LeadsPage() {
     }
 
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
-
       // Строим URL с фильтрами
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
@@ -114,11 +104,7 @@ export default function LeadsPage() {
 
       const data = await fetchJsonWithTimeout<Lead[]>(
         url,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       const nextPageAvailable = data.length > pageSize;
@@ -171,19 +157,11 @@ export default function LeadsPage() {
 
   async function handleDelete(id: number) {
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<{ id: number }>(
         withApiBase(apiBaseUrl, `/api/admin/leads/${id}`),
         {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
         },
         12000
       );
@@ -224,12 +202,6 @@ export default function LeadsPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       let updated = 0;
       let failed = 0;
@@ -242,9 +214,6 @@ export default function LeadsPage() {
             withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${params.toString()}`),
             {
               method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
             },
             12000
           );

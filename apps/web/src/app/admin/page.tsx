@@ -67,15 +67,6 @@ export default function AdminDashboard() {
       }
 
       try {
-        const token = localStorage.getItem('admin_token');
-        if (!token) {
-          router.push('/admin/login');
-          return;
-        }
-
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-        };
         const apiBaseUrl = getClientApiBaseUrl();
 
         const entries = await Promise.all(
@@ -83,7 +74,7 @@ export default function AdminDashboard() {
             try {
               const payload = await fetchJsonWithTimeout<unknown>(
                 withApiBase(apiBaseUrl, config.endpoint),
-                { headers },
+                {},
                 12000
               );
               return [config.key, toCardState(payload)] as const;

@@ -51,15 +51,10 @@ export default function VinRequestDetailsPage() {
 
   const fetchStatuses = useCallback(async () => {
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) return;
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, "/api/admin/vin-requests/statuses"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       if (Array.isArray(payload)) {
@@ -74,18 +69,10 @@ export default function VinRequestDetailsPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<VinRequest>(
         withApiBase(apiBaseUrl, `/api/admin/vin-requests/${requestId}`),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setRequest(payload);
@@ -121,12 +108,6 @@ export default function VinRequestDetailsPage() {
     setSaving(true);
     setError("");
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const updated = await fetchJsonWithTimeout<VinRequest>(
         withApiBase(apiBaseUrl, `/api/admin/vin-requests/${request.id}/status`),
@@ -134,7 +115,6 @@ export default function VinRequestDetailsPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             status: selectedStatus,

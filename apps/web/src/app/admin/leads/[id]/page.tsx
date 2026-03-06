@@ -48,19 +48,10 @@ export default function LeadDetailPage() {
 
   const fetchLead = useCallback(async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<Lead>(
         withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`),
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       setLead(data);
@@ -84,16 +75,10 @@ export default function LeadDetailPage() {
 
   const fetchStatuses = useCallback(async () => {
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, '/api/admin/leads/statuses'),
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       if (Array.isArray(data)) {
@@ -115,11 +100,6 @@ export default function LeadDetailPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
       const apiBaseUrl = getClientApiBaseUrl();
       const query = new URLSearchParams({ status: selectedStatus });
       query.set("comment", comment.trim());
@@ -128,9 +108,6 @@ export default function LeadDetailPage() {
         withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${query.toString()}`),
         {
           method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
         },
         12000
       );
@@ -157,19 +134,11 @@ export default function LeadDetailPage() {
     try {
       setError('');
       setSuccess('');
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<{ id: number }>(
         withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}`),
         {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
         },
         12000
       );

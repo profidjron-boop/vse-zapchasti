@@ -54,12 +54,6 @@ export default function AdminUsersPage() {
     setError("");
     setSuccess("");
 
-    const token = localStorage.getItem("admin_token");
-    if (!token) {
-      router.push("/admin/login");
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -70,9 +64,7 @@ export default function AdminUsersPage() {
 
       const data = await fetchJsonWithTimeout<AdminUser[]>(
         withApiBase(apiBaseUrl, endpoint),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setUsers(data);
@@ -112,12 +104,6 @@ export default function AdminUsersPage() {
     setError("");
     setSuccess("");
 
-    const token = localStorage.getItem("admin_token");
-    if (!token) {
-      router.push("/admin/login");
-      return;
-    }
-
     setIsCreating(true);
 
     try {
@@ -135,7 +121,6 @@ export default function AdminUsersPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(payload),
         },
@@ -174,12 +159,6 @@ export default function AdminUsersPage() {
     setError("");
     setSuccess("");
 
-    const token = localStorage.getItem("admin_token");
-    if (!token) {
-      router.push("/admin/login");
-      return;
-    }
-
     setSavingUserId(userId);
 
     try {
@@ -201,7 +180,6 @@ export default function AdminUsersPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(payload),
         },

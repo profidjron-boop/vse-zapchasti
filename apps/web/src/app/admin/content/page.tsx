@@ -238,15 +238,6 @@ export default function ContentEditorPage() {
     router.push('/admin/login');
   }, [router]);
 
-  const getTokenOrRedirect = useCallback((): string | null => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-      router.push('/admin/login');
-      return null;
-    }
-    return token;
-  }, [router]);
-
   const isAuthError = useCallback((error: unknown): boolean => {
     if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
       redirectToLogin();
@@ -264,17 +255,10 @@ export default function ContentEditorPage() {
 
   const fetchContent = useCallback(async () => {
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
-      
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<ContentBlock[]>(
         withApiBase(apiBaseUrl, '/api/admin/content'),
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        },
+        {},
         12000
       );
       setContent(data);
@@ -290,7 +274,7 @@ export default function ContentEditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [getTokenOrRedirect, isAuthError]);
+  }, [isAuthError]);
 
   useEffect(() => {
     void fetchContent();
@@ -302,8 +286,6 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<ContentBlock>(
         withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`),
@@ -311,7 +293,6 @@ export default function ContentEditorPage() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({ value: editingValue[key] }),
         },
@@ -340,8 +321,6 @@ export default function ContentEditorPage() {
     setError('');
 
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
       const formData = new FormData();
       formData.append('file', file);
 
@@ -350,9 +329,6 @@ export default function ContentEditorPage() {
         withApiBase(apiBaseUrl, '/api/admin/upload'),
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
           body: formData,
         },
         12000
@@ -380,8 +356,6 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       const createdBlock = await fetchJsonWithTimeout<ContentBlock>(
         withApiBase(apiBaseUrl, '/api/admin/content'),
@@ -389,7 +363,6 @@ export default function ContentEditorPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({
             key: newBlock.key.trim(),
@@ -420,16 +393,11 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<unknown>(
         withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`),
         {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
         },
         12000
       );
@@ -468,9 +436,6 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
-
       const apiBaseUrl = getClientApiBaseUrl();
       const created: ContentBlock[] = [];
       for (const block of missing) {
@@ -480,7 +445,6 @@ export default function ContentEditorPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
               key: block.key,
@@ -528,9 +492,6 @@ export default function ContentEditorPage() {
         if (missing.length === 0) continue;
 
         setCreatingPresetRoute(preset.route);
-        const token = getTokenOrRedirect();
-        if (!token) return;
-
         const apiBaseUrl = getClientApiBaseUrl();
         const created: ContentBlock[] = [];
         for (const block of missing) {
@@ -540,7 +501,6 @@ export default function ContentEditorPage() {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
               },
               body: JSON.stringify({
                 key: block.key,
@@ -594,9 +554,6 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = getTokenOrRedirect();
-      if (!token) return;
-
       const apiBaseUrl = getClientApiBaseUrl();
       for (const key of dirtyKeys) {
         await fetchJsonWithTimeout<ContentBlock>(
@@ -605,7 +562,6 @@ export default function ContentEditorPage() {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({ value: editingValue[key] }),
           },

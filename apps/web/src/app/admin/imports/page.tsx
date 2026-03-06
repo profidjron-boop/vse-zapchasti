@@ -79,18 +79,10 @@ export default function AdminImportsPage() {
 
     try {
       setError("");
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<ImportRun[]>(
         withApiBase(apiBaseUrl, "/api/admin/imports?limit=100"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setRuns(data);
@@ -98,9 +90,7 @@ export default function AdminImportsPage() {
       try {
         const modePayload = await fetchJsonWithTimeout<{ value?: string }>(
           withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"),
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
+          {},
           12000
         );
         setUpdateMode(normalizeUpdateMode(modePayload.value));
@@ -151,12 +141,6 @@ export default function AdminImportsPage() {
 
     try {
       setIsUploading(true);
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const params = new URLSearchParams();
       if (defaultCategoryId.trim()) {
         params.set("default_category_id", defaultCategoryId.trim());
@@ -174,7 +158,6 @@ export default function AdminImportsPage() {
         withApiBase(apiBaseUrl, endpoint),
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         },
         12000
@@ -204,12 +187,6 @@ export default function AdminImportsPage() {
 
     try {
       setIsSavingMode(true);
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = {
         key: "import_products_update_mode",
@@ -224,7 +201,6 @@ export default function AdminImportsPage() {
           {
             method: "PUT",
             headers: {
-              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
@@ -244,7 +220,6 @@ export default function AdminImportsPage() {
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify(payload),

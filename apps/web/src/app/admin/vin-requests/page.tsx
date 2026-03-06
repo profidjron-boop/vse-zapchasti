@@ -62,15 +62,10 @@ export default function AdminVinRequestsPage() {
 
   const fetchStatuses = useCallback(async () => {
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) return;
-
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, "/api/admin/vin-requests/statuses"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       if (Array.isArray(data)) {
@@ -91,12 +86,6 @@ export default function AdminVinRequestsPage() {
     }
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const query = new URLSearchParams({
         skip: String((page - 1) * pageSize),
         limit: String(pageSize + 1),
@@ -107,9 +96,7 @@ export default function AdminVinRequestsPage() {
       const apiBaseUrl = getClientApiBaseUrl();
       const data = await fetchJsonWithTimeout<VinRequest[]>(
         withApiBase(apiBaseUrl, `/api/admin/vin-requests?${query.toString()}`),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       const nextPageAvailable = data.length > pageSize;
@@ -231,12 +218,6 @@ export default function AdminVinRequestsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       let updated = 0;
       let failed = 0;
@@ -250,7 +231,6 @@ export default function AdminVinRequestsPage() {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
             },

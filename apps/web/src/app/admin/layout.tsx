@@ -102,7 +102,6 @@ export default function AdminLayout({
 
         const role = profile.role;
         if (role !== "admin" && role !== "manager" && role !== "service_manager") {
-          localStorage.removeItem("admin_token");
           setIsAuthenticated(false);
           setUserRole(null);
           router.push("/admin/login");
@@ -123,7 +122,6 @@ export default function AdminLayout({
         if (authError instanceof ApiRequestError && authError.status !== 401 && authError.status !== 403) {
           console.error(authError);
         }
-        localStorage.removeItem("admin_token");
         setIsAuthenticated(false);
         setUserRole(null);
         router.push("/admin/login");
@@ -170,9 +168,8 @@ export default function AdminLayout({
         7000
       );
     } catch {
-      // Best effort logout: clear local marker and continue.
+      // Best effort logout: redirect to login even if API logout failed.
     }
-    localStorage.removeItem('admin_token');
     router.push('/admin/login');
     router.refresh();
   };

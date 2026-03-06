@@ -106,24 +106,17 @@ export default function AdminProductEditPage() {
 
     setError("");
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
-      const headers = { Authorization: `Bearer ${token}` };
 
       const [product, categoriesPayload] = await Promise.all([
         fetchJsonWithTimeout<ProductPayload>(
           withApiBase(apiBaseUrl, `/api/admin/products/${productId}`),
-          { headers },
+          {},
           12000
         ),
         fetchJsonWithTimeout<Category[]>(
           withApiBase(apiBaseUrl, "/api/admin/categories"),
-          { headers },
+          {},
           12000
         ),
       ]);
@@ -195,12 +188,6 @@ export default function AdminProductEditPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const analogs = formState.analogs
         .split(",")
         .map((item) => item.trim())
@@ -250,7 +237,6 @@ export default function AdminProductEditPage() {
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),

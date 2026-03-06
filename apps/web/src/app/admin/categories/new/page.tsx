@@ -75,12 +75,6 @@ export default function NewCategoryPage() {
     };
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<{ id: number }>(
         withApiBase(apiBaseUrl, "/api/admin/categories"),
@@ -88,7 +82,6 @@ export default function NewCategoryPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
           },
           body: JSON.stringify(data),
         },

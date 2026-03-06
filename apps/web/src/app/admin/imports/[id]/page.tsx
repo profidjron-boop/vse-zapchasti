@@ -58,18 +58,11 @@ export default function ImportRunDetailsPage() {
     const loadRun = async () => {
       try {
         setError("");
-        const token = localStorage.getItem("admin_token");
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
 
         const apiBaseUrl = getClientApiBaseUrl();
         const data = await fetchJsonWithTimeout<ImportRunDetails>(
           withApiBase(apiBaseUrl, `/api/admin/imports/${params.id}`),
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
+          {},
           12000
         );
         setRun(data);

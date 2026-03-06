@@ -22,20 +22,10 @@ export default function NewProductPage() {
   useEffect(() => {
     async function loadCategories() {
       try {
-        const token = localStorage.getItem("admin_token");
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
-
         const apiBaseUrl = getClientApiBaseUrl();
         const payload = await fetchJsonWithTimeout<Category[]>(
           withApiBase(apiBaseUrl, "/api/admin/categories"),
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          {},
           12000
         );
         setCategories(payload);
@@ -118,11 +108,6 @@ export default function NewProductPage() {
     };
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
       const apiBaseUrl = getClientApiBaseUrl();
       
       const createdProduct = await fetchJsonWithTimeout<{ id: number }>(
@@ -131,7 +116,6 @@ export default function NewProductPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
           },
           body: JSON.stringify(data),
         },
@@ -145,9 +129,6 @@ export default function NewProductPage() {
           withApiBase(apiBaseUrl, "/api/admin/upload"),
           {
             method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
             body: uploadData,
           },
           12000
@@ -158,7 +139,6 @@ export default function NewProductPage() {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
             },
             body: JSON.stringify({
               url: uploadedFile.url,

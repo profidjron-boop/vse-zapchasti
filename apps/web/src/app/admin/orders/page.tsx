@@ -50,14 +50,10 @@ export default function AdminOrdersPage() {
 
   const fetchStatuses = useCallback(async () => {
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, "/api/admin/orders/statuses"),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       if (Array.isArray(payload)) {
@@ -78,12 +74,6 @@ export default function AdminOrdersPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("admin_token");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const query = new URLSearchParams({ limit: "100" });
       if (appliedStatus) query.set("status", appliedStatus);
       if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
@@ -91,9 +81,7 @@ export default function AdminOrdersPage() {
       const apiBaseUrl = getClientApiBaseUrl();
       const payload = await fetchJsonWithTimeout<OrderRow[]>(
         withApiBase(apiBaseUrl, `/api/admin/orders?${query.toString()}`),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        {},
         12000
       );
       setOrders(Array.isArray(payload) ? payload : []);
