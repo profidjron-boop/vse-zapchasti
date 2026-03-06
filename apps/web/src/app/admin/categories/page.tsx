@@ -86,9 +86,9 @@ export default function AdminCategoriesPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-[#1F3B73]">Управление категориями</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void fetchCategories(true)}
@@ -141,40 +141,65 @@ export default function AdminCategoriesPage() {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
             Найдено категорий: {filteredCategories.length}
           </div>
-          <table className="w-full min-w-[760px]">
-            <thead className="border-b border-neutral-200 bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Название</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Slug</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Сортировка</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Активна</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {filteredCategories.map((category) => (
-                <tr key={category.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{category.id}</td>
-                  <td className="px-4 py-3 text-sm font-medium">{category.name}</td>
-                  <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{category.slug}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{category.sort_order}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs ${
-                        category.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {category.is_active ? "Да" : "Нет"}
-                    </span>
-                  </td>
+
+          <div className="divide-y divide-neutral-200 md:hidden">
+            {filteredCategories.map((category) => (
+              <article key={category.id} className="space-y-2 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-neutral-500">ID: {category.id}</p>
+                    <p className="mt-1 font-medium text-neutral-900">{category.name}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-1 text-xs ${
+                      category.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {category.is_active ? "Да" : "Нет"}
+                  </span>
+                </div>
+                <p className="break-all font-mono text-sm text-neutral-700">{category.slug}</p>
+                <p className="text-sm text-neutral-700">Сортировка: {category.sort_order}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[760px]">
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Название</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Slug</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Сортировка</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Активна</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {filteredCategories.map((category) => (
+                  <tr key={category.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{category.id}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{category.name}</td>
+                    <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{category.slug}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{category.sort_order}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${
+                          category.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {category.is_active ? "Да" : "Нет"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
