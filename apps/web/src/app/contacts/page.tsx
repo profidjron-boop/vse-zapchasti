@@ -167,8 +167,8 @@ export default function ContactsPage() {
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
@@ -178,18 +178,25 @@ export default function ContactsPage() {
             <div className="flex items-center gap-3">
               <Link
                 href="/contacts"
-                className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]"
+                className="hidden rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73] sm:inline-block"
               >
                 Для дилеров
               </Link>
               <a
                 href="#callback-form"
-                className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20"
+                className="rounded-2xl bg-[#FF7A00] px-3 py-2 text-xs font-medium text-white shadow-lg shadow-[#FF7A00]/20 sm:px-4 sm:text-sm"
               >
                 Заказать звонок
               </a>
             </div>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-[#1F3B73]">Контакты</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
+          </nav>
         </div>
       </header>
 
@@ -198,16 +205,16 @@ export default function ContactsPage() {
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
         </div>
-        <div className="relative mx-auto max-w-6xl px-6">
-          <h1 className="text-4xl font-bold text-white">Контакты</h1>
-          <p className="mt-4 max-w-2xl text-lg text-white/80">
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+          <h1 className="text-3xl font-bold text-white sm:text-4xl">Контакты</h1>
+          <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
             Приезжайте, звоните или оставляйте заявки онлайн
           </p>
         </div>
       </section>
 
       {/* Контакты */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="space-y-8">
             <div className="rounded-3xl bg-white p-8 shadow-xl">
@@ -234,7 +241,7 @@ export default function ContactsPage() {
                   </div>
                   <div>
                     <div className="font-medium">Режим работы</div>
-                    <div className="mt-1 grid grid-cols-2 gap-2 text-neutral-600">
+                    <div className="mt-1 grid grid-cols-1 gap-2 text-neutral-600 sm:grid-cols-2">
                       <div>Пн–Пт</div>
                       <div>{scheduleWeekdays}</div>
                       <div>Сб</div>
@@ -419,7 +426,7 @@ export default function ContactsPage() {
 
       {/* Footer */}
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-8 text-sm text-neutral-600 md:grid-cols-3">
             <div>
               <div className="font-semibold text-[#1F3B73]">Все запчасти</div>
