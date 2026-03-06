@@ -6,6 +6,24 @@ import Cookies from 'js-cookie';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
 
+function getTokenExpiryDate(token: string): Date | undefined {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return undefined;
+    const payloadBase64Url = parts[1];
+    const payloadBase64 = payloadBase64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadBase64.padEnd(Math.ceil(payloadBase64.length / 4) * 4, '=');
+    const payloadJson = window.atob(padded);
+    const payload = JSON.parse(payloadJson) as { exp?: unknown };
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) return undefined;
+    const expiry = new Date(payload.exp * 1000);
+    if (Number.isNaN(expiry.getTime())) return undefined;
+    return expiry;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -45,8 +63,9 @@ export default function LoginPage() {
       
       // Сохраняем в cookie (для middleware)
       const isSecureContext = window.location.protocol === 'https:';
+      const tokenExpiry = getTokenExpiryDate(data.access_token);
       Cookies.set('admin_token', data.access_token, { 
-        expires: 7,
+        expires: tokenExpiry,
         path: '/',
         sameSite: 'strict',
         secure: isSecureContext,
