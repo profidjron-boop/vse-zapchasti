@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type UserRole = "admin" | "manager" | "service_manager";
 
@@ -104,32 +105,17 @@ export default function AdminLayout({
       }
 
       try {
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 7000);
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await (async () => {
-          try {
-            return await fetch(withApiBase(apiBaseUrl, "/api/admin/auth/me"), {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              signal: controller.signal,
-            });
-          } finally {
-            window.clearTimeout(timeoutId);
-          }
-        })();
+        const profile = await fetchJsonWithTimeout<{ role?: string }>(
+          withApiBase(apiBaseUrl, "/api/admin/auth/me"),
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+          7000
+        );
 
-        if (!response.ok) {
-          localStorage.removeItem("admin_token");
-          setIsAuthenticated(false);
-          setUserRole(null);
-          router.push("/admin/login");
-          setIsLoading(false);
-          return;
-        }
-
-        const profile = (await response.json()) as { role?: string };
         const role = profile.role;
         if (role !== "admin" && role !== "manager" && role !== "service_manager") {
           localStorage.removeItem("admin_token");
@@ -149,7 +135,10 @@ export default function AdminLayout({
           setIsLoading(false);
           return;
         }
-      } catch {
+      } catch (authError) {
+        if (authError instanceof ApiRequestError && authError.status !== 401 && authError.status !== 403) {
+          console.error(authError);
+        }
         localStorage.removeItem("admin_token");
         setIsAuthenticated(false);
         setUserRole(null);
