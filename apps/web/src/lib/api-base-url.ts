@@ -1,4 +1,5 @@
 const DEV_API_BASE_URL = "http://localhost:8000";
+const DEV_API_PORT = "8000";
 
 function normalizeBaseUrl(value: string | undefined): string | null {
   const trimmed = value?.trim();
@@ -14,7 +15,18 @@ export function getServerApiBaseUrl(): string {
 }
 
 export function getClientApiBaseUrl(): string {
-  return normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL) ?? DEV_API_BASE_URL;
+  const explicit = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  if (explicit) return explicit;
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "127.0.0.1" || host === "localhost") {
+      return `http://${host}:${DEV_API_PORT}`;
+    }
+    return window.location.origin;
+  }
+
+  return DEV_API_BASE_URL;
 }
 
 export function withApiBase(baseUrl: string, path: string): string {

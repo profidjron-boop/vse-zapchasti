@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import ProductLeadForm from "./product-lead-form";
 import FavoriteToggleButton from "./favorite-toggle-button";
@@ -97,6 +98,37 @@ function getStringListAttribute(attributes: Record<string, unknown> | undefined,
     }
   }
   return [];
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ sku: string }>;
+}): Promise<Metadata> {
+  const routeParams = await params;
+  const sku = routeParams.sku?.trim();
+  if (!sku) {
+    return {
+      title: "Товар | Все запчасти",
+    };
+  }
+
+  const { product } = await getProductBySku(sku);
+  if (!product) {
+    return {
+      title: "Товар не найден | Все запчасти",
+      description: "Карточка товара недоступна или отсутствует в каталоге.",
+    };
+  }
+
+  const baseDescription =
+    product.description?.trim()
+    || `${product.name}. Артикул: ${product.sku}${product.brand ? `, бренд: ${product.brand}` : ""}.`;
+
+  return {
+    title: `${product.name} | Все запчасти`,
+    description: baseDescription.slice(0, 160),
+  };
 }
 
 export default async function ProductBySkuPage({
