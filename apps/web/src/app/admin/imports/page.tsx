@@ -372,10 +372,10 @@ export default function AdminImportsPage() {
       ) : runs.length === 0 ? (
         <div className="py-12 text-center text-neutral-500">Запусков импорта пока нет</div>
       ) : (
-        <div className="overflow-x-auto">
+        <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-neutral-500">Найдено запусков: {filteredRuns.length}</div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs uppercase tracking-wide text-neutral-500">Статус</label>
               <select
                 value={statusFilter}
@@ -389,52 +389,89 @@ export default function AdminImportsPage() {
               </select>
             </div>
           </div>
-          <table className="w-full min-w-[900px]">
-            <thead className="border-b border-neutral-200 bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Кто запустил</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Создано/Обновлено/Ошибок</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Детали</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {filteredRuns.map((run) => (
-                <tr key={run.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs ${
-                        run.status === "finished"
-                          ? "bg-green-100 text-green-700"
+          <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 md:hidden">
+            {filteredRuns.map((run) => (
+              <article key={run.id} className="space-y-3 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-neutral-500">
+                      {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
+                    </p>
+                    <p className="mt-1 break-all text-sm text-neutral-700">Источник: {run.source || "—"}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-1 text-xs ${
+                      run.status === "finished"
+                        ? "bg-green-100 text-green-700"
                         : run.status === "failed"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {getStatusLabel(run.status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{run.source || "—"}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {run.created}/{run.updated}/{run.failed}
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <Link href={`/admin/imports/${run.id}`} className="text-[#1F3B73] hover:underline">
-                      Открыть
-                    </Link>
-                  </td>
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {getStatusLabel(run.status)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-1 text-sm text-neutral-700">
+                  <p>Кто запустил: {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}</p>
+                  <p>Создано/Обновлено/Ошибок: {run.created}/{run.updated}/{run.failed}</p>
+                </div>
+
+                <Link href={`/admin/imports/${run.id}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
+                  Открыть детали
+                </Link>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[900px]">
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Кто запустил</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Создано/Обновлено/Ошибок</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Детали</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {filteredRuns.map((run) => (
+                  <tr key={run.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${
+                          run.status === "finished"
+                            ? "bg-green-100 text-green-700"
+                            : run.status === "failed"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {getStatusLabel(run.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{run.source || "—"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {run.created}/{run.updated}/{run.failed}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <Link href={`/admin/imports/${run.id}`} className="text-[#1F3B73] hover:underline">
+                        Открыть
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
