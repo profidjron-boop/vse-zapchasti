@@ -339,25 +339,36 @@ export default function AdminReportsPage() {
         {latestLeads.length === 0 ? (
           <p className="text-sm text-neutral-500">Нет данных</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-neutral-200 bg-neutral-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">ID</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Статус</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Создана</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200 text-sm">
-                {latestLeads.map((lead) => (
-                  <tr key={lead.id}>
-                    <td className="px-3 py-2">#{lead.id}</td>
-                    <td className="px-3 py-2">{statusLabel(lead.status)}</td>
-                    <td className="px-3 py-2">{new Date(lead.created_at).toLocaleString("ru-RU")}</td>
+          <div>
+            <div className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 md:hidden">
+              {latestLeads.map((lead) => (
+                <article key={lead.id} className="space-y-1 px-3 py-3 text-sm">
+                  <p className="font-medium text-neutral-900">#{lead.id}</p>
+                  <p className="text-neutral-700">{statusLabel(lead.status)}</p>
+                  <p className="text-xs text-neutral-500">{new Date(lead.created_at).toLocaleString("ru-RU")}</p>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full">
+                <thead className="border-b border-neutral-200 bg-neutral-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">ID</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Статус</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Создана</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 text-sm">
+                  {latestLeads.map((lead) => (
+                    <tr key={lead.id}>
+                      <td className="px-3 py-2">#{lead.id}</td>
+                      <td className="px-3 py-2">{statusLabel(lead.status)}</td>
+                      <td className="px-3 py-2">{new Date(lead.created_at).toLocaleString("ru-RU")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -367,25 +378,36 @@ export default function AdminReportsPage() {
         {latestOrders.length === 0 ? (
           <p className="text-sm text-neutral-500">Нет данных</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-neutral-200 bg-neutral-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">ID</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Статус</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Создан</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200 text-sm">
-                {latestOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td className="px-3 py-2">#{order.id}</td>
-                    <td className="px-3 py-2">{statusLabel(order.status)}</td>
-                    <td className="px-3 py-2">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
+          <div>
+            <div className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 md:hidden">
+              {latestOrders.map((order) => (
+                <article key={order.id} className="space-y-1 px-3 py-3 text-sm">
+                  <p className="font-medium text-neutral-900">#{order.id}</p>
+                  <p className="text-neutral-700">{statusLabel(order.status)}</p>
+                  <p className="text-xs text-neutral-500">{new Date(order.created_at).toLocaleString("ru-RU")}</p>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full">
+                <thead className="border-b border-neutral-200 bg-neutral-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">ID</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Статус</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Создан</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 text-sm">
+                  {latestOrders.map((order) => (
+                    <tr key={order.id}>
+                      <td className="px-3 py-2">#{order.id}</td>
+                      <td className="px-3 py-2">{statusLabel(order.status)}</td>
+                      <td className="px-3 py-2">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
