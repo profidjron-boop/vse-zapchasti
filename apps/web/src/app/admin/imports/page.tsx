@@ -328,9 +328,9 @@ export default function AdminImportsPage() {
           </button>
         </div>
 
-        {uploadError && <p className="mt-3 text-sm text-red-600">{uploadError}</p>}
+        {uploadError && <p role="alert" aria-live="assertive" className="mt-3 text-sm text-red-600">{uploadError}</p>}
         {uploadResult && (
-          <p className="mt-3 text-sm text-green-700">
+          <p role="status" aria-live="polite" className="mt-3 text-sm text-green-700">
             {createdLabel}{" "}
             <Link href={`/admin/imports/${uploadResult.run_id}`} className="font-medium underline">
               Открыть детали
@@ -340,7 +340,7 @@ export default function AdminImportsPage() {
       </form>
 
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -367,7 +367,7 @@ export default function AdminImportsPage() {
               </select>
             </div>
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[900px]">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
@@ -381,7 +381,7 @@ export default function AdminImportsPage() {
             <tbody className="divide-y divide-neutral-200">
               {filteredRuns.map((run) => (
                 <tr key={run.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
                   </td>
                   <td className="px-4 py-3 text-sm">
@@ -397,14 +397,14 @@ export default function AdminImportsPage() {
                       {getStatusLabel(run.status)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">{run.source || "—"}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{run.source || "—"}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {run.created}/{run.updated}/{run.failed}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <Link href={`/admin/imports/${run.id}`} className="text-[#1F3B73] hover:underline">
                       Открыть
                     </Link>
