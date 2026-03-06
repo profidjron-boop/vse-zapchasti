@@ -21,32 +21,32 @@ function roleLabel(role: UserRole): string {
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "Дашборд", roles: ["admin"] },
-  { href: "/admin/reports", label: "Отчёты", roles: ["admin"] },
   { href: "/admin/content", label: "Редактор сайта", roles: ["admin"] },
   { href: "/admin/imports", label: "Импорты", roles: ["admin"] },
   { href: "/admin/users", label: "Пользователи", roles: ["admin"] },
   { href: "/admin/leads", label: "Заявки (запчасти)", roles: ["admin", "manager"] },
-  { href: "/admin/orders", label: "Заказы", roles: ["admin"] },
   { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
   { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },
   { href: "/admin/categories", label: "Категории", roles: ["admin", "manager"] },
+  { href: "/admin/orders", label: "Заказы", roles: ["admin"] },
   { href: "/admin/service-catalog", label: "Справочник услуг", roles: ["admin"] },
   { href: "/admin/service-requests", label: "Заявки (сервис)", roles: ["admin", "service_manager"] },
+  { href: "/admin/reports", label: "Отчёты", roles: ["admin"] },
 ];
 
 const navOrder: Record<string, number> = {
   "/admin": 1,
-  "/admin/reports": 2,
-  "/admin/content": 3,
-  "/admin/imports": 4,
-  "/admin/users": 5,
-  "/admin/leads": 6,
-  "/admin/orders": 7,
-  "/admin/vin-requests": 8,
-  "/admin/products": 9,
-  "/admin/categories": 10,
+  "/admin/content": 2,
+  "/admin/imports": 3,
+  "/admin/users": 4,
+  "/admin/leads": 5,
+  "/admin/vin-requests": 6,
+  "/admin/products": 7,
+  "/admin/categories": 8,
+  "/admin/service-requests": 9,
+  "/admin/orders": 10,
   "/admin/service-catalog": 11,
-  "/admin/service-requests": 12,
+  "/admin/reports": 12,
 };
 
 function canAccessPath(pathname: string, role: UserRole): boolean {
