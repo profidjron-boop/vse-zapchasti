@@ -143,8 +143,8 @@ export default function VinRequestPage() {
     return (
       <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
         <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-          <div className="mx-auto max-w-6xl px-6 py-4">
-            <div className="flex items-center justify-between">
+          <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
               <nav className="hidden items-center gap-8 md:flex">
                 <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navParts}</Link>
@@ -152,10 +152,17 @@ export default function VinRequestPage() {
                 <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
               </nav>
             </div>
+            <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+              <Link href="/parts" className="shrink-0 font-medium text-[#1F3B73]">{navParts}</Link>
+              <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+              <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+              <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+              <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
+            </nav>
           </div>
         </header>
 
-        <section className="mx-auto max-w-3xl px-6 py-16">
+        <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
           <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
             <div className="text-6xl mb-4">✅</div>
             <h1 className="text-2xl font-bold text-[#1F3B73]">{successTitle}</h1>
@@ -172,7 +179,7 @@ export default function VinRequestPage() {
         </section>
 
         <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-          <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+          <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
             © {new Date().getFullYear()} {footerText}
           </div>
         </footer>
@@ -183,8 +190,8 @@ export default function VinRequestPage() {
   return (
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navParts}</Link>
@@ -192,6 +199,13 @@ export default function VinRequestPage() {
               <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
             </nav>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-[#1F3B73]">{navParts}</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
+          </nav>
         </div>
       </header>
 
@@ -199,15 +213,15 @@ export default function VinRequestPage() {
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
         </div>
-        <div className="relative mx-auto max-w-6xl px-6">
-          <h1 className="text-4xl font-bold text-white">{heroTitle}</h1>
-          <p className="mt-4 max-w-2xl text-lg text-white/80">
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+          <h1 className="text-3xl font-bold text-white sm:text-4xl">{heroTitle}</h1>
+          <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
             {heroSubtitle}
           </p>
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-6 py-16">
+      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div className="rounded-3xl bg-white p-8 shadow-xl">
           {error && (
             <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
@@ -278,7 +292,7 @@ export default function VinRequestPage() {
               </label>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
               <button 
                 type="submit" 
                 disabled={isSubmitting}
@@ -308,7 +322,7 @@ export default function VinRequestPage() {
       </section>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
           © {new Date().getFullYear()} {footerText}
         </div>
       </footer>
