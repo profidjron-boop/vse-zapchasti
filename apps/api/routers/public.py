@@ -4,6 +4,7 @@ import os
 from threading import Lock
 import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import selectinload
@@ -73,10 +74,47 @@ FORM_RATE_LIMITS_PER_SCOPE = {
 }
 _rate_limit_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
+_redis_rate_limit_client: Redis | None = None
+REDIS_RATE_LIMIT_URL = (os.getenv("RATE_LIMIT_REDIS_URL") or os.getenv("REDIS_URL") or "").strip()
 PUBLIC_PRODUCTS_READ_MODE = os.getenv("PUBLIC_PRODUCTS_READ_MODE", "snapshot").strip().lower()
 
 
-def _enforce_form_rate_limit(request: Request, scope: str) -> None:
+async def _get_redis_rate_limit_client() -> Redis | None:
+    global _redis_rate_limit_client
+    if not REDIS_RATE_LIMIT_URL:
+        return None
+    if _redis_rate_limit_client is None:
+        _redis_rate_limit_client = Redis.from_url(REDIS_RATE_LIMIT_URL, decode_responses=True)
+    return _redis_rate_limit_client
+
+
+def _extract_client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+async def _enforce_form_rate_limit(request: Request, scope: str) -> None:
+    ip_address = _extract_client_ip(request)
+    limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE)
+
+    redis_client = await _get_redis_rate_limit_client()
+    if redis_client is not None:
+        key = f"rl:{scope}:{ip_address}"
+        try:
+            current = await redis_client.incr(key)
+            if current == 1:
+                await redis_client.expire(key, FORM_RATE_LIMIT_WINDOW_SECONDS)
+            if current > limit_per_minute:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Слишком много запросов. Попробуйте позже.",
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            # Fallback for local/dev when Redis is temporarily unavailable.
+            pass
+
     ip_address = request.client.host if request.client else "unknown"
     bucket_key = f"{scope}:{ip_address}"
     now = time.time()
@@ -512,7 +550,7 @@ async def create_lead(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new lead (parts request, VIN request, callback, etc.)"""
-    _enforce_form_rate_limit(request, "leads")
+    await _enforce_form_rate_limit(request, "leads")
 
     if not lead.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
@@ -558,7 +596,7 @@ async def create_order(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new order (guest checkout or one-click order)."""
-    _enforce_form_rate_limit(request, "orders")
+    await _enforce_form_rate_limit(request, "orders")
 
     if not order_data.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
@@ -713,7 +751,7 @@ async def create_service_request(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new service request (repair appointment)"""
-    _enforce_form_rate_limit(request, "service_requests")
+    await _enforce_form_rate_limit(request, "service_requests")
 
     if not request_data.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
@@ -777,7 +815,7 @@ async def create_vin_request(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new VIN request"""
-    _enforce_form_rate_limit(request, "vin_requests")
+    await _enforce_form_rate_limit(request, "vin_requests")
 
     if not request_data.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")

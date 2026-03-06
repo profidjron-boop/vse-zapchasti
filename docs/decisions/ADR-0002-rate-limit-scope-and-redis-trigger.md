@@ -1,27 +1,26 @@
-# ADR-0002: Public Forms Rate-Limit Scope (In-Memory now, Redis by Trigger)
+# ADR-0002: Public Forms Rate-Limit Backend (Redis default, in-memory fallback)
 
-**Status:** Accepted  
-**Date:** 2026-03-05  
-**Project:** Все запчасти  
-**Context:** Публичные POST-формы (`/api/public/leads`, `/api/public/service-requests`, `/api/public/vin-requests`) сейчас ограничиваются in-memory бакетами в процессе API. В multi-worker/multi-instance режиме такой лимит не является глобальным и может быть непредсказуемым.
+**Status:** Accepted
+**Date:** 2026-03-06
+**Project:** Все запчасти
+**Context:** Публичные POST-формы (`/api/public/leads`, `/api/public/orders`, `/api/public/service-requests`, `/api/public/vin-requests`) должны иметь предсказуемый глобальный лимит в multi-worker/multi-instance окружении.
 
 ## Decision
-1) На текущем этапе фиксируем допущение: rate-limit работает **per-process (in-memory)**.
-2) Это соответствует текущему Stack Lock и не требует новой инфраструктуры.
-3) Переход на Redis делается только по явным триггерам и оформляется как расширение scope (без скрытого внедрения зависимостей).
+1) Основной backend для rate-limit: **Redis** (`RATE_LIMIT_REDIS_URL` или `REDIS_URL`).
+2) Лимит применяется по ключу `scope + IP` в окне `PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS`.
+3) Если Redis временно недоступен или не настроен, включается **in-memory fallback** (single-process), чтобы не ломать API в dev/аварийном режиме.
+4) Сообщение отказа остаётся единым: `429 Слишком много запросов. Попробуйте позже.`
 
-## Triggers for Redis
-Переход на Redis для rate-limit обязателен при любом из условий:
-- запуск API в нескольких воркерах или инстансах;
-- требование к строгому глобальному лимиту между всеми экземплярами;
-- наблюдаемая abuse-нагрузка, которую per-process лимит перестал сдерживать;
-- отдельное бизнес/безопасностное требование на централизованный контроль лимитов.
+## Operational notes
+- Для production Redis-конфигурация обязательна.
+- Для local/dev допускается запуск без Redis с fallback.
+- При включённом Redis лимит становится глобальным между инстансами API.
 
 ## Consequences
-- Прозрачно зафиксировано текущее поведение и его границы.
-- Снимается риск ложного ожидания “глобального” лимита на текущей архитектуре.
-- Миграция на Redis запланирована как управляемое изменение по триггерам.
+- Снимается риск непредсказуемого rate-limit в multi-instance окружении.
+- Поведение в production становится консистентным и масштабируемым.
+- Сохраняется безопасная деградация в dev при отсутствии Redis.
 
-## Non-goals (current stage)
-- Немедленное внедрение Redis и новой инфраструктуры.
-- Глобальная синхронизация лимитов без зафиксированного триггера.
+## Non-goals
+- Распределённый лимит для всех возможных endpoint’ов вне публичных write-form flow.
+- Сложные адаптивные/поведенческие анти-бот сценарии на этом этапе.

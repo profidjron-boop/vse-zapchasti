@@ -24,6 +24,8 @@
   - `JWT_SECRET_KEY` — обязательный ключ подписи JWT (только env, без хардкода).
   - `JWT_PREVIOUS_SECRET_KEY` — опционально для миграции при ротации ключа.
   - `UPLOAD_DIR` — директория self-hosted загрузок (absolute path или путь относительно корня репо).
+  - `REDIS_URL` — Redis backend для глобального rate-limit публичных write endpoints.
+  - `RATE_LIMIT_REDIS_URL` — опциональный override для rate-limit (если не задан, используется `REDIS_URL`).
 - `dev` пример:
   - `JWT_SECRET_KEY=change-me-long-random-secret`
   - `UPLOAD_DIR=apps/web/public/uploads`
@@ -31,6 +33,12 @@
   - задавать уникальный длинный `JWT_SECRET_KEY` в окружении;
   - при ротации сначала задать новый `JWT_SECRET_KEY` и старый в `JWT_PREVIOUS_SECRET_KEY`,
     затем после пере-логина пользователей убрать `JWT_PREVIOUS_SECRET_KEY`.
+
+## Public forms rate-limit backend
+- Public POST (`/api/public/leads`, `/api/public/orders`, `/api/public/service-requests`, `/api/public/vin-requests`) используют Redis-backed rate limit.
+- Ключ лимита: `scope + client IP`, окно: `PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS`.
+- Для production Redis должен быть задан через `REDIS_URL`/`RATE_LIMIT_REDIS_URL`.
+- Если Redis временно недоступен, API делает fallback на in-memory limiter (для деградации без падения сервиса).
 
 ## Notifications env (email/sms/messenger)
 - Каналы включаются только через env и только по факту выбранной реализации.
