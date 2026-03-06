@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type OrderItem = {
   id: number;
@@ -72,11 +73,13 @@ export default function AdminOrderDetailsPage() {
       const token = localStorage.getItem("admin_token");
       if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/orders/statuses"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return;
-      const payload = (await response.json()) as string[];
+      const payload = await fetchJsonWithTimeout<string[]>(
+        withApiBase(apiBaseUrl, "/api/admin/orders/statuses"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       if (Array.isArray(payload)) {
         setStatuses(payload);
       }
@@ -95,26 +98,27 @@ export default function AdminOrderDetailsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/orders/${orderId}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Не удалось загрузить заказ");
-      }
-
-      const payload = (await response.json()) as OrderDetails;
+      const payload = await fetchJsonWithTimeout<OrderDetails>(
+        withApiBase(apiBaseUrl, `/api/admin/orders/${orderId}`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       setOrder(payload);
       setSelectedStatus(payload.status);
       setManagerComment(payload.manager_comment || "");
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки заказа");
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки заказа");
+      }
     } finally {
       setLoading(false);
     }
@@ -142,30 +146,36 @@ export default function AdminOrderDetailsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/orders/${order.id}/status`), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const payload = await fetchJsonWithTimeout<OrderDetails>(
+        withApiBase(apiBaseUrl, `/api/admin/orders/${order.id}/status`),
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: selectedStatus,
+            manager_comment: managerComment.trim() || null,
+          }),
         },
-        body: JSON.stringify({
-          status: selectedStatus,
-          manager_comment: managerComment.trim() || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(payload?.detail || "Не удалось обновить заказ");
-      }
-
-      const payload = (await response.json()) as OrderDetails;
+        12000
+      );
       setOrder(payload);
       setSelectedStatus(payload.status);
       setManagerComment(payload.manager_comment || "");
       setSuccess("Изменения сохранены");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Ошибка сохранения");
+      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (saveError instanceof ApiRequestError) {
+        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
+      } else {
+        setError("Ошибка сохранения");
+      }
     } finally {
       setSaving(false);
     }
