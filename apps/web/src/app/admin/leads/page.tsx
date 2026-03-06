@@ -66,18 +66,25 @@ export default function LeadsPage() {
   const fetchStatuses = useCallback(async () => {
     try {
       const token = localStorage.getItem('admin_token');
+      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/leads/statuses'), {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await fetchJsonWithTimeout<string[]>(
+        withApiBase(apiBaseUrl, '/api/admin/leads/statuses'),
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        },
+        12000
+      );
+      if (Array.isArray(data)) {
         setStatuses(data);
       }
     } catch (err) {
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+      }
     }
-  }, []);
+  }, [router]);
 
   const fetchLeads = useCallback(async (searchTerm: string, showRefreshing = false) => {
     if (showRefreshing) {
@@ -120,7 +127,7 @@ export default function LeadsPage() {
       setSelectedLeadIds((prev) => prev.filter((id) => pageRows.some((lead: Lead) => lead.id === id)));
       setLastUpdated(new Date().toLocaleTimeString('ru-RU'));
     } catch (err) {
-      if (err instanceof ApiRequestError && err.status === 401) {
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
         localStorage.removeItem('admin_token');
         router.push('/admin/login');
         return;
@@ -166,27 +173,35 @@ export default function LeadsPage() {
     
     try {
       const token = localStorage.getItem('admin_token');
-      const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${id}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem('admin_token');
+      if (!token) {
         router.push('/admin/login');
         return;
       }
-
-      if (!res.ok) throw new Error('Не удалось удалить заявку');
+      const apiBaseUrl = getClientApiBaseUrl();
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, `/api/admin/leads/${id}`),
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        },
+        12000
+      );
       
       setLeads(leads.filter(l => l.id !== id));
       setSelectedLeadIds((prev) => prev.filter((leadId) => leadId !== id));
     } catch (err) {
-      alert('Ошибка при удалении');
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError('Ошибка при удалении');
+      }
     }
   }
 
@@ -218,29 +233,35 @@ export default function LeadsPage() {
 
       for (const leadId of selectedLeadIds) {
         const params = new URLSearchParams({ status: bulkStatus });
-        const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${params.toString()}`), {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (res.status === 401) {
-          localStorage.removeItem('admin_token');
-          router.push('/admin/login');
-          return;
-        }
-
-        if (!res.ok) {
+        try {
+          await fetchJsonWithTimeout<Lead>(
+            withApiBase(apiBaseUrl, `/api/admin/leads/${leadId}/status?${params.toString()}`),
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            },
+            12000
+          );
+          updated += 1;
+        } catch (updateError) {
+          if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
+            localStorage.removeItem('admin_token');
+            router.push('/admin/login');
+            return;
+          }
           failed += 1;
           if (!firstError) {
-            const payload = (await res.json().catch(() => null)) as { detail?: string } | null;
-            firstError = payload?.detail || `Ошибка обновления ID ${leadId}`;
+            if (updateError instanceof ApiRequestError) {
+              firstError = updateError.traceId
+                ? `${updateError.message}. Код: ${updateError.traceId}`
+                : updateError.message;
+            } else {
+              firstError = `Ошибка обновления ID ${leadId}`;
+            }
           }
-          continue;
         }
-
-        updated += 1;
       }
 
       if (updated > 0) {
