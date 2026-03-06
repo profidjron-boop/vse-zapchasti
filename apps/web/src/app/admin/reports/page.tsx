@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type LeadReportItem = {
   id: number;
@@ -103,34 +104,36 @@ export default function AdminReportsPage() {
         "/api/admin/categories",
       ];
 
-      const responses = await Promise.all(
-        endpoints.map((endpoint) => fetch(withApiBase(apiBaseUrl, endpoint), { headers }))
-      );
-
-      const unauthorized = responses.some((response) => response.status === 401);
-      if (unauthorized) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
       const failedSections: string[] = [];
-      const parseArray = async <T,>(response: Response, sectionLabel: string): Promise<T[]> => {
-        if (!response.ok) {
-          failedSections.push(sectionLabel);
+
+      const parseArray = async <T,>(endpoint: string, sectionLabel: string): Promise<T[]> => {
+        try {
+          const payload = await fetchJsonWithTimeout<T[]>(
+            withApiBase(apiBaseUrl, endpoint),
+            { headers },
+            12000
+          );
+          return Array.isArray(payload) ? payload : [];
+        } catch (sectionError) {
+          if (sectionError instanceof ApiRequestError && (sectionError.status === 401 || sectionError.status === 403)) {
+            throw sectionError;
+          }
+          if (sectionError instanceof ApiRequestError && sectionError.traceId) {
+            failedSections.push(`${sectionLabel} (Код: ${sectionError.traceId})`);
+          } else {
+            failedSections.push(sectionLabel);
+          }
           return [];
         }
-        const payload = await response.json().catch(() => null);
-        return Array.isArray(payload) ? (payload as T[]) : [];
       };
 
       const [leadsData, vinData, serviceData, ordersData, productsData, categoriesData] = await Promise.all([
-        parseArray<LeadReportItem>(responses[0], "заявки"),
-        parseArray<VinReportItem>(responses[1], "VIN-заявки"),
-        parseArray<ServiceReportItem>(responses[2], "сервис"),
-        parseArray<OrderReportItem>(responses[3], "заказы"),
-        parseArray<ProductReportItem>(responses[4], "товары"),
-        parseArray<CategoryReportItem>(responses[5], "категории"),
+        parseArray<LeadReportItem>(endpoints[0], "заявки"),
+        parseArray<VinReportItem>(endpoints[1], "VIN-заявки"),
+        parseArray<ServiceReportItem>(endpoints[2], "сервис"),
+        parseArray<OrderReportItem>(endpoints[3], "заказы"),
+        parseArray<ProductReportItem>(endpoints[4], "товары"),
+        parseArray<CategoryReportItem>(endpoints[5], "категории"),
       ]);
 
       setLeads(leadsData);
@@ -144,7 +147,16 @@ export default function AdminReportsPage() {
       }
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки отчётов");
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки отчётов");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
