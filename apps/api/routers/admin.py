@@ -166,6 +166,7 @@ if not UPLOAD_DIR.is_absolute():
     UPLOAD_DIR = (REPO_ROOT / UPLOAD_DIR).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+IMPORT_TRIGGER_MODES = {"manual", "hourly", "daily", "event"}
 LEAD_STATUSES = ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]
 LEAD_VALID_TRANSITIONS = {
     "new": {"in_progress", "contacted", "lost", "cancelled"},
@@ -222,6 +223,18 @@ def _canonicalize_import_row(row: dict[str, Any]) -> dict[str, str]:
         normalized_key = _normalize_header(str(key))
         canonical_key = PRODUCT_IMPORT_COLUMN_ALIASES.get(normalized_key, normalized_key)
         normalized[canonical_key] = str(value or "").strip()
+    return normalized
+
+
+def _normalize_import_trigger_mode(value: Any) -> str:
+    if isinstance(value, str):
+        raw_value = value
+    else:
+        raw_value = str(getattr(value, "default", "manual") or "manual")
+    normalized = raw_value.strip().lower()
+    if normalized not in IMPORT_TRIGGER_MODES:
+        allowed = ", ".join(sorted(IMPORT_TRIGGER_MODES))
+        raise HTTPException(status_code=400, detail=f"trigger_mode must be one of: {allowed}")
     return normalized
 
 
@@ -850,12 +863,17 @@ async def admin_import_products(
     file: UploadFile = File(...),
     default_category_id: Optional[int] = Query(None, ge=1),
     skip_invalid: bool = Query(False, description="Skip invalid rows and import valid rows only"),
+    trigger_mode: str = Query(
+        "manual",
+        description="manual/hourly/daily/event mode marker for import run audit",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
     """Import products from CSV/XLSX with upsert by SKU."""
     run_id: Optional[int] = None
     collected_errors: list[str] = []
+    normalized_trigger_mode = _normalize_import_trigger_mode(trigger_mode)
 
     previous_successful_run = await db.execute(
         select(ImportRun)
@@ -868,7 +886,7 @@ async def admin_import_products(
     run = ImportRun(
         entity_type="products",
         status="started",
-        source=file.filename,
+        source=f"{normalized_trigger_mode}:{file.filename}" if file.filename else normalized_trigger_mode,
         started_at=_utcnow(),
         created_by=current_user.id,
         previous_successful_run_id=previous_run.id if previous_run else None,
@@ -895,11 +913,27 @@ async def admin_import_products(
         if not rows:
             run.status = "finished"
             run.finished_at = _utcnow()
-            run.summary = {"file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0}
+            run.summary = {
+                "file": file.filename,
+                "trigger_mode": normalized_trigger_mode,
+                "total": 0,
+                "created": 0,
+                "updated": 0,
+                "failed": 0,
+            }
             run.errors = []
             run.snapshot_data = []
             await db.commit()
-            return {"run_id": run.id, "file": file.filename, "total": 0, "created": 0, "updated": 0, "failed": 0, "errors": []}
+            return {
+                "run_id": run.id,
+                "file": file.filename,
+                "trigger_mode": normalized_trigger_mode,
+                "total": 0,
+                "created": 0,
+                "updated": 0,
+                "failed": 0,
+                "errors": [],
+            }
 
         categories_result = await db.execute(select(Category))
         categories = categories_result.scalars().all()
@@ -1032,6 +1066,7 @@ async def admin_import_products(
             new_values={
                 "run_id": run.id,
                 "file": file.filename,
+                "trigger_mode": normalized_trigger_mode,
                 "skip_invalid": skip_invalid,
                 "total": len(rows),
                 "created": created,
@@ -1045,6 +1080,7 @@ async def admin_import_products(
         run.finished_at = _utcnow()
         run.summary = {
             "file": file.filename,
+            "trigger_mode": normalized_trigger_mode,
             "total": len(rows),
             "created": created,
             "updated": updated,
@@ -1057,6 +1093,7 @@ async def admin_import_products(
         return {
             "run_id": run.id,
             "file": file.filename,
+            "trigger_mode": normalized_trigger_mode,
             "total": len(rows),
             "created": created,
             "updated": updated,

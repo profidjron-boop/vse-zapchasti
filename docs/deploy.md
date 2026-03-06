@@ -106,6 +106,23 @@
   - новый набор становится публичным только после успешного завершения импорта и фиксации snapshot.
 - Если успешных snapshot ещё нет, API автоматически использует fallback на `products`.
 
+## Режимы обновления импорта (manual/hourly/daily/event)
+- Для операционного запуска использовать `scripts/import-products.sh`.
+- Скрипт работает через существующий API импортов (`/api/admin/products/import`) и пишет `trigger_mode` в `import_runs` (`manual/hourly/daily/event`).
+- Источник режима:
+  - `IMPORT_MODE=auto` (по умолчанию) читает `import_products_update_mode` из контента;
+  - можно явно задать `IMPORT_MODE=hourly|daily|event|manual`.
+- Защита от случайного запуска:
+  - при `manual` скрипт завершает работу без импорта;
+  - при `event` нужен флаг `--event`, иначе запуск пропускается.
+- Минимальные env для запуска:
+  - `IMPORT_FILE_PATH` — путь до CSV/XLSX;
+  - `ADMIN_TOKEN` **или** `IMPORT_ADMIN_EMAIL` + `IMPORT_ADMIN_PASSWORD`;
+  - опционально: `IMPORT_DEFAULT_CATEGORY_ID`, `IMPORT_SKIP_INVALID=1`, `API_BASE_URL`.
+- Примеры:
+  - Плановый запуск (cron/systemd timer): `IMPORT_MODE=hourly ... bash scripts/import-products.sh`
+  - Внешний триггер: `IMPORT_MODE=event ... bash scripts/import-products.sh --event`
+
 ## Backups (обязательно перед релизом)
 - Регулярные бэкапы Postgres + проверка восстановления.
 - Документировать restore steps.

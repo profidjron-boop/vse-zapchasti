@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:8000}"
+IMPORT_MODE="${IMPORT_MODE:-auto}"   # auto/manual/hourly/daily/event
+IMPORT_EVENT_TRIGGER=0
+IMPORT_FILE_PATH="${IMPORT_FILE_PATH:-}"
+IMPORT_DEFAULT_CATEGORY_ID="${IMPORT_DEFAULT_CATEGORY_ID:-}"
+IMPORT_SKIP_INVALID="${IMPORT_SKIP_INVALID:-0}"
+ADMIN_TOKEN="${ADMIN_TOKEN:-}"
+IMPORT_ADMIN_EMAIL="${IMPORT_ADMIN_EMAIL:-}"
+IMPORT_ADMIN_PASSWORD="${IMPORT_ADMIN_PASSWORD:-}"
+
+usage() {
+  cat <<'EOF'
+Catalog import trigger (manual/scheduled/event) via existing admin API.
+
+Usage:
+  bash scripts/import-products.sh [options]
+
+Options:
+  --file <path>            CSV/XLSX file path (or env IMPORT_FILE_PATH)
+  --mode <mode>            auto/manual/hourly/daily/event (default: auto)
+  --event                  Mark this run as event-triggered (required when mode=event)
+  --api <url>              API base url (default: http://127.0.0.1:8000)
+  --default-category-id N  Fallback category id for rows without category
+  --skip-invalid           Use skip_invalid=1 (default strict)
+  -h, --help               Show help
+
+Env for auth:
+  ADMIN_TOKEN
+  or IMPORT_ADMIN_EMAIL + IMPORT_ADMIN_PASSWORD
+
+Examples:
+  IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --mode hourly
+  IMPORT_FILE_PATH=./imports/products.csv IMPORT_ADMIN_EMAIL=admin@x IMPORT_ADMIN_PASSWORD=... bash scripts/import-products.sh --mode event --event
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file)
+      IMPORT_FILE_PATH="${2:-}"
+      shift 2
+      ;;
+    --mode)
+      IMPORT_MODE="${2:-}"
+      shift 2
+      ;;
+    --event)
+      IMPORT_EVENT_TRIGGER=1
+      shift
+      ;;
+    --api)
+      API_BASE_URL="${2:-}"
+      shift 2
+      ;;
+    --default-category-id)
+      IMPORT_DEFAULT_CATEGORY_ID="${2:-}"
+      shift 2
+      ;;
+    --skip-invalid)
+      IMPORT_SKIP_INVALID=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+normalize_mode() {
+  local raw="${1:-}"
+  local normalized
+  normalized="$(echo "$raw" | tr '[:upper:]' '[:lower:]' | xargs)"
+  case "$normalized" in
+    manual|hourly|daily|event)
+      echo "$normalized"
+      ;;
+    *)
+      echo "manual"
+      ;;
+  esac
+}
+
+read_mode_from_public_content() {
+  local payload
+  payload="$(curl -fsS "$API_BASE_URL/api/public/content" || true)"
+  if [[ -z "$payload" ]]; then
+    echo "manual"
+    return
+  fi
+
+  python - "$payload" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+try:
+    rows = json.loads(raw)
+except Exception:
+    print("manual")
+    raise SystemExit(0)
+
+if not isinstance(rows, list):
+    print("manual")
+    raise SystemExit(0)
+
+mode = "manual"
+for row in rows:
+    if not isinstance(row, dict):
+        continue
+    if str(row.get("key", "")).strip() == "import_products_update_mode":
+        value = str(row.get("value", "")).strip().lower()
+        if value in {"manual", "hourly", "daily", "event"}:
+            mode = value
+        break
+
+print(mode)
+PY
+}
+
+resolve_admin_token() {
+  if [[ -n "$ADMIN_TOKEN" ]]; then
+    echo "$ADMIN_TOKEN"
+    return
+  fi
+
+  if [[ -z "$IMPORT_ADMIN_EMAIL" || -z "$IMPORT_ADMIN_PASSWORD" ]]; then
+    echo ""
+    return
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  local code
+  code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+    -X POST "$API_BASE_URL/api/admin/auth/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    --data-urlencode "username=$IMPORT_ADMIN_EMAIL" \
+    --data-urlencode "password=$IMPORT_ADMIN_PASSWORD")" || {
+      rm -f "$tmp"
+      echo ""
+      return
+    }
+
+  if [[ "$code" != "200" ]]; then
+    rm -f "$tmp"
+    echo ""
+    return
+  fi
+
+  python - "$tmp" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+print(str(payload.get("access_token", "")))
+PY
+  rm -f "$tmp"
+}
+
+mode_candidate="$IMPORT_MODE"
+if [[ "$(normalize_mode "$mode_candidate")" == "manual" && "$(echo "$mode_candidate" | tr '[:upper:]' '[:lower:]' | xargs)" == "auto" ]]; then
+  mode_candidate="$(read_mode_from_public_content)"
+fi
+mode="$(normalize_mode "$mode_candidate")"
+
+if [[ "$mode" == "manual" ]]; then
+  echo "ℹ️ import mode=manual, scheduler/event trigger skipped"
+  exit 0
+fi
+
+if [[ "$mode" == "event" && "$IMPORT_EVENT_TRIGGER" -ne 1 ]]; then
+  echo "ℹ️ import mode=event, but --event flag was not provided; skipped"
+  exit 0
+fi
+
+if [[ -z "$IMPORT_FILE_PATH" ]]; then
+  echo "❌ IMPORT_FILE_PATH is required for mode=$mode" >&2
+  exit 1
+fi
+
+if [[ ! -f "$IMPORT_FILE_PATH" ]]; then
+  echo "❌ Import file not found: $IMPORT_FILE_PATH" >&2
+  exit 1
+fi
+
+token="$(resolve_admin_token)"
+if [[ -z "$token" ]]; then
+  echo "❌ ADMIN_TOKEN is not set and cannot resolve token via IMPORT_ADMIN_EMAIL/IMPORT_ADMIN_PASSWORD" >&2
+  exit 1
+fi
+
+params=("trigger_mode=$mode")
+if [[ "$IMPORT_SKIP_INVALID" == "1" ]]; then
+  params+=("skip_invalid=true")
+fi
+if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" ]]; then
+  params+=("default_category_id=$IMPORT_DEFAULT_CATEGORY_ID")
+fi
+
+query="$(IFS='&'; echo "${params[*]}")"
+endpoint="$API_BASE_URL/api/admin/products/import?$query"
+
+tmp="$(mktemp)"
+code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+  -X POST "$endpoint" \
+  -H "Authorization: Bearer $token" \
+  -F "file=@$IMPORT_FILE_PATH")"
+
+if [[ "$code" != "200" ]]; then
+  echo "❌ Import failed with HTTP $code" >&2
+  head -c 500 "$tmp" >&2 || true
+  echo >&2
+  rm -f "$tmp"
+  exit 1
+fi
+
+echo "✅ Import finished (mode=$mode)"
+python - "$tmp" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+print(
+    f"run_id={payload.get('run_id')} created={payload.get('created')} "
+    f"updated={payload.get('updated')} failed={payload.get('failed')}"
+)
+PY
+rm -f "$tmp"
