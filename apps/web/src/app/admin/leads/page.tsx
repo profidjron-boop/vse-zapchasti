@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
+import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
 
 type Lead = {
   id: number;
@@ -103,21 +104,15 @@ export default function LeadsPage() {
       const apiBaseUrl = getClientApiBaseUrl();
       const url = withApiBase(apiBaseUrl, `/api/admin/leads?${params.toString()}`);
 
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<Lead[]>(
+        url,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem('admin_token');
-        router.push('/admin/login');
-        return;
-      }
-
-      if (!res.ok) throw new Error('Не удалось загрузить заявки');
-      
-      const data = await res.json() as Lead[];
+        12000
+      );
       const nextPageAvailable = data.length > pageSize;
       const pageRows = nextPageAvailable ? data.slice(0, pageSize) : data;
       setLeads(pageRows);
@@ -125,8 +120,16 @@ export default function LeadsPage() {
       setSelectedLeadIds((prev) => prev.filter((id) => pageRows.some((lead: Lead) => lead.id === id)));
       setLastUpdated(new Date().toLocaleTimeString('ru-RU'));
     } catch (err) {
-      setError('Ошибка загрузки заявок');
-      console.error(err);
+      if (err instanceof ApiRequestError && err.status === 401) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError('Ошибка загрузки заявок');
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);

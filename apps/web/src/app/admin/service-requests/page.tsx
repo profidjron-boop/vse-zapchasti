@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type ServiceRequest = {
   id: number;
@@ -80,23 +81,15 @@ export default function AdminServiceRequestsPage() {
       if (appliedFilters.status) query.set("status", appliedFilters.status);
       if (appliedFilters.search.trim()) query.set("search", appliedFilters.search.trim());
 
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/service-requests?${query.toString()}`), {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<ServiceRequest[]>(
+        withApiBase(apiBaseUrl, `/api/admin/service-requests?${query.toString()}`),
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error("Не удалось загрузить заявки сервиса");
-      }
-
-      const data = (await res.json()) as ServiceRequest[];
+        12000
+      );
       const nextPageAvailable = data.length > pageSize;
       const pageRows = nextPageAvailable ? data.slice(0, pageSize) : data;
       setRequests(pageRows);
@@ -104,8 +97,16 @@ export default function AdminServiceRequestsPage() {
       setSelectedRequestIds((prev) => prev.filter((id) => pageRows.some((request) => request.id === id)));
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      console.error(fetchError);
-      setError("Ошибка загрузки заявок сервиса");
+      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки заявок сервиса");
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type OrderRow = {
   id: number;
@@ -83,25 +84,26 @@ export default function AdminOrdersPage() {
       if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/orders?${query.toString()}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
+      const payload = await fetchJsonWithTimeout<OrderRow[]>(
+        withApiBase(apiBaseUrl, `/api/admin/orders?${query.toString()}`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
+      setOrders(Array.isArray(payload) ? payload : []);
+      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+    } catch (fetchError) {
+      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
-
-      if (!response.ok) {
-        throw new Error("Не удалось загрузить заказы");
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки заказов");
       }
-
-      const payload = (await response.json()) as OrderRow[];
-      setOrders(Array.isArray(payload) ? payload : []);
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки заказов");
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type VinRequest = {
   id: number;
@@ -98,20 +99,13 @@ export default function AdminVinRequestsPage() {
       if (appliedFilters.search.trim()) query.set("search", appliedFilters.search.trim());
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/vin-requests?${query.toString()}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-      if (!res.ok) {
-        throw new Error("Ошибка загрузки VIN-заявок");
-      }
-
-      const data = (await res.json()) as VinRequest[];
+      const data = await fetchJsonWithTimeout<VinRequest[]>(
+        withApiBase(apiBaseUrl, `/api/admin/vin-requests?${query.toString()}`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       const nextPageAvailable = data.length > pageSize;
       const pageRows = nextPageAvailable ? data.slice(0, pageSize) : data;
       setRequests(pageRows);
@@ -119,8 +113,16 @@ export default function AdminVinRequestsPage() {
       setSelectedRequestIds((prev) => prev.filter((id) => pageRows.some((request) => request.id === id)));
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      console.error(fetchError);
-      setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки VIN-заявок");
+      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки VIN-заявок");
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);

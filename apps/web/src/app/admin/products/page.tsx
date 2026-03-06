@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type Product = {
   id: number;
@@ -43,25 +44,26 @@ export default function AdminProductsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, "/api/admin/products?limit=100"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.status === 401) {
+      const data = await fetchJsonWithTimeout<Product[]>(
+        withApiBase(apiBaseUrl, "/api/admin/products?limit=100"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
+      setProducts(data);
+      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+    } catch (fetchError) {
+      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
-      if (!res.ok) {
-        throw new Error("Не удалось загрузить список товаров");
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Не удалось загрузить список товаров");
       }
-
-      const data = (await res.json()) as Product[];
-      setProducts(data);
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (fetchError) {
-      console.error(fetchError);
-      setError(fetchError instanceof Error ? fetchError.message : "Не удалось загрузить список товаров");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
