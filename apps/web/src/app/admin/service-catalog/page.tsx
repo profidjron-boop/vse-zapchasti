@@ -373,8 +373,133 @@ export default function AdminServiceCatalogPage() {
           Услуг пока нет
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
-          <table className="w-full min-w-[980px]">
+        <div className="space-y-3">
+          <div className="space-y-3 md:hidden">
+            {items.map((item) => {
+              const draft = drafts[item.id] ?? toDraft(item);
+              return (
+                <div key={item.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-[#1F3B73]">Услуга #{item.id}</span>
+                    <span className="text-xs text-neutral-600">{draft.is_active ? "Активна" : "Неактивна"}</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Название</label>
+                      <input
+                        type="text"
+                        value={draft.name}
+                        onChange={(event) => updateDraft(item.id, "name", event.target.value)}
+                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Тип</label>
+                      <select
+                        value={draft.vehicle_type}
+                        onChange={(event) => updateDraft(item.id, "vehicle_type", event.target.value as VehicleType)}
+                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+                      >
+                        <option value="passenger">Легковые</option>
+                        <option value="truck">Грузовые</option>
+                        <option value="both">Оба типа</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Минут</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={draft.duration_minutes}
+                          onChange={(event) => updateDraft(item.id, "duration_minutes", event.target.value)}
+                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Цена</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={draft.price}
+                          onChange={(event) => updateDraft(item.id, "price", event.target.value)}
+                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={draft.prepayment_required}
+                        onChange={(event) => updateDraft(item.id, "prepayment_required", event.target.checked)}
+                      />
+                      Нужна предоплата
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Сумма</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={draft.prepayment_amount}
+                          onChange={(event) => updateDraft(item.id, "prepayment_amount", event.target.value)}
+                          disabled={!draft.prepayment_required}
+                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Сорт.</label>
+                        <input
+                          type="number"
+                          value={draft.sort_order}
+                          onChange={(event) => updateDraft(item.id, "sort_order", event.target.value)}
+                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={draft.is_active}
+                        onChange={(event) => updateDraft(item.id, "is_active", event.target.checked)}
+                      />
+                      Активна
+                    </label>
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleSave(item.id)}
+                      disabled={savingId === item.id}
+                      className="w-full rounded-lg border border-[#1F3B73]/20 bg-white px-3 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-60"
+                    >
+                      {savingId === item.id ? "Сохранение..." : "Сохранить"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeactivate(item.id)}
+                      disabled={deletingId === item.id}
+                      className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+                    >
+                      {deletingId === item.id ? "..." : "Деактивировать"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-2xl border border-neutral-200 bg-white md:block">
+            <table className="w-full min-w-[980px]">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">ID</th>
@@ -496,7 +621,8 @@ export default function AdminServiceCatalogPage() {
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </div>
