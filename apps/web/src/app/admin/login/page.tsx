@@ -44,14 +44,19 @@ export default function LoginPage() {
       localStorage.setItem('admin_token', data.access_token);
       
       // Сохраняем в cookie (для middleware)
+      const isSecureContext = window.location.protocol === 'https:';
       Cookies.set('admin_token', data.access_token, { 
         expires: 7,
         path: '/',
+        sameSite: 'strict',
+        secure: isSecureContext,
       });
       
       router.push('/admin');
       router.refresh();
     } catch (err) {
+      localStorage.removeItem('admin_token');
+      Cookies.remove('admin_token', { path: '/' });
       if (err instanceof ApiRequestError) {
         if (err.status === 401) {
           setError('Неверный email или пароль');
