@@ -460,12 +460,12 @@ export default function AdminVinRequestsPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+        <div role="status" aria-live="polite" className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
           {success}
         </div>
       )}
@@ -524,7 +524,7 @@ export default function AdminVinRequestsPage() {
               </div>
             </div>
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[1040px]">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
@@ -556,18 +556,18 @@ export default function AdminVinRequestsPage() {
                       aria-label={`Выбрать VIN-заявку ${request.id}`}
                     />
                   </td>
-                  <td className="px-4 py-3 text-sm">#{request.id}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">#{request.id}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
                       {STATUS_LABELS[request.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-sm">{request.vin}</td>
-                  <td className="px-4 py-3 text-sm">{request.phone}</td>
-                  <td className="px-4 py-3 text-sm">{request.name || "—"}</td>
-                  <td className="px-4 py-3 text-sm">{request.consent_given ? "Да" : "Нет"}</td>
-                  <td className="px-4 py-3 text-sm">{new Date(request.created_at).toLocaleString("ru-RU")}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{request.vin}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{request.phone}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{request.name || "—"}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{request.consent_given ? "Да" : "Нет"}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(request.created_at).toLocaleString("ru-RU")}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <Link className="text-[#1F3B73] hover:underline" href={`/admin/vin-requests/${request.id}`}>
                       Открыть
                     </Link>

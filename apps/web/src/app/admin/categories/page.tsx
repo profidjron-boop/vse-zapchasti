@@ -120,7 +120,7 @@ export default function AdminCategoriesPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -144,7 +144,7 @@ export default function AdminCategoriesPage() {
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
             Найдено категорий: {filteredCategories.length}
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[760px]">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
@@ -157,11 +157,11 @@ export default function AdminCategoriesPage() {
             <tbody className="divide-y divide-neutral-200">
               {filteredCategories.map((category) => (
                 <tr key={category.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm">{category.id}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{category.id}</td>
                   <td className="px-4 py-3 text-sm font-medium">{category.name}</td>
-                  <td className="px-4 py-3 font-mono text-sm">{category.slug}</td>
-                  <td className="px-4 py-3 text-sm">{category.sort_order}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{category.slug}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{category.sort_order}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <span
                       className={`rounded-full px-2 py-1 text-xs ${
                         category.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"

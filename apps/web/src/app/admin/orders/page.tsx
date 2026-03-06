@@ -198,7 +198,7 @@ export default function AdminOrdersPage() {
       </form>
 
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -213,7 +213,7 @@ export default function AdminOrdersPage() {
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
             Найдено заказов: {orders.length}
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[980px]">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
@@ -230,17 +230,17 @@ export default function AdminOrdersPage() {
             <tbody className="divide-y divide-neutral-200">
               {orders.map((order) => (
                 <tr key={order.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm">#{order.id}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">#{order.id}</td>
                   <td className="px-4 py-3 text-sm">{statusLabel(order.status)}</td>
                   <td className="px-4 py-3 text-sm">{sourceLabel(order.source)}</td>
                   <td className="px-4 py-3 text-sm">{order.customer_name || "—"}</td>
-                  <td className="px-4 py-3 text-sm">{order.customer_phone}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{order.customer_phone}</td>
                   <td className="px-4 py-3 text-sm">
                     {(order.delivery_method || "—")} / {(order.payment_method || "—")}
                   </td>
                   <td className="px-4 py-3 text-sm">{order.items.length}</td>
-                  <td className="px-4 py-3 text-sm">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <Link className="text-[#1F3B73] hover:underline" href={`/admin/orders/${order.id}`}>
                       Открыть
                     </Link>

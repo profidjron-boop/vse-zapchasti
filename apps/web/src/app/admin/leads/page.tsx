@@ -564,12 +564,12 @@ export default function LeadsPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+        <div role="status" aria-live="polite" className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
           {success}
         </div>
       )}
@@ -624,7 +624,7 @@ export default function LeadsPage() {
               </select>
             </div>
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[980px]">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
                 <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">
@@ -656,7 +656,7 @@ export default function LeadsPage() {
                       aria-label={`Выбрать заявку ${lead.id}`}
                     />
                   </td>
-                  <td className="py-3 px-4 text-sm">#{lead.id}</td>
+                  <td className="py-3 px-4 text-sm whitespace-nowrap">#{lead.id}</td>
                   <td className="py-3 px-4 text-sm">
                     <span className="px-2 py-1 rounded-full bg-[#1F3B73]/10 text-[#1F3B73] text-xs">
                       {getTypeLabel(lead.type)}
@@ -667,13 +667,13 @@ export default function LeadsPage() {
                       {getStatusLabel(lead.status)}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm">{lead.phone}</td>
+                  <td className="py-3 px-4 text-sm whitespace-nowrap">{lead.phone}</td>
                   <td className="py-3 px-4 text-sm">{lead.name || '—'}</td>
-                  <td className="py-3 px-4 text-sm font-mono">{lead.vin || '—'}</td>
-                  <td className="py-3 px-4 text-sm">
+                  <td className="py-3 px-4 text-sm font-mono whitespace-nowrap">{lead.vin || '—'}</td>
+                  <td className="py-3 px-4 text-sm whitespace-nowrap">
                     {new Date(lead.created_at).toLocaleString('ru-RU')}
                   </td>
-                  <td className="py-3 px-4 text-sm">
+                  <td className="py-3 px-4 text-sm whitespace-nowrap">
                     <Link
                       href={`/admin/leads/${lead.id}`}
                       className="text-[#1F3B73] hover:underline mr-3"

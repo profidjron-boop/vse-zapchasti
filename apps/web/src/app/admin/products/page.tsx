@@ -149,7 +149,7 @@ export default function AdminProductsPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -173,7 +173,7 @@ export default function AdminProductsPage() {
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
             Найдено товаров: {filteredProducts.length}
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[980px]">
             <thead className="border-b border-neutral-200 bg-neutral-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">SKU</th>
@@ -189,13 +189,13 @@ export default function AdminProductsPage() {
             <tbody className="divide-y divide-neutral-200">
               {filteredProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm">{product.sku}</td>
-                  <td className="px-4 py-3 text-sm">{product.oem || "—"}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.sku}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.oem || "—"}</td>
                   <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
                   <td className="px-4 py-3 text-sm">{product.brand || "—"}</td>
-                  <td className="px-4 py-3 text-sm">{product.price ? `${product.price.toLocaleString()} ₽` : "—"}</td>
-                  <td className="px-4 py-3 text-sm">{product.stock_quantity}</td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.price ? `${product.price.toLocaleString()} ₽` : "—"}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.stock_quantity}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <span className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
                       {product.is_active ? "Активен" : "Выключен"}
                     </span>
