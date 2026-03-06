@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type Category = {
   id: number;
@@ -35,28 +36,28 @@ export default function AdminCategoriesPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/categories"), {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<Category[]>(
+        withApiBase(apiBaseUrl, "/api/admin/categories"),
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
-
-      if (response.status === 401) {
+        12000
+      );
+      setCategories(data);
+      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+    } catch (fetchError) {
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
-
-      if (!response.ok) {
-        throw new Error("Не удалось загрузить категории");
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки категорий");
       }
-
-      const data = (await response.json()) as Category[];
-      setCategories(data);
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (fetchError) {
-      console.error(fetchError);
-      setError("Ошибка загрузки категорий");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
