@@ -178,15 +178,6 @@ export default function AdminDashboard() {
 
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
         <Link
-          href="/admin/reports"
-          className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-md"
-        >
-          <h2 className="text-lg font-semibold text-[#1F3B73]">Отчёты</h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Операционная сводка по заявкам, товарам, категориям и статусам
-          </p>
-        </Link>
-        <Link
           href="/admin/content"
           className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-md"
         >
@@ -223,15 +214,6 @@ export default function AdminDashboard() {
           </p>
         </Link>
         <Link
-          href="/admin/orders"
-          className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-md"
-        >
-          <h2 className="text-lg font-semibold text-[#1F3B73]">Заказы</h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Список заказов из корзины и быстрого заказа, контроль статусов обработки
-          </p>
-        </Link>
-        <Link
           href="/admin/vin-requests"
           className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-md"
         >
@@ -265,6 +247,24 @@ export default function AdminDashboard() {
           <h2 className="text-lg font-semibold text-[#1F3B73]">Заявки на сервис</h2>
           <p className="mt-2 text-sm text-neutral-600">
             Записи на ремонт и обслуживание, управление статусами
+          </p>
+        </Link>
+        <Link
+          href="/admin/orders"
+          className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-md"
+        >
+          <h2 className="text-lg font-semibold text-[#1F3B73]">Заказы</h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Список заказов из корзины и быстрого заказа, контроль статусов обработки
+          </p>
+        </Link>
+        <Link
+          href="/admin/reports"
+          className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-md"
+        >
+          <h2 className="text-lg font-semibold text-[#1F3B73]">Отчёты</h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Операционная сводка по заявкам, товарам, категориям и статусам
           </p>
         </Link>
       </div>
