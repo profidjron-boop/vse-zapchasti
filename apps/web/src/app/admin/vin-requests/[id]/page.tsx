@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type VinRequest = {
   id: number;
@@ -54,15 +55,18 @@ export default function VinRequestDetailsPage() {
       if (!token) return;
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/vin-requests/statuses"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const payload = (await response.json()) as string[];
+      const payload = await fetchJsonWithTimeout<string[]>(
+        withApiBase(apiBaseUrl, "/api/admin/vin-requests/statuses"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
+      if (Array.isArray(payload)) {
         setStatuses(payload);
       }
-    } catch (fetchError) {
-      console.error(fetchError);
+    } catch {
+      // silent
     }
   }, []);
 
@@ -77,27 +81,27 @@ export default function VinRequestDetailsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/vin-requests/${requestId}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Не удалось загрузить VIN-заявку");
-      }
-
-      const payload = (await response.json()) as VinRequest;
+      const payload = await fetchJsonWithTimeout<VinRequest>(
+        withApiBase(apiBaseUrl, `/api/admin/vin-requests/${requestId}`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       setRequest(payload);
       setSelectedStatus(payload.status);
       setOperatorComment(payload.operator_comment || "");
     } catch (fetchError) {
-      console.error(fetchError);
-      setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки VIN-заявки");
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (fetchError instanceof ApiRequestError) {
+        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
+      } else {
+        setError("Ошибка загрузки VIN-заявки");
+      }
     } finally {
       setLoading(false);
     }
@@ -124,29 +128,35 @@ export default function VinRequestDetailsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/vin-requests/${request.id}/status`), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const updated = await fetchJsonWithTimeout<VinRequest>(
+        withApiBase(apiBaseUrl, `/api/admin/vin-requests/${request.id}/status`),
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: selectedStatus,
+            operator_comment: operatorComment.trim() || null,
+          }),
         },
-        body: JSON.stringify({
-          status: selectedStatus,
-          operator_comment: operatorComment.trim() || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(payload?.detail || "Не удалось обновить VIN-заявку");
-      }
-
-      const updated = (await response.json()) as VinRequest;
+        12000
+      );
       setRequest(updated);
       setSelectedStatus(updated.status);
       setOperatorComment(updated.operator_comment || "");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Ошибка сохранения");
+      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (saveError instanceof ApiRequestError) {
+        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
+      } else {
+        setError("Ошибка сохранения");
+      }
     } finally {
       setSaving(false);
     }
