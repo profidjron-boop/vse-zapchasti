@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 BACKUP_DIR="${BACKUP_DIR:-backups/postgres}"
 RUN_WRITE_SMOKE=1
+RELEASE_REQUIRE_ADMIN_SMOKE="${RELEASE_REQUIRE_ADMIN_SMOKE:-0}"
 
 usage() {
   cat <<'EOF'
@@ -21,6 +22,13 @@ Options:
 Env:
   BACKUP_DIR          Directory for backup dump (default: backups/postgres)
   ADMIN_TOKEN         Optional token for admin checks in smoke scripts
+  SMOKE_ADMIN_EMAIL, SMOKE_ADMIN_PASSWORD
+                     Optional admin credentials for smoke token resolution
+  SMOKE_ADMIN_BOOTSTRAP
+                     Optional (0/1). When unset and admin credentials are provided,
+                     release-check enables bootstrap automatically.
+  RELEASE_REQUIRE_ADMIN_SMOKE
+                     1 = fail early if neither ADMIN_TOKEN nor admin credentials are set
 EOF
 }
 
@@ -44,6 +52,18 @@ done
 
 ts() { date +"%Y-%m-%d %H:%M:%S"; }
 log() { echo "[$(ts)] $*"; }
+
+if [[ "$RELEASE_REQUIRE_ADMIN_SMOKE" == "1" ]]; then
+  if [[ -z "${ADMIN_TOKEN:-}" && ( -z "${SMOKE_ADMIN_EMAIL:-}" || -z "${SMOKE_ADMIN_PASSWORD:-}" ) ]]; then
+    echo "❌ RELEASE_REQUIRE_ADMIN_SMOKE=1 but ADMIN_TOKEN or SMOKE_ADMIN_EMAIL+SMOKE_ADMIN_PASSWORD not provided" >&2
+    exit 1
+  fi
+fi
+
+if [[ -z "${SMOKE_ADMIN_BOOTSTRAP:-}" && -z "${ADMIN_TOKEN:-}" && -n "${SMOKE_ADMIN_EMAIL:-}" && -n "${SMOKE_ADMIN_PASSWORD:-}" ]]; then
+  export SMOKE_ADMIN_BOOTSTRAP=1
+  log "release-check: SMOKE_ADMIN_BOOTSTRAP not set, enabling bootstrap for admin smoke user"
+fi
 
 mkdir -p "$BACKUP_DIR"
 stamp="$(date +%Y%m%d_%H%M%S)"
