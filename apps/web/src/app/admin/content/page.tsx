@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
 import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
 
@@ -171,6 +172,7 @@ const PAGE_PRESETS: PagePreset[] = [
 ];
 
 export default function ContentEditorPage() {
+  const router = useRouter();
   const [content, setContent] = useState<ContentBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -193,13 +195,13 @@ export default function ContentEditorPage() {
 
   const redirectToLogin = () => {
     localStorage.removeItem('admin_token');
-    window.location.href = '/admin/login';
+    router.push('/admin/login');
   };
 
   const getTokenOrRedirect = (): string | null => {
     const token = localStorage.getItem('admin_token');
     if (!token) {
-      window.location.href = '/admin/login';
+      router.push('/admin/login');
       return null;
     }
     return token;
