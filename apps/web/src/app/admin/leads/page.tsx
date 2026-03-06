@@ -677,12 +677,14 @@ export default function LeadsPage() {
                     <Link
                       href={`/admin/leads/${lead.id}`}
                       className="text-[#1F3B73] hover:underline mr-3"
+                      aria-label={`Открыть заявку ${lead.id}`}
                     >
                       👁️
                     </Link>
                     <button
                       onClick={() => handleDelete(lead.id)}
                       className="text-red-600 hover:underline"
+                      aria-label={`Удалить заявку ${lead.id}`}
                     >
                       🗑️
                     </button>
