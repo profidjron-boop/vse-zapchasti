@@ -182,6 +182,7 @@ export default function ContentEditorPage() {
   const [creatingPresetRoute, setCreatingPresetRoute] = useState('');
   const [creatingAllPresets, setCreatingAllPresets] = useState(false);
   const [deletingKey, setDeletingKey] = useState('');
+  const [pendingDeleteKey, setPendingDeleteKey] = useState('');
   const [keyFilter, setKeyFilter] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -377,8 +378,6 @@ export default function ContentEditorPage() {
   }
 
   async function handleDeleteBlock(key: string) {
-    if (!confirm(`Удалить блок "${key}"?`)) return;
-
     setDeletingKey(key);
     setError('');
     setSuccess('');
@@ -404,11 +403,15 @@ export default function ContentEditorPage() {
         delete next[key];
         return next;
       });
+      if (pendingDeleteKey === key) {
+        setPendingDeleteKey('');
+      }
       setSuccess(`Блок "${key}" удалён`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (deleteError) {
       if (isAuthError(deleteError)) return;
       setError(formatError(deleteError, `Ошибка удаления блока "${key}"`));
+      setPendingDeleteKey('');
     } finally {
       setDeletingKey('');
     }
@@ -879,13 +882,32 @@ export default function ContentEditorPage() {
             )}
 
             <div className="mt-4 flex justify-between">
-              <button
-                onClick={() => handleDeleteBlock(block.key)}
-                disabled={saving || uploading || deletingKey === block.key}
-                className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-              >
-                {deletingKey === block.key ? 'Удаление...' : 'Удалить'}
-              </button>
+              {pendingDeleteKey === block.key ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void handleDeleteBlock(block.key)}
+                    disabled={saving || uploading || deletingKey === block.key}
+                    className="rounded-2xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    {deletingKey === block.key ? 'Удаление...' : 'Подтвердить'}
+                  </button>
+                  <button
+                    onClick={() => setPendingDeleteKey('')}
+                    disabled={deletingKey === block.key}
+                    className="rounded-2xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setPendingDeleteKey(block.key)}
+                  disabled={saving || uploading}
+                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  Удалить
+                </button>
+              )}
               <button
                 onClick={() => handleSave(block.key)}
                 disabled={saving || uploading}
