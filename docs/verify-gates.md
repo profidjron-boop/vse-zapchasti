@@ -24,6 +24,10 @@ make migrate-check # текущее состояние миграций (alembic
    - backup (`docs/backup.sh`)
    - restore-check (`docs/restore-check.sh`)
    - smoke (`scripts/smoke.sh` + `--with-write`)
+   - при наличии `SMOKE_ADMIN_EMAIL` и `SMOKE_ADMIN_PASSWORD` `release-check` автоматически включает `SMOKE_ADMIN_BOOTSTRAP=1`, если этот флаг явно не задан.
+   - чтобы сделать admin-smoke обязательным gate, использовать:
+     `RELEASE_REQUIRE_ADMIN_SMOKE=1 bash scripts/release-check.sh`
+     (требует `ADMIN_TOKEN` или `SMOKE_ADMIN_EMAIL` + `SMOKE_ADMIN_PASSWORD`).
 1. `pnpm web:lint && pnpm web:typecheck && pnpm --dir apps/web run build`
 2. `cd apps/api && make lint && make test && make migrate-check`
 3. `docker-compose build`
