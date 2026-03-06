@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { addToCart } from "@/lib/cart";
 import { FavoriteItem, clearFavorites, loadFavorites, removeFavorite } from "@/lib/favorites";
 
@@ -9,6 +10,7 @@ export default function FavoritesPage() {
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
+  const [contentMap, setContentMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -20,6 +22,54 @@ export default function FavoritesPage() {
       window.clearTimeout(timeoutId);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContent() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        if (!Array.isArray(payload) || cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const item of payload) {
+          if (item?.key && typeof item.value === "string") {
+            map[item.key] = item.value;
+          }
+        }
+        setContentMap(map);
+      } catch {
+        // keep defaults
+      }
+    }
+
+    void loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const pageTitle = contentValue("favorites_page_title", "Избранное");
+  const clearListLabel = contentValue("favorites_clear_label", "Очистить список");
+  const emptyText = contentValue("favorites_empty_text", "Список избранного пока пуст.");
+  const openCatalogLabel = contentValue("favorites_open_catalog_label", "Открыть каталог");
+  const openProductLabel = contentValue("favorites_open_product_label", "К товару");
+  const addToCartLabel = contentValue("favorites_add_to_cart_label", "В корзину");
 
   function handleRemove(productId: number) {
     setItems(removeFavorite(productId));
@@ -48,37 +98,37 @@ export default function FavoritesPage() {
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/favorites" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Избранное</Link>
-              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+              <Link href="/favorites" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navFavorites}</Link>
+              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
+              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
+              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
             </nav>
           </div>
           <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-[#1F3B73]">Избранное</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-[#1F3B73]">{navFavorites}</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
+            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
           </nav>
         </div>
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold text-[#1F3B73]">Избранное</h1>
+          <h1 className="text-3xl font-bold text-[#1F3B73]">{pageTitle}</h1>
           {items.length > 0 ? (
             <button
               type="button"
               onClick={handleClear}
               className="rounded-xl border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
             >
-              Очистить список
+              {clearListLabel}
             </button>
           ) : null}
         </div>
@@ -95,12 +145,12 @@ export default function FavoritesPage() {
           </div>
         ) : items.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-8 text-center">
-            <p className="text-neutral-600">Список избранного пока пуст.</p>
+            <p className="text-neutral-600">{emptyText}</p>
             <Link
               href="/parts"
               className="mt-4 inline-block rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
             >
-              Открыть каталог
+              {openCatalogLabel}
             </Link>
           </div>
         ) : (
@@ -128,14 +178,14 @@ export default function FavoritesPage() {
                     href={`/parts/p/${encodeURIComponent(item.sku)}`}
                     className="rounded-xl border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
                   >
-                    К товару
+                    {openProductLabel}
                   </Link>
                   <button
                     type="button"
                     onClick={() => handleMoveToCart(item)}
                     className="rounded-xl bg-[#FF7A00] px-3 py-2 text-sm font-medium text-white hover:bg-[#e66e00]"
                   >
-                    В корзину
+                    {addToCartLabel}
                   </button>
                 </div>
               </article>
