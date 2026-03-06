@@ -608,7 +608,7 @@ export default function LeadsPage() {
           <p className="text-sm mt-2">Заявки появятся здесь после отправки форм на сайте</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3">
             <div className="text-sm text-neutral-500">Найдено заявок: {leads.length}</div>
             <div className="flex flex-wrap items-center gap-2">
@@ -652,94 +652,168 @@ export default function LeadsPage() {
               </select>
             </div>
           </div>
-          <table className="w-full min-w-[980px]">
-            <thead className="bg-neutral-50 border-b border-neutral-200">
-              <tr>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                    aria-label="Выбрать все заявки"
-                  />
-                </th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">ID</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Тип</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Статус</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Телефон</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Имя</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">VIN</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Дата</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Действия</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {leads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-neutral-50">
-                  <td className="py-3 px-4 text-sm">
+
+          <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white md:hidden">
+            {leads.map((lead) => (
+              <article key={lead.id} className="space-y-3 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <label className="flex items-center gap-2 text-sm text-neutral-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.includes(lead.id)}
+                        onChange={() => toggleSelectLead(lead.id)}
+                        aria-label={`Выбрать заявку ${lead.id}`}
+                      />
+                      <span>#{lead.id}</span>
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[#1F3B73]/10 px-2 py-1 text-xs text-[#1F3B73]">
+                        {getTypeLabel(lead.type)}
+                      </span>
+                      <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(lead.status)}`}>
+                        {getStatusLabel(lead.status)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-1 text-sm text-neutral-700">
+                  <p>Телефон: {lead.phone}</p>
+                  <p>Имя: {lead.name || "—"}</p>
+                  <p className="break-all font-mono">VIN: {lead.vin || "—"}</p>
+                  <p className="text-xs text-neutral-500">{new Date(lead.created_at).toLocaleString("ru-RU")}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    href={`/admin/leads/${lead.id}`}
+                    className="text-sm font-medium text-[#1F3B73] hover:underline"
+                    aria-label={`Открыть заявку ${lead.id}`}
+                  >
+                    Открыть
+                  </Link>
+                  {pendingDeleteLeadId === lead.id ? (
+                    <>
+                      <button
+                        onClick={() => void handleDelete(lead.id)}
+                        className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
+                        aria-label={`Подтвердить удаление заявки ${lead.id}`}
+                      >
+                        Подтвердить
+                      </button>
+                      <button
+                        onClick={() => setPendingDeleteLeadId(null)}
+                        className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
+                        aria-label={`Отменить удаление заявки ${lead.id}`}
+                      >
+                        Отмена
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setPendingDeleteLeadId(lead.id)}
+                      className="text-xs text-red-600 hover:underline"
+                      aria-label={`Удалить заявку ${lead.id}`}
+                    >
+                      Удалить
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-2xl border border-neutral-200 bg-white md:block">
+            <table className="w-full min-w-[980px]">
+              <thead className="bg-neutral-50 border-b border-neutral-200">
+                <tr>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">
                     <input
                       type="checkbox"
-                      checked={selectedLeadIds.includes(lead.id)}
-                      onChange={() => toggleSelectLead(lead.id)}
-                      aria-label={`Выбрать заявку ${lead.id}`}
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Выбрать все заявки"
                     />
-                  </td>
-                  <td className="py-3 px-4 text-sm whitespace-nowrap">#{lead.id}</td>
-                  <td className="py-3 px-4 text-sm">
-                    <span className="px-2 py-1 rounded-full bg-[#1F3B73]/10 text-[#1F3B73] text-xs">
-                      {getTypeLabel(lead.type)}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(lead.status)}`}>
-                      {getStatusLabel(lead.status)}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm whitespace-nowrap">{lead.phone}</td>
-                  <td className="py-3 px-4 text-sm">{lead.name || '—'}</td>
-                  <td className="py-3 px-4 text-sm font-mono whitespace-nowrap">{lead.vin || '—'}</td>
-                  <td className="py-3 px-4 text-sm whitespace-nowrap">
-                    {new Date(lead.created_at).toLocaleString('ru-RU')}
-                  </td>
-                  <td className="py-3 px-4 text-sm whitespace-nowrap">
-                    <Link
-                      href={`/admin/leads/${lead.id}`}
-                      className="text-[#1F3B73] hover:underline mr-3"
-                      aria-label={`Открыть заявку ${lead.id}`}
-                    >
-                      👁️
-                    </Link>
-                    {pendingDeleteLeadId === lead.id ? (
-                      <>
-                        <button
-                          onClick={() => void handleDelete(lead.id)}
-                          className="mr-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
-                          aria-label={`Подтвердить удаление заявки ${lead.id}`}
-                        >
-                          Подтвердить
-                        </button>
-                        <button
-                          onClick={() => setPendingDeleteLeadId(null)}
-                          className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
-                          aria-label={`Отменить удаление заявки ${lead.id}`}
-                        >
-                          Отмена
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setPendingDeleteLeadId(lead.id)}
-                        className="text-red-600 hover:underline"
-                        aria-label={`Удалить заявку ${lead.id}`}
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </td>
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">ID</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Тип</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Статус</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Телефон</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Имя</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">VIN</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Дата</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-neutral-600">Действия</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {leads.map((lead) => (
+                  <tr key={lead.id} className="hover:bg-neutral-50">
+                    <td className="py-3 px-4 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.includes(lead.id)}
+                        onChange={() => toggleSelectLead(lead.id)}
+                        aria-label={`Выбрать заявку ${lead.id}`}
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-sm whitespace-nowrap">#{lead.id}</td>
+                    <td className="py-3 px-4 text-sm">
+                      <span className="px-2 py-1 rounded-full bg-[#1F3B73]/10 text-[#1F3B73] text-xs">
+                        {getTypeLabel(lead.type)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(lead.status)}`}>
+                        {getStatusLabel(lead.status)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm whitespace-nowrap">{lead.phone}</td>
+                    <td className="py-3 px-4 text-sm">{lead.name || "—"}</td>
+                    <td className="py-3 px-4 text-sm font-mono whitespace-nowrap">{lead.vin || "—"}</td>
+                    <td className="py-3 px-4 text-sm whitespace-nowrap">
+                      {new Date(lead.created_at).toLocaleString("ru-RU")}
+                    </td>
+                    <td className="py-3 px-4 text-sm whitespace-nowrap">
+                      <Link
+                        href={`/admin/leads/${lead.id}`}
+                        className="text-[#1F3B73] hover:underline mr-3"
+                        aria-label={`Открыть заявку ${lead.id}`}
+                      >
+                        👁️
+                      </Link>
+                      {pendingDeleteLeadId === lead.id ? (
+                        <>
+                          <button
+                            onClick={() => void handleDelete(lead.id)}
+                            className="mr-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
+                            aria-label={`Подтвердить удаление заявки ${lead.id}`}
+                          >
+                            Подтвердить
+                          </button>
+                          <button
+                            onClick={() => setPendingDeleteLeadId(null)}
+                            className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
+                            aria-label={`Отменить удаление заявки ${lead.id}`}
+                          >
+                            Отмена
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setPendingDeleteLeadId(lead.id)}
+                          className="text-red-600 hover:underline"
+                          aria-label={`Удалить заявку ${lead.id}`}
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="mt-3 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-3">
             <div className="text-sm text-neutral-500">Страница: {page}</div>
             <div className="flex gap-2">
