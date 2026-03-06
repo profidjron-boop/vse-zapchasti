@@ -124,10 +124,29 @@ export async function generateMetadata({
   const baseDescription =
     product.description?.trim()
     || `${product.name}. Артикул: ${product.sku}${product.brand ? `, бренд: ${product.brand}` : ""}.`;
+  const mainImageUrl = getMainImageUrl(product);
+  const canonicalPath = `/parts/p/${encodeURIComponent(product.sku)}`;
 
   return {
     title: `${product.name} | Все запчасти`,
     description: baseDescription.slice(0, 160),
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      title: `${product.name} | Все запчасти`,
+      description: baseDescription.slice(0, 160),
+      type: "website",
+      url: canonicalPath,
+      images: mainImageUrl
+        ? [
+            {
+              url: mainImageUrl,
+              alt: product.name,
+            },
+          ]
+        : undefined,
+    },
   };
 }
 

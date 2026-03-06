@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
+import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,19 +25,20 @@ export default function LoginPage() {
       formData.append('password', password);
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/auth/token'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const data = await fetchJsonWithTimeout<{ access_token?: string }>(
+        withApiBase(apiBaseUrl, '/api/admin/auth/token'),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData,
         },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error('Неверный email или пароль');
+        10000
+      );
+      if (!data.access_token) {
+        throw new Error('Не удалось получить токен авторизации');
       }
-
-      const data = await res.json();
       
       // Сохраняем в localStorage (для клиентских запросов)
       localStorage.setItem('admin_token', data.access_token);
@@ -50,7 +52,15 @@ export default function LoginPage() {
       router.push('/admin');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа');
+      if (err instanceof ApiRequestError) {
+        if (err.status === 401) {
+          setError('Неверный email или пароль');
+        } else {
+          setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Ошибка входа');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +76,7 @@ export default function LoginPage() {
 
         <div className="bg-white rounded-3xl shadow-xl p-8">
           {error && (
-            <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+            <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
               {error}
             </div>
           )}
@@ -80,6 +90,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
                 required
                 className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
               />
@@ -93,6 +104,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
                 className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
               />
