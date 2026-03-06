@@ -286,11 +286,11 @@ export default function AdminProductEditPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-4">
-        <Link href="/admin/products" className="text-[#1F3B73] hover:underline">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <Link href="/admin/products" className="text-sm text-[#1F3B73] hover:underline">
           ← Назад к товарам
         </Link>
-        <h1 className="text-2xl font-bold text-[#1F3B73]">Редактирование товара #{productId}</h1>
+        <h1 className="break-words text-xl font-bold text-[#1F3B73] sm:text-2xl">Редактирование товара #{productId}</h1>
       </div>
 
       {error ? (
@@ -480,11 +480,11 @@ export default function AdminProductEditPage() {
           Активен (показывать на сайте)
         </label>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-2xl bg-[#FF7A00] px-6 py-3 font-medium text-white hover:bg-[#e66e00] disabled:opacity-60"
+            className="w-full rounded-2xl bg-[#FF7A00] px-6 py-3 font-medium text-white hover:bg-[#e66e00] disabled:opacity-60 sm:w-auto"
           >
             {isSubmitting ? "Сохранение..." : "Сохранить"}
           </button>
@@ -492,7 +492,7 @@ export default function AdminProductEditPage() {
             href={`/parts/p/${encodeURIComponent(formState.sku || "")}`}
             target="_blank"
             rel="noreferrer"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50"
+            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm text-neutral-700 hover:bg-neutral-50 sm:w-auto"
           >
             Открыть на сайте
           </Link>
