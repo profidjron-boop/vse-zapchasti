@@ -38,6 +38,7 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [statuses, setStatuses] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [comment, setComment] = useState('');
@@ -111,6 +112,7 @@ export default function LeadDetailPage() {
   async function handleStatusUpdate() {
     setSaving(true);
     setError('');
+    setSuccess('');
 
     try {
       const token = localStorage.getItem('admin_token');
@@ -133,9 +135,8 @@ export default function LeadDetailPage() {
         12000
       );
       
-      alert('Статус обновлён');
-      fetchLead();
-      setComment('');
+      setSuccess('Статус обновлён');
+      void fetchLead();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
         localStorage.removeItem('admin_token');
@@ -154,6 +155,8 @@ export default function LeadDetailPage() {
 
   async function handleDelete() {
     try {
+      setError('');
+      setSuccess('');
       const token = localStorage.getItem('admin_token');
       if (!token) {
         router.push('/admin/login');
@@ -261,6 +264,11 @@ export default function LeadDetailPage() {
       {error && (
         <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
           {error}
+        </div>
+      )}
+      {success && (
+        <div role="status" aria-live="polite" className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+          {success}
         </div>
       )}
 
