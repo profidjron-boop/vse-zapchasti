@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
+import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
 
 type ContentBlock = {
   key: string;
@@ -190,33 +191,56 @@ export default function ContentEditorPage() {
     description: '',
   });
 
+  const redirectToLogin = () => {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/login';
+  };
+
+  const getTokenOrRedirect = (): string | null => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      window.location.href = '/admin/login';
+      return null;
+    }
+    return token;
+  };
+
+  const isAuthError = (error: unknown): boolean => {
+    if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+      redirectToLogin();
+      return true;
+    }
+    return false;
+  };
+
+  const formatError = (error: unknown, fallback: string): string => {
+    if (error instanceof ApiRequestError) {
+      return error.traceId ? `${error.message}. Код: ${error.traceId}` : error.message;
+    }
+    return fallback;
+  };
+
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetchContent();
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   async function fetchContent() {
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        window.location.href = '/admin/login';
-        return;
-      }
+      const token = getTokenOrRedirect();
+      if (!token) return;
       
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/content'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<ContentBlock[]>(
+        withApiBase(apiBaseUrl, '/api/admin/content'),
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-      
-      if (res.status === 401) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
-      
-      if (!res.ok) throw new Error('Не удалось загрузить контент');
-      const data = await res.json();
+        12000
+      );
       setContent(data);
       
       const initialValues: {[key: string]: string} = {};
@@ -225,8 +249,8 @@ export default function ContentEditorPage() {
       });
       setEditingValue(initialValues);
     } catch (err) {
-      setError('Ошибка загрузки контента');
-      console.error(err);
+      if (isAuthError(err)) return;
+      setError(formatError(err, 'Ошибка загрузки контента'));
     } finally {
       setLoading(false);
     }
@@ -238,24 +262,21 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = getTokenOrRedirect();
+      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      await fetchJsonWithTimeout<ContentBlock>(
+        withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`),
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ value: editingValue[key] }),
         },
-        body: JSON.stringify({ value: editingValue[key] }),
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
-      
-      if (!res.ok) throw new Error('Не удалось сохранить блок');
+        12000
+      );
       
       setContent((prev) =>
         prev.map((block) =>
@@ -267,8 +288,8 @@ export default function ContentEditorPage() {
       setSuccess(`Блок "${key}" сохранён`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(`Ошибка сохранения блока "${key}"`);
-      console.error(err);
+      if (isAuthError(err)) return;
+      setError(formatError(err, `Ошибка сохранения блока "${key}"`));
     } finally {
       setSaving(false);
     }
@@ -279,35 +300,30 @@ export default function ContentEditorPage() {
     setError('');
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = getTokenOrRedirect();
+      if (!token) return;
       const formData = new FormData();
       formData.append('file', file);
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const res = await fetch(withApiBase(apiBaseUrl, '/api/admin/upload'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      const data = await fetchJsonWithTimeout<{ url: string }>(
+        withApiBase(apiBaseUrl, '/api/admin/upload'),
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
         },
-        body: formData,
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
-      
-      if (!res.ok) throw new Error('Не удалось загрузить файл');
-      
-      const data = await res.json();
+        12000
+      );
       setEditingValue(prev => ({...prev, [key]: data.url}));
       
       setSuccess(`Изображение загружено`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Ошибка загрузки изображения');
-      console.error(err);
+      if (isAuthError(err)) return;
+      setError(formatError(err, 'Ошибка загрузки изображения'));
     } finally {
       setUploading(false);
     }
@@ -324,30 +340,26 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = getTokenOrRedirect();
+      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, '/api/admin/content'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      const createdBlock = await fetchJsonWithTimeout<ContentBlock>(
+        withApiBase(apiBaseUrl, '/api/admin/content'),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            key: newBlock.key.trim(),
+            value: newBlock.value || null,
+            type: newBlock.type,
+            description: newBlock.description || null,
+          }),
         },
-        body: JSON.stringify({
-          key: newBlock.key.trim(),
-          value: newBlock.value || null,
-          type: newBlock.type,
-          description: newBlock.description || null,
-        }),
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
-
-      if (!response.ok) throw new Error('Не удалось создать блок контента');
-      const createdBlock = await response.json() as ContentBlock;
+        12000
+      );
 
       setContent(prev => [...prev, createdBlock].sort((a, b) => a.key.localeCompare(b.key)));
       setEditingValue(prev => ({ ...prev, [createdBlock.key]: createdBlock.value || '' }));
@@ -355,8 +367,8 @@ export default function ContentEditorPage() {
       setSuccess(`Блок "${createdBlock.key}" создан`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (createError) {
-      console.error(createError);
-      setError('Ошибка создания блока');
+      if (isAuthError(createError)) return;
+      setError(formatError(createError, 'Ошибка создания блока'));
     } finally {
       setCreating(false);
     }
@@ -370,22 +382,19 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = getTokenOrRedirect();
+      if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      await fetchJsonWithTimeout<unknown>(
+        withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`),
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
         },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
-
-      if (!response.ok) throw new Error('Не удалось удалить блок контента');
+        12000
+      );
 
       setContent(prev => prev.filter(block => block.key !== key));
       setEditingValue(prev => {
@@ -396,8 +405,8 @@ export default function ContentEditorPage() {
       setSuccess(`Блок "${key}" удалён`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (deleteError) {
-      console.error(deleteError);
-      setError(`Ошибка удаления блока "${key}"`);
+      if (isAuthError(deleteError)) return;
+      setError(formatError(deleteError, `Ошибка удаления блока "${key}"`));
     } finally {
       setDeletingKey('');
     }
@@ -417,39 +426,29 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
+      const token = getTokenOrRedirect();
+      if (!token) return;
 
       const apiBaseUrl = getClientApiBaseUrl();
       const created: ContentBlock[] = [];
       for (const block of missing) {
-        const response = await fetch(withApiBase(apiBaseUrl, '/api/admin/content'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+        const createdBlock = await fetchJsonWithTimeout<ContentBlock>(
+          withApiBase(apiBaseUrl, '/api/admin/content'),
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              key: block.key,
+              value: block.defaultValue ?? null,
+              type: block.type,
+              description: block.description,
+            }),
           },
-          body: JSON.stringify({
-            key: block.key,
-            value: block.defaultValue ?? null,
-            type: block.type,
-            description: block.description,
-          }),
-        });
-
-        if (response.status === 401) {
-          localStorage.removeItem('admin_token');
-          window.location.href = '/admin/login';
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Не удалось создать ключ "${block.key}"`);
-        }
-        const createdBlock = (await response.json()) as ContentBlock;
+          12000
+        );
         created.push(createdBlock);
       }
 
@@ -467,8 +466,8 @@ export default function ContentEditorPage() {
       setSuccess(`Создано ключей для "${preset.route}": ${created.length}`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (createError) {
-      console.error(createError);
-      setError(createError instanceof Error ? createError.message : 'Ошибка создания ключей страницы');
+      if (isAuthError(createError)) return;
+      setError(formatError(createError, 'Ошибка создания ключей страницы'));
     } finally {
       setCreatingPresetRoute('');
     }
@@ -487,39 +486,30 @@ export default function ContentEditorPage() {
         if (missing.length === 0) continue;
 
         setCreatingPresetRoute(preset.route);
-        const token = localStorage.getItem('admin_token');
-        if (!token) {
-          localStorage.removeItem('admin_token');
-          window.location.href = '/admin/login';
-          return;
-        }
+        const token = getTokenOrRedirect();
+        if (!token) return;
 
         const apiBaseUrl = getClientApiBaseUrl();
         const created: ContentBlock[] = [];
         for (const block of missing) {
-          const response = await fetch(withApiBase(apiBaseUrl, '/api/admin/content'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
+          const createdBlock = await fetchJsonWithTimeout<ContentBlock>(
+            withApiBase(apiBaseUrl, '/api/admin/content'),
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                key: block.key,
+                value: block.defaultValue ?? null,
+                type: block.type,
+                description: block.description,
+              }),
             },
-            body: JSON.stringify({
-              key: block.key,
-              value: block.defaultValue ?? null,
-              type: block.type,
-              description: block.description,
-            }),
-          });
-
-          if (response.status === 401) {
-            localStorage.removeItem('admin_token');
-            window.location.href = '/admin/login';
-            return;
-          }
-          if (!response.ok) {
-            throw new Error(`Не удалось создать ключ "${block.key}"`);
-          }
-          created.push((await response.json()) as ContentBlock);
+            12000
+          );
+          created.push(createdBlock);
         }
 
         if (created.length > 0) {
@@ -538,8 +528,8 @@ export default function ContentEditorPage() {
       setSuccess(createdTotal > 0 ? `Создано ключей: ${createdTotal}` : 'Все ключи уже созданы');
       setTimeout(() => setSuccess(''), 3000);
     } catch (createError) {
-      console.error(createError);
-      setError(createError instanceof Error ? createError.message : 'Ошибка создания ключей страницы');
+      if (isAuthError(createError)) return;
+      setError(formatError(createError, 'Ошибка создания ключей страницы'));
     } finally {
       setCreatingPresetRoute('');
       setCreatingAllPresets(false);
@@ -562,32 +552,23 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('admin_token');
-      if (!token) {
-        localStorage.removeItem('admin_token');
-        window.location.href = '/admin/login';
-        return;
-      }
+      const token = getTokenOrRedirect();
+      if (!token) return;
 
       const apiBaseUrl = getClientApiBaseUrl();
       for (const key of dirtyKeys) {
-        const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+        await fetchJsonWithTimeout<ContentBlock>(
+          withApiBase(apiBaseUrl, `/api/admin/content/${encodeURIComponent(key)}`),
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ value: editingValue[key] }),
           },
-          body: JSON.stringify({ value: editingValue[key] }),
-        });
-
-        if (response.status === 401) {
-          localStorage.removeItem('admin_token');
-          window.location.href = '/admin/login';
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Ошибка сохранения ключа "${key}"`);
-        }
+          12000
+        );
       }
 
       setContent((prev) =>
@@ -599,8 +580,8 @@ export default function ContentEditorPage() {
       setSuccess(`Сохранено блоков: ${dirtyKeys.length}`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (saveError) {
-      console.error(saveError);
-      setError(saveError instanceof Error ? saveError.message : 'Ошибка массового сохранения');
+      if (isAuthError(saveError)) return;
+      setError(formatError(saveError, 'Ошибка массового сохранения'));
     } finally {
       setSavingAll(false);
     }
