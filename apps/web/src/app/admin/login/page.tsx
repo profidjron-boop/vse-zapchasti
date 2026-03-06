@@ -147,10 +147,6 @@ export default function LoginPage() {
               {isLoading ? 'Вход...' : 'Войти'}
             </button>
           </form>
-
-          <div className="mt-6 text-xs text-center text-neutral-500">
-            demo: admin@vsezapchasti.ru / admin123
-          </div>
         </div>
       </div>
     </div>
