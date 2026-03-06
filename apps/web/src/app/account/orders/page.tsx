@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -69,6 +69,54 @@ export default function AccountOrdersPage() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [contentMap, setContentMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContent() {
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        if (!Array.isArray(payload) || cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const item of payload) {
+          if (item?.key && typeof item.value === "string") {
+            map[item.key] = item.value;
+          }
+        }
+        setContentMap(map);
+      } catch {
+        // keep defaults
+      }
+    }
+
+    void loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const pageTitle = contentValue("orders_page_title", "Мои заказы");
+  const pageSubtitle = contentValue(
+    "orders_page_subtitle",
+    "Введите телефон, который указывали при оформлении заказа, чтобы посмотреть историю и статусы."
+  );
+  const showOrdersLabel = contentValue("orders_show_button_label", "Показать заказы");
+  const emptyOrdersText = contentValue("orders_empty_text", "По этому номеру пока нет заказов.");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,27 +159,27 @@ export default function AccountOrdersPage() {
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
+            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
             <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-              <Link href="/account/orders" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Мои заказы</Link>
+              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
+              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
+              <Link href="/account/orders" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navOrders}</Link>
             </nav>
           </div>
           <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-            <Link href="/account/orders" className="shrink-0 font-medium text-[#1F3B73]">Мои заказы</Link>
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
+            <Link href="/account/orders" className="shrink-0 font-medium text-[#1F3B73]">{navOrders}</Link>
           </nav>
         </div>
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <h1 className="text-3xl font-bold text-[#1F3B73]">Мои заказы</h1>
+        <h1 className="text-3xl font-bold text-[#1F3B73]">{pageTitle}</h1>
         <p className="mt-2 text-sm text-neutral-600">
-          Введите телефон, который указывали при оформлении заказа, чтобы посмотреть историю и статусы.
+          {pageSubtitle}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 rounded-2xl border border-neutral-200 bg-white p-4">
@@ -153,7 +201,7 @@ export default function AccountOrdersPage() {
               disabled={loading}
               className="h-11 w-full rounded-xl bg-[#1F3B73] px-4 text-sm font-medium text-white hover:bg-[#14294F] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {loading ? "Загрузка..." : "Показать заказы"}
+              {loading ? "Загрузка..." : showOrdersLabel}
             </button>
           </div>
         </form>
@@ -164,7 +212,7 @@ export default function AccountOrdersPage() {
 
         {searched && !loading && orders.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600">
-            По этому номеру пока нет заказов.
+            {emptyOrdersText}
           </div>
         ) : null}
 
