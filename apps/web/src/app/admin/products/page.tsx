@@ -54,7 +54,7 @@ export default function AdminProductsPage() {
       setProducts(data);
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
