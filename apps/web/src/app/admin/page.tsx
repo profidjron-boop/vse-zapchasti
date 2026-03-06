@@ -99,7 +99,6 @@ export default function AdminDashboard() {
         setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
       } catch (loadError) {
         if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-          localStorage.removeItem("admin_token");
           router.push("/admin/login");
           return;
         }

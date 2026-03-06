@@ -77,7 +77,6 @@ export default function LeadsPage() {
       }
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem('admin_token');
         router.push('/admin/login');
       }
     }
@@ -115,7 +114,6 @@ export default function LeadsPage() {
       setLastUpdated(new Date().toLocaleTimeString('ru-RU'));
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem('admin_token');
         router.push('/admin/login');
         return;
       }
@@ -174,7 +172,6 @@ export default function LeadsPage() {
       setSuccess(`Заявка #${id} удалена`);
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem('admin_token');
         router.push('/admin/login');
         return;
       }
@@ -220,7 +217,6 @@ export default function LeadsPage() {
           updated += 1;
         } catch (updateError) {
           if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
-            localStorage.removeItem('admin_token');
             router.push('/admin/login');
             return;
           }

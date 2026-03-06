@@ -155,7 +155,6 @@ export default function AdminProductEditPage() {
       });
     } catch (loadError) {
       if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -248,7 +247,6 @@ export default function AdminProductEditPage() {
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (submitError) {
       if (submitError instanceof ApiRequestError && (submitError.status === 401 || submitError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

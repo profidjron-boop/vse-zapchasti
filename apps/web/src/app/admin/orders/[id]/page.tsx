@@ -98,7 +98,6 @@ export default function AdminOrderDetailsPage() {
       setManagerComment(payload.manager_comment || "");
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -148,7 +147,6 @@ export default function AdminOrderDetailsPage() {
       setSuccess("Изменения сохранены");
     } catch (saveError) {
       if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

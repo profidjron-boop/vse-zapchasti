@@ -59,7 +59,6 @@ export default function LeadDetailPage() {
       setComment(data.manager_comment || '');
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem('admin_token');
         router.push('/admin/login');
         return;
       }
@@ -116,7 +115,6 @@ export default function LeadDetailPage() {
       void fetchLead();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem('admin_token');
         router.push('/admin/login');
         return;
       }
@@ -147,7 +145,6 @@ export default function LeadDetailPage() {
       router.refresh();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem('admin_token');
         router.push('/admin/login');
         return;
       }

@@ -31,7 +31,6 @@ export default function NewProductPage() {
         setCategories(payload);
       } catch (loadError) {
         if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-          localStorage.removeItem("admin_token");
           router.push("/admin/login");
           return;
         }
@@ -154,7 +153,6 @@ export default function NewProductPage() {
       router.refresh();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

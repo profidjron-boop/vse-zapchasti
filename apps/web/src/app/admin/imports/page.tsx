@@ -105,7 +105,6 @@ export default function AdminImportsPage() {
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -167,7 +166,6 @@ export default function AdminImportsPage() {
       await fetchRuns();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -231,7 +229,6 @@ export default function AdminImportsPage() {
       setModeMessage("Режим обновления сохранён");
     } catch (saveError) {
       if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

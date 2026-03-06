@@ -80,7 +80,6 @@ export default function VinRequestDetailsPage() {
       setOperatorComment(payload.operator_comment || "");
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -128,7 +127,6 @@ export default function VinRequestDetailsPage() {
       setOperatorComment(updated.operator_comment || "");
     } catch (saveError) {
       if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

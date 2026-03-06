@@ -61,7 +61,6 @@ export default function AdminOrdersPage() {
       }
     } catch (statusError) {
       if (statusError instanceof ApiRequestError && (statusError.status === 401 || statusError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
       }
     }
@@ -88,7 +87,6 @@ export default function AdminOrdersPage() {
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

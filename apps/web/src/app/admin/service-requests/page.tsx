@@ -88,7 +88,6 @@ export default function AdminServiceRequestsPage() {
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -216,7 +215,6 @@ export default function AdminServiceRequestsPage() {
           updated += 1;
         } catch (updateError) {
           if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
-            localStorage.removeItem("admin_token");
             router.push("/admin/login");
             return;
           }

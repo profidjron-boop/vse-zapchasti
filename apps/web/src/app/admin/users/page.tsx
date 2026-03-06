@@ -81,7 +81,6 @@ export default function AdminUsersPage() {
       );
     } catch (loadError) {
       if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -138,7 +137,6 @@ export default function AdminUsersPage() {
       await loadUsers();
     } catch (createError) {
       if (createError instanceof ApiRequestError && (createError.status === 401 || createError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -190,7 +188,6 @@ export default function AdminUsersPage() {
       await loadUsers();
     } catch (updateError) {
       if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

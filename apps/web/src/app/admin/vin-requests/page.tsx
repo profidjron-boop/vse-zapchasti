@@ -73,7 +73,6 @@ export default function AdminVinRequestsPage() {
       }
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
       }
     }
@@ -107,7 +106,6 @@ export default function AdminVinRequestsPage() {
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -239,7 +237,6 @@ export default function AdminVinRequestsPage() {
           updated += 1;
         } catch (updateError) {
           if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
-            localStorage.removeItem("admin_token");
             router.push("/admin/login");
             return;
           }

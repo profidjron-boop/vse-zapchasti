@@ -74,7 +74,6 @@ export default function AdminServiceCatalogPage() {
       );
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -142,7 +141,6 @@ export default function AdminServiceCatalogPage() {
       await fetchCatalog();
     } catch (saveError) {
       if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -174,7 +172,6 @@ export default function AdminServiceCatalogPage() {
       await fetchCatalog();
     } catch (deleteError) {
       if (deleteError instanceof ApiRequestError && (deleteError.status === 401 || deleteError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }
@@ -229,7 +226,6 @@ export default function AdminServiceCatalogPage() {
       await fetchCatalog();
     } catch (createError) {
       if (createError instanceof ApiRequestError && (createError.status === 401 || createError.status === 403)) {
-        localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
       }

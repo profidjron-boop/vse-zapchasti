@@ -234,7 +234,6 @@ export default function ContentEditorPage() {
   });
 
   const redirectToLogin = useCallback(() => {
-    localStorage.removeItem('admin_token');
     router.push('/admin/login');
   }, [router]);
 

@@ -68,7 +68,6 @@ export default function ImportRunDetailsPage() {
         setRun(data);
       } catch (err) {
         if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-          localStorage.removeItem("admin_token");
           router.push("/admin/login");
           return;
         }
