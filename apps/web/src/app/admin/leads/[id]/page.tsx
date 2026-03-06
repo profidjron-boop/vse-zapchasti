@@ -249,7 +249,7 @@ export default function LeadDetailPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           href="/admin/leads"
           className="text-[#1F3B73] hover:underline"
@@ -278,7 +278,7 @@ export default function LeadDetailPage() {
           <div className="bg-white rounded-2xl border border-neutral-200 p-6">
             <h2 className="text-lg font-semibold text-[#1F3B73] mb-4">Детали заявки</h2>
             
-            <dl className="grid grid-cols-2 gap-4">
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-sm text-neutral-500">Статус</dt>
                 <dd>
@@ -307,7 +307,7 @@ export default function LeadDetailPage() {
           <div className="bg-white rounded-2xl border border-neutral-200 p-6">
             <h2 className="text-lg font-semibold text-[#1F3B73] mb-4">Контактная информация</h2>
             
-            <dl className="grid grid-cols-2 gap-4">
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-sm text-neutral-500">Имя</dt>
                 <dd>{lead.name || '—'}</dd>
@@ -437,7 +437,7 @@ export default function LeadDetailPage() {
                 <p className="text-sm text-neutral-600">
                   Вы уверены? Это действие нельзя отменить.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     onClick={handleDelete}
                     className="flex-1 rounded-2xl bg-red-500 py-2 font-medium text-white hover:bg-red-600 transition"
