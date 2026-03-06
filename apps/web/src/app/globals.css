@@ -19,8 +19,14 @@
   }
 }
 
+html {
+  /* Global fluid scale: compact on small screens, slightly larger on wide screens. */
+  font-size: clamp(14px, 0.25vw + 13px, 17px);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  min-width: 320px;
 }
