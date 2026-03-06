@@ -97,7 +97,7 @@ export default function AdminServiceRequestsPage() {
       setSelectedRequestIds((prev) => prev.filter((id) => pageRows.some((request) => request.id === id)));
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
@@ -217,31 +217,37 @@ export default function AdminServiceRequestsPage() {
       let firstError = "";
 
       for (const requestId of selectedRequestIds) {
-        const response = await fetch(withApiBase(apiBaseUrl, `/api/admin/service-requests/${requestId}/status`), {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
-        });
-
-        if (response.status === 401) {
-          localStorage.removeItem("admin_token");
-          router.push("/admin/login");
-          return;
-        }
-
-        if (!response.ok) {
+        try {
+          await fetchJsonWithTimeout<ServiceRequest>(
+            withApiBase(apiBaseUrl, `/api/admin/service-requests/${requestId}/status`),
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ status: bulkStatus, operator_comment: null }),
+            },
+            12000
+          );
+          updated += 1;
+        } catch (updateError) {
+          if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
+            localStorage.removeItem("admin_token");
+            router.push("/admin/login");
+            return;
+          }
           failed += 1;
           if (!firstError) {
-            const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-            firstError = payload?.detail || `Ошибка обновления ID ${requestId}`;
+            if (updateError instanceof ApiRequestError) {
+              firstError = updateError.traceId
+                ? `${updateError.message}. Код: ${updateError.traceId}`
+                : updateError.message;
+            } else {
+              firstError = `Ошибка обновления ID ${requestId}`;
+            }
           }
-          continue;
         }
-
-        updated += 1;
       }
 
       if (updated > 0) {
