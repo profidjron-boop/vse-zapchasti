@@ -1,4 +1,4 @@
-# ADR-0003: Admin auth token storage strategy (cookie-first with legacy fallback)
+# ADR-0003: Admin auth token storage strategy (cookie-first)
 
 - Status: Accepted
 - Date: 2026-03-06
@@ -16,24 +16,23 @@
    - `admin_csrf_token` используется для защиты state-changing запросов.
 2. Для write-методов admin API (`POST/PUT/PATCH/DELETE`) обязательна проверка CSRF
    при cookie-auth.
-3. `localStorage` в web оставлен только как переходный несекретный маркер сессии
-   (`admin_token=cookie-session`) для совместимости текущих guard-ов.
-4. Legacy Bearer-авторизация оставлена как временный fallback для инструментов/скриптов
-   и staged migration.
+3. Web/admin route guards и запросы работают без `localStorage`-маркеров;
+   клиентская авторизация опирается на cookie-сессию (`credentials: include`).
+4. Legacy Bearer-авторизация оставлена как временный fallback только в API слое
+   для инструментов/скриптов и staged migration.
 5. Logout выполняется сервером через `POST /api/admin/auth/logout` с очисткой auth cookies.
 
 ## Migration trigger (next stage)
 
 Следующий этап после текущей миграции:
-- убрать legacy Bearer fallback из web/admin кода;
-- убрать `admin_token` marker из localStorage guard-ов;
-- оставить только cookie-auth + CSRF как единственный путь.
+- убрать legacy Bearer fallback из API после обновления всех внешних скриптов;
+- оставить только cookie-auth + CSRF как единственный путь для browser auth.
 
 ## Consequences
 
-- Плюс: JWT больше не хранится в `localStorage`, снижен XSS-риск для admin auth.
+- Плюс: browser auth полностью не зависит от `localStorage`, снижен XSS-риск.
 - Плюс: серверный logout очищает сессию и CSRF cookie.
-- Минус: до полного удаления fallback остаётся mixed-mode совместимость.
+- Минус: до полного удаления API fallback остаётся mixed-mode совместимость на backend.
 
 ## Links
 
