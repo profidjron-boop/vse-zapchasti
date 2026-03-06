@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Cookies from 'js-cookie';
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type Category = {
   id: number;
@@ -22,33 +22,34 @@ export default function NewProductPage() {
   useEffect(() => {
     async function loadCategories() {
       try {
-        const token = Cookies.get("admin_token");
+        const token = localStorage.getItem("admin_token");
         if (!token) {
           router.push("/admin/login");
           return;
         }
 
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/categories"), {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const payload = await fetchJsonWithTimeout<Category[]>(
+          withApiBase(apiBaseUrl, "/api/admin/categories"),
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        });
-
-        if (response.status === 401) {
-          Cookies.remove("admin_token");
+          12000
+        );
+        setCategories(payload);
+      } catch (loadError) {
+        if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
+          localStorage.removeItem("admin_token");
           router.push("/admin/login");
           return;
         }
-        if (!response.ok) {
-          throw new Error("Не удалось загрузить категории");
+        if (loadError instanceof ApiRequestError) {
+          setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
+        } else {
+          setError("Не удалось загрузить категории. Обновите страницу.");
         }
-
-        const payload = (await response.json()) as Category[];
-        setCategories(payload);
-      } catch (loadError) {
-        console.error(loadError);
-        setError("Не удалось загрузить категории. Обновите страницу.");
       } finally {
         setCategoriesLoading(false);
       }
@@ -56,16 +57,6 @@ export default function NewProductPage() {
 
     void loadCategories();
   }, [router]);
-
-  async function parseError(response: Response, fallback: string): Promise<string> {
-    try {
-      const errorData = await response.json();
-      if (typeof errorData?.detail === "string" && errorData.detail.trim()) {
-        return errorData.detail;
-      }
-    } catch {}
-    return fallback;
-  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -127,63 +118,71 @@ export default function NewProductPage() {
     };
 
     try {
-      const token = Cookies.get('admin_token');
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
       const apiBaseUrl = getClientApiBaseUrl();
       
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/products"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error(await parseError(response, "Ошибка при создании товара"));
-      }
-
-      const createdProduct = await response.json();
-      if (selectedImage) {
-        const uploadData = new FormData();
-        uploadData.set("file", selectedImage);
-
-        const uploadResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/upload"), {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-          body: uploadData,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error(await parseError(uploadResponse, "Товар создан, но изображение не загрузилось"));
-        }
-
-        const uploadedFile = await uploadResponse.json();
-        const attachResponse = await fetch(withApiBase(apiBaseUrl, `/api/admin/products/${createdProduct.id}/images`), {
+      const createdProduct = await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, "/api/admin/products"),
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            url: uploadedFile.url,
-            sort_order: 0,
-            is_main: true,
-          }),
-        });
+          body: JSON.stringify(data),
+        },
+        12000
+      );
+      if (selectedImage) {
+        const uploadData = new FormData();
+        uploadData.set("file", selectedImage);
 
-        if (!attachResponse.ok) {
-          throw new Error(await parseError(attachResponse, "Товар создан, но изображение не привязалось"));
-        }
+        const uploadedFile = await fetchJsonWithTimeout<{ url: string }>(
+          withApiBase(apiBaseUrl, "/api/admin/upload"),
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+            body: uploadData,
+          },
+          12000
+        );
+        await fetchJsonWithTimeout<{ id: number }>(
+          withApiBase(apiBaseUrl, `/api/admin/products/${createdProduct.id}/images`),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              url: uploadedFile.url,
+              sort_order: 0,
+              is_main: true,
+            }),
+          },
+          12000
+        );
       }
 
       router.push("/admin/products");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать товар");
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError("Не удалось создать товар");
+      }
     } finally {
       setIsSubmitting(false);
     }
