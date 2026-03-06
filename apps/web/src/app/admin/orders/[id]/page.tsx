@@ -224,7 +224,7 @@ export default function AdminOrderDetailsPage() {
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
           <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Данные заказа</h2>
           <dl className="space-y-3 text-sm">
-            <div><dt className="text-neutral-500">UUID</dt><dd className="font-mono">{order.uuid}</dd></div>
+            <div><dt className="text-neutral-500">UUID</dt><dd className="break-all font-mono text-xs sm:text-sm">{order.uuid}</dd></div>
             <div><dt className="text-neutral-500">Статус</dt><dd>{statusLabel(order.status)}</dd></div>
             <div><dt className="text-neutral-500">Источник</dt><dd>{sourceLabel(order.source)}</dd></div>
             <div><dt className="text-neutral-500">Имя клиента</dt><dd>{order.customer_name || "—"}</dd></div>
@@ -234,7 +234,7 @@ export default function AdminOrderDetailsPage() {
             <div><dt className="text-neutral-500">Оплата</dt><dd>{order.payment_method || "—"}</dd></div>
             <div><dt className="text-neutral-500">Юрлицо</dt><dd>{order.legal_entity_name || "—"}</dd></div>
             <div><dt className="text-neutral-500">ИНН</dt><dd>{order.legal_entity_inn || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Комментарий клиента</dt><dd className="whitespace-pre-wrap">{order.comment || "—"}</dd></div>
+            <div><dt className="text-neutral-500">Комментарий клиента</dt><dd className="whitespace-pre-wrap break-words">{order.comment || "—"}</dd></div>
             <div><dt className="text-neutral-500">Согласие 152-ФЗ</dt><dd>{order.consent_given ? "Да" : "Нет"}</dd></div>
             <div><dt className="text-neutral-500">Версия согласия</dt><dd>{order.consent_version || "—"}</dd></div>
             <div><dt className="text-neutral-500">Дата согласия</dt><dd>{order.consent_at ? new Date(order.consent_at).toLocaleString("ru-RU") : "—"}</dd></div>
@@ -288,29 +288,42 @@ export default function AdminOrderDetailsPage() {
         {order.items.length === 0 ? (
           <p className="text-sm text-neutral-500">Позиции отсутствуют</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-neutral-200 bg-neutral-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">SKU</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Наименование</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Кол-во</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Цена</th>
-                  <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Сумма</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200 text-sm">
-                {order.items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-3 py-2">{item.product_sku || "—"}</td>
-                    <td className="px-3 py-2">{item.product_name}</td>
-                    <td className="px-3 py-2">{item.quantity}</td>
-                    <td className="px-3 py-2">{item.unit_price ?? "—"}</td>
-                    <td className="px-3 py-2">{item.line_total ?? "—"}</td>
+          <div>
+            <div className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 md:hidden">
+              {order.items.map((item) => (
+                <article key={item.id} className="space-y-2 px-3 py-3 text-sm">
+                  <p className="break-all font-medium text-neutral-900">{item.product_sku || "—"}</p>
+                  <p className="text-neutral-700">{item.product_name}</p>
+                  <p className="text-neutral-700">Кол-во: {item.quantity}</p>
+                  <p className="text-neutral-700">Цена: {item.unit_price ?? "—"}</p>
+                  <p className="text-neutral-700">Сумма: {item.line_total ?? "—"}</p>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full">
+                <thead className="border-b border-neutral-200 bg-neutral-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">SKU</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Наименование</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Кол-во</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Цена</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Сумма</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 text-sm">
+                  {order.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-3 py-2">{item.product_sku || "—"}</td>
+                      <td className="px-3 py-2">{item.product_name}</td>
+                      <td className="px-3 py-2">{item.quantity}</td>
+                      <td className="px-3 py-2">{item.unit_price ?? "—"}</td>
+                      <td className="px-3 py-2">{item.line_total ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
