@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 function normalizePhone(value: string): string | null {
   const digits = value.replace(/\D/g, "");
@@ -113,24 +114,26 @@ export default function VinRequestPage() {
 
     try {
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/vin-requests"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      await fetchJsonWithTimeout(
+        withApiBase(apiBaseUrl, "/api/public/vin-requests"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(payload?.detail || "Ошибка при отправке заявки");
-      }
+        12000
+      );
 
       setIsSuccess(true);
       event.currentTarget.reset();
     } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Не удалось отправить заявку. Попробуйте позже.");
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError("Не удалось отправить заявку. Попробуйте позже.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -207,7 +210,7 @@ export default function VinRequestPage() {
       <section className="mx-auto max-w-3xl px-6 py-16">
         <div className="rounded-3xl bg-white p-8 shadow-xl">
           {error && (
-            <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+            <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
               {error}
             </div>
           )}
@@ -230,6 +233,7 @@ export default function VinRequestPage() {
               <input 
                 type="text" 
                 name="name"
+                autoComplete="name"
                 className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
               />
             </div>
@@ -240,6 +244,8 @@ export default function VinRequestPage() {
                 type="tel" 
                 name="phone"
                 required
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="+7 (___) ___-__-__" 
                 className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
               />
@@ -250,6 +256,7 @@ export default function VinRequestPage() {
               <input 
                 type="email" 
                 name="email"
+                autoComplete="email"
                 className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
               />
             </div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 function normalizePhone(value: string): string | null {
   const digits = value.replace(/\D/g, "");
@@ -137,24 +138,26 @@ export default function ContactsPage() {
 
     try {
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/leads"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      await fetchJsonWithTimeout(
+        withApiBase(apiBaseUrl, "/api/public/leads"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось отправить заявку");
-      }
+        12000
+      );
 
       form.reset();
       setSuccess("Заявка на обратный звонок отправлена. Менеджер свяжется с вами в рабочее время.");
     } catch (submitError) {
-      console.error(submitError);
-      setError(submitError instanceof Error ? submitError.message : "Не удалось отправить заявку. Попробуйте позже.");
+      if (submitError instanceof ApiRequestError) {
+        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
+      } else {
+        setError("Не удалось отправить заявку. Попробуйте позже.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -348,12 +351,12 @@ export default function ContactsPage() {
             <div className="rounded-3xl bg-white p-8 shadow-xl">
               <h2 className="text-xl font-bold text-[#1F3B73]">Напишите нам</h2>
               {error && (
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <div role="alert" aria-live="assertive" className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {error}
                 </div>
               )}
               {success && (
-                <div className="mt-4 rounded-2xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
                   {success}
                 </div>
               )}
@@ -362,6 +365,7 @@ export default function ContactsPage() {
                   <input 
                     type="text" 
                     name="name"
+                    autoComplete="name"
                     placeholder="Ваше имя"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />
@@ -371,6 +375,8 @@ export default function ContactsPage() {
                     type="tel" 
                     name="phone"
                     required
+                    autoComplete="tel"
+                    inputMode="tel"
                     placeholder="Телефон *"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />
@@ -379,6 +385,7 @@ export default function ContactsPage() {
                   <input 
                     type="email" 
                     name="email"
+                    autoComplete="email"
                     placeholder="Email"
                     className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
                   />

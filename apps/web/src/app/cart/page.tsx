@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 import {
   CartItem,
   clearCart,
@@ -103,18 +104,15 @@ export default function CartPage() {
       };
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/orders"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось оформить заказ");
-      }
-
-      const result = (await response.json()) as { id?: number };
+      const result = await fetchJsonWithTimeout<{ id?: number }>(
+        withApiBase(apiBaseUrl, "/api/public/orders"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+        12000
+      );
       setOrderId(result.id ?? null);
       setSuccess("Заказ оформлен. Менеджер свяжется с вами для подтверждения.");
       clearCart();
@@ -122,7 +120,11 @@ export default function CartPage() {
       setPaymentMethod("cash_on_delivery");
       event.currentTarget.reset();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Не удалось оформить заказ. Попробуйте позже.");
+      if (submitError instanceof ApiRequestError) {
+        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
+      } else {
+        setError("Не удалось оформить заказ. Попробуйте позже.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -213,10 +215,10 @@ export default function CartPage() {
               </div>
 
               {error && (
-                <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+                <div role="alert" aria-live="assertive" className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
               )}
               {success && (
-                <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                <div role="status" aria-live="polite" className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
                   {success}
                   {orderId ? <span className="mt-1 block text-xs">Номер заказа: #{orderId}</span> : null}
                   <Link href="/account/orders" className="mt-1 block text-xs font-medium text-green-800 hover:underline">
@@ -231,6 +233,7 @@ export default function CartPage() {
                   <input
                     type="text"
                     name="customer_name"
+                    autoComplete="name"
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
                   />
                 </div>
@@ -241,6 +244,8 @@ export default function CartPage() {
                     type="tel"
                     name="customer_phone"
                     required
+                    autoComplete="tel"
+                    inputMode="tel"
                     placeholder="+7 (___) ___-__-__"
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
                   />
@@ -251,6 +256,7 @@ export default function CartPage() {
                   <input
                     type="email"
                     name="customer_email"
+                    autoComplete="email"
                     className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
                   />
                 </div>

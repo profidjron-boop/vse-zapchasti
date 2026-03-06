@@ -30,3 +30,67 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   min-width: 320px;
 }
+
+@media (max-width: 767px) {
+  /* Public pages: show compact nav on mobile instead of hiding it. */
+  header[class*="border-white/20"] > div > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  header[class*="border-white/20"] nav[class*="md:flex"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  header[class*="border-white/20"] nav[class*="md:flex"] a {
+    font-size: 0.8125rem;
+    line-height: 1rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .overflow-x-auto > table.w-full {
+    min-width: 760px;
+  }
+
+  .overflow-x-auto > table.w-full thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #1f3b73;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

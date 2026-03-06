@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 import { addToCart, getCartTotals } from "@/lib/cart";
 
 type ProductLeadFormProps = {
@@ -95,20 +96,17 @@ export default function ProductLeadForm({
               consent_version: "v1.0",
             };
 
-      const response = await fetch(withApiBase(apiBaseUrl, endpoint), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const result = await fetchJsonWithTimeout<{ id?: number }>(
+        withApiBase(apiBaseUrl, endpoint),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось отправить заявку");
-      }
-
-      const result = (await response.json()) as { id?: number };
+        12000
+      );
       form.reset();
       if (submitMode === "quick_order") {
         setOrderId(result.id ?? null);
@@ -118,9 +116,8 @@ export default function ProductLeadForm({
         setSuccess("Заявка отправлена. Менеджер свяжется с вами в рабочее время.");
       }
     } catch (submitError) {
-      console.error(submitError);
-      if (submitError instanceof Error) {
-        setError(submitError.message);
+      if (submitError instanceof ApiRequestError) {
+        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
       } else {
         setError("Не удалось отправить заявку. Попробуйте позже.");
       }
@@ -152,12 +149,12 @@ export default function ProductLeadForm({
       </p>
 
       {error && (
-        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" aria-live="assertive" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
       {success && (
-        <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <div role="status" aria-live="polite" className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
           {success}
           {leadId ? (
             <span className="mt-1 block text-xs text-green-800">
@@ -186,7 +183,7 @@ export default function ProductLeadForm({
         </div>
       )}
       {cartNotice && (
-        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <div role="status" aria-live="polite" className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           {cartNotice}{" "}
           <Link href="/cart" className="underline">
             Перейти в корзину
@@ -200,6 +197,7 @@ export default function ProductLeadForm({
           <input
             type="text"
             name="name"
+            autoComplete="name"
             placeholder="Как к вам обращаться"
             className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
@@ -211,6 +209,8 @@ export default function ProductLeadForm({
             type="tel"
             name="phone"
             required
+            autoComplete="tel"
+            inputMode="tel"
             placeholder="+7 (___) ___-__-__"
             className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />

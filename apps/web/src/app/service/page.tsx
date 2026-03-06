@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type ServiceCard = {
   title: string;
@@ -227,23 +228,26 @@ export default function ServicePage() {
       };
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/public/service-requests"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      await fetchJsonWithTimeout(
+        withApiBase(apiBaseUrl, "/api/public/service-requests"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(payload?.detail || "Ошибка при отправке заявки");
-      }
+        12000
+      );
 
       setIsSuccess(true);
       event.currentTarget.reset();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось отправить заявку. Попробуйте позже.");
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError("Не удалось отправить заявку. Попробуйте позже.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -382,7 +386,7 @@ export default function ServicePage() {
           </p>
           
           {error && (
-            <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+            <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
               {error}
             </div>
           )}
@@ -422,7 +426,7 @@ export default function ServicePage() {
 
             <div>
               <label className="text-sm font-medium text-neutral-700">Ваше имя *</label>
-              <input type="text" name="name" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
+              <input type="text" name="name" autoComplete="name" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
             </div>
 
             <div>
@@ -431,6 +435,8 @@ export default function ServicePage() {
                 type="tel"
                 name="phone"
                 required
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="+7 (___) ___-__-__"
                 className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
               />

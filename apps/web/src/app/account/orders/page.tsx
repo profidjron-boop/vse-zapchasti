@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type OrderHistoryItem = {
   id: number;
@@ -85,23 +86,21 @@ export default function AccountOrdersPage() {
     setError("");
     try {
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(
+      const payload = await fetchJsonWithTimeout<OrderHistoryItem[]>(
         withApiBase(apiBaseUrl, `/api/public/orders/history?phone=${encodeURIComponent(normalizedPhone)}`),
-        { method: "GET" }
+        { method: "GET" },
+        12000
       );
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось получить историю заказов");
-      }
-
-      const payload = (await response.json()) as OrderHistoryItem[];
       setOrders(Array.isArray(payload) ? payload : []);
       setSearched(true);
     } catch (submitError) {
       setOrders([]);
       setSearched(true);
-      setError(submitError instanceof Error ? submitError.message : "Не удалось получить историю заказов");
+      if (submitError instanceof ApiRequestError) {
+        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
+      } else {
+        setError("Не удалось получить историю заказов");
+      }
     } finally {
       setLoading(false);
     }
@@ -137,6 +136,8 @@ export default function AccountOrdersPage() {
                 type="tel"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="+7 (___) ___-__-__"
                 className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
               />
@@ -152,7 +153,7 @@ export default function AccountOrdersPage() {
         </form>
 
         {error ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          <div role="alert" aria-live="assertive" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         ) : null}
 
         {searched && !loading && orders.length === 0 ? (

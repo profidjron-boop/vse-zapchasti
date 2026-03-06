@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 
 type LeadReportItem = {
@@ -64,6 +65,7 @@ function statusLabel(status: string): string {
 }
 
 export default function AdminReportsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -85,7 +87,7 @@ export default function AdminReportsPage() {
     try {
       const token = localStorage.getItem("admin_token");
       if (!token) {
-        window.location.href = "/admin/login";
+        router.push("/admin/login");
         return;
       }
 
@@ -108,7 +110,7 @@ export default function AdminReportsPage() {
       const unauthorized = responses.some((response) => response.status === 401);
       if (unauthorized) {
         localStorage.removeItem("admin_token");
-        window.location.href = "/admin/login";
+        router.push("/admin/login");
         return;
       }
 
@@ -139,7 +141,7 @@ export default function AdminReportsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void fetchReports();

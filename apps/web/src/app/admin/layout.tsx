@@ -197,12 +197,12 @@ export default function AdminLayout({
   return (
     <div className="min-h-dvh bg-[#F5F7FA]">
       <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Link href="/admin" className="text-xl font-bold text-[#1F3B73]">
               Админ-панель
             </Link>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               {userRole ? (
                 <span className="rounded-full bg-[#1F3B73]/10 px-3 py-1 text-xs font-medium text-[#1F3B73]">
                   {roleLabel(userRole)}
@@ -222,10 +222,10 @@ export default function AdminLayout({
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="flex gap-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="flex flex-col gap-4 xl:flex-row xl:gap-8">
           {/* Sidebar */}
-          <nav className="w-64 shrink-0">
+          <nav className="w-full shrink-0 xl:w-64">
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <div className="mb-3">
                 <input
@@ -236,19 +236,21 @@ export default function AdminLayout({
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
                 />
               </div>
-              {filteredNavItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block rounded-xl px-4 py-3 text-sm font-medium transition ${
-                    pathname === item.href
-                      ? "bg-[#1F3B73] text-white"
-                      : "text-neutral-600 hover:bg-neutral-100"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                {filteredNavItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`block rounded-xl px-4 py-3 text-sm font-medium transition ${
+                      pathname === item.href
+                        ? "bg-[#1F3B73] text-white"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
               {filteredNavItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-xs text-neutral-500">
                   Ничего не найдено
@@ -259,7 +261,7 @@ export default function AdminLayout({
 
           {/* Main content */}
           <main className="flex-1">
-            <div className="rounded-2xl bg-white p-6 shadow-sm">
+            <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
               {children}
             </div>
           </main>
