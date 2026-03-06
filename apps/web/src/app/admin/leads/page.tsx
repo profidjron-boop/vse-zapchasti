@@ -50,6 +50,7 @@ export default function LeadsPage() {
   const [lastUpdated, setLastUpdated] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [pendingDeleteLeadId, setPendingDeleteLeadId] = useState<number | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -169,8 +170,6 @@ export default function LeadsPage() {
   }, [fetchLeads]);
 
   async function handleDelete(id: number) {
-    if (!confirm('Удалить заявку?')) return;
-    
     try {
       const token = localStorage.getItem('admin_token');
       if (!token) {
@@ -191,6 +190,10 @@ export default function LeadsPage() {
       
       setLeads(leads.filter(l => l.id !== id));
       setSelectedLeadIds((prev) => prev.filter((leadId) => leadId !== id));
+      if (pendingDeleteLeadId === id) {
+        setPendingDeleteLeadId(null);
+      }
+      setSuccess(`Заявка #${id} удалена`);
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
         localStorage.removeItem('admin_token');
@@ -202,6 +205,7 @@ export default function LeadsPage() {
       } else {
         setError('Ошибка при удалении');
       }
+      setPendingDeleteLeadId(null);
     }
   }
 
@@ -705,13 +709,32 @@ export default function LeadsPage() {
                     >
                       👁️
                     </Link>
-                    <button
-                      onClick={() => handleDelete(lead.id)}
-                      className="text-red-600 hover:underline"
-                      aria-label={`Удалить заявку ${lead.id}`}
-                    >
-                      🗑️
-                    </button>
+                    {pendingDeleteLeadId === lead.id ? (
+                      <>
+                        <button
+                          onClick={() => void handleDelete(lead.id)}
+                          className="mr-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
+                          aria-label={`Подтвердить удаление заявки ${lead.id}`}
+                        >
+                          Подтвердить
+                        </button>
+                        <button
+                          onClick={() => setPendingDeleteLeadId(null)}
+                          className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
+                          aria-label={`Отменить удаление заявки ${lead.id}`}
+                        >
+                          Отмена
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setPendingDeleteLeadId(lead.id)}
+                        className="text-red-600 hover:underline"
+                        aria-label={`Удалить заявку ${lead.id}`}
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
