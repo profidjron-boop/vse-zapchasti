@@ -56,6 +56,9 @@ make migrate-check # текущее состояние миграций (alembic
 Единый прогон всех verify-гейтов проекта (web + api + db).
 
 - scripts/verify-all.sh
+- Включает `web:no-remote-assets`:
+  - fail, если в runtime web-коде найдены внешние источники ассетов/скриптов/стилей
+    (например `next/font/google`, `https://` в `script src`, `stylesheet href`, CSS `@import/url(...)`).
 
 ## CI gates
 

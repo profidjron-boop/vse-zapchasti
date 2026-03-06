@@ -15,6 +15,37 @@ fail() {
 
 ok() { echo "✅ $*"; }
 
+check_no_remote_assets() {
+  local search_paths=(
+    "apps/web/src"
+    "apps/web/public"
+    "apps/web/next.config.ts"
+  )
+
+  local -a patterns=(
+    "next/font/google"
+    "<script[^>]*src=['\\\"]https?://"
+    "<link[^>]*rel=['\\\"]stylesheet['\\\"][^>]*href=['\\\"]https?://"
+    "@import[[:space:]]+url\\(['\\\"]?https?://"
+    "url\\(['\\\"]?https?://"
+  )
+
+  local matches=""
+  for pattern in "${patterns[@]}"; do
+    local result=""
+    result="$(rg -n --pcre2 "$pattern" "${search_paths[@]}" || true)"
+    if [[ -n "$result" ]]; then
+      matches+=$'\n'"$result"
+    fi
+  done
+
+  if [[ -n "$matches" ]]; then
+    echo "$matches" | sed '/^[[:space:]]*$/d'
+    return 1
+  fi
+  return 0
+}
+
 wait_for_port() {
   local host="$1"
   local port="$2"
@@ -64,6 +95,10 @@ echo
 log "git diff --check (whitespace/errors)"
 git diff --check || fail "git diff --check found whitespace/errors"
 ok "git diff --check"
+
+log "web:no-remote-assets"
+check_no_remote_assets || fail "web:no-remote-assets found external runtime assets"
+ok "web:no-remote-assets"
 
 # --- Web ---
 log "web:lint"
