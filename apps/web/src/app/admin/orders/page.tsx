@@ -53,18 +53,23 @@ export default function AdminOrdersPage() {
       const token = localStorage.getItem("admin_token");
       if (!token) return;
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/orders/statuses"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return;
-      const payload = (await response.json()) as string[];
+      const payload = await fetchJsonWithTimeout<string[]>(
+        withApiBase(apiBaseUrl, "/api/admin/orders/statuses"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       if (Array.isArray(payload)) {
         setStatuses(payload);
       }
-    } catch {
-      // silent
+    } catch (statusError) {
+      if (statusError instanceof ApiRequestError && (statusError.status === 401 || statusError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+      }
     }
-  }, []);
+  }, [router]);
 
   const fetchOrders = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) {
@@ -94,7 +99,7 @@ export default function AdminOrdersPage() {
       setOrders(Array.isArray(payload) ? payload : []);
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && fetchError.status === 401) {
+      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
         localStorage.removeItem("admin_token");
         router.push("/admin/login");
         return;
