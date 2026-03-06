@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type ImportRun = {
   id: number;
@@ -85,35 +86,44 @@ export default function AdminImportsPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/imports?limit=100"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Не удалось загрузить список импортов");
-      }
-
-      const data = (await response.json()) as ImportRun[];
+      const data = await fetchJsonWithTimeout<ImportRun[]>(
+        withApiBase(apiBaseUrl, "/api/admin/imports?limit=100"),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        12000
+      );
       setRuns(data);
 
-      const modeResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (modeResponse.ok) {
-        const modePayload = (await modeResponse.json()) as { value?: string };
+      try {
+        const modePayload = await fetchJsonWithTimeout<{ value?: string }>(
+          withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"),
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+          12000
+        );
         setUpdateMode(normalizeUpdateMode(modePayload.value));
-      } else if (modeResponse.status === 404) {
-        setUpdateMode("manual");
+      } catch (modeError) {
+        if (modeError instanceof ApiRequestError && modeError.status === 404) {
+          setUpdateMode("manual");
+        } else if (modeError instanceof ApiRequestError && (modeError.status === 401 || modeError.status === 403)) {
+          throw modeError;
+        }
       }
 
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить список импортов");
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError("Не удалось загрузить список импортов");
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -160,29 +170,29 @@ export default function AdminImportsPage() {
         ? `/api/admin/products/import?${params.toString()}`
         : "/api/admin/products/import";
 
-      const response = await fetch(withApiBase(apiBaseUrl, endpoint), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
-        return;
-      }
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { detail?: string };
-        throw new Error(payload.detail || "Не удалось выполнить импорт");
-      }
-
-      const result = (await response.json()) as ImportResponse;
+      const result = await fetchJsonWithTimeout<ImportResponse>(
+        withApiBase(apiBaseUrl, endpoint),
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        },
+        12000
+      );
       setUploadResult(result);
       setFile(null);
       await fetchRuns();
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Ошибка при загрузке файла");
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setUploadError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setUploadError("Ошибка при загрузке файла");
+      }
     } finally {
       setIsUploading(false);
     }
@@ -208,41 +218,53 @@ export default function AdminImportsPage() {
         description: "Режим обновления каталога: manual/hourly/daily/event",
       };
 
-      const updateResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"), {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          value: payload.value,
-          type: payload.type,
-          description: payload.description,
-        }),
-      });
-
-      if (updateResponse.status === 404) {
-        const createResponse = await fetch(withApiBase(apiBaseUrl, "/api/admin/content"), {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+      try {
+        await fetchJsonWithTimeout<{ key: string; value: string }>(
+          withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"),
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              value: payload.value,
+              type: payload.type,
+              description: payload.description,
+            }),
           },
-          body: JSON.stringify(payload),
-        });
-
-        if (!createResponse.ok) {
-          const body = (await createResponse.json().catch(() => null)) as { detail?: string } | null;
-          throw new Error(body?.detail || "Не удалось сохранить режим обновления");
+          12000
+        );
+      } catch (updateError) {
+        if (!(updateError instanceof ApiRequestError) || updateError.status !== 404) {
+          throw updateError;
         }
-      } else if (!updateResponse.ok) {
-        const body = (await updateResponse.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(body?.detail || "Не удалось сохранить режим обновления");
+        await fetchJsonWithTimeout<{ key: string; value: string }>(
+          withApiBase(apiBaseUrl, "/api/admin/content"),
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          },
+          12000
+        );
       }
 
       setModeMessage("Режим обновления сохранён");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Не удалось сохранить режим обновления");
+      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (saveError instanceof ApiRequestError) {
+        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
+      } else {
+        setError("Не удалось сохранить режим обновления");
+      }
     } finally {
       setIsSavingMode(false);
     }
