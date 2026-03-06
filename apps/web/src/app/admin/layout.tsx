@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Cookies from "js-cookie";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -119,6 +120,7 @@ export default function AdminLayout({
         const role = profile.role;
         if (role !== "admin" && role !== "manager" && role !== "service_manager") {
           localStorage.removeItem("admin_token");
+          Cookies.remove("admin_token", { path: "/" });
           setIsAuthenticated(false);
           setUserRole(null);
           router.push("/admin/login");
@@ -140,6 +142,7 @@ export default function AdminLayout({
           console.error(authError);
         }
         localStorage.removeItem("admin_token");
+        Cookies.remove("admin_token", { path: "/" });
         setIsAuthenticated(false);
         setUserRole(null);
         router.push("/admin/login");
@@ -179,6 +182,7 @@ export default function AdminLayout({
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
+    Cookies.remove("admin_token", { path: "/" });
     router.push('/admin/login');
     router.refresh();
   };
