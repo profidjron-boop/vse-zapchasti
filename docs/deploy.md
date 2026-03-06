@@ -55,11 +55,14 @@
 - `apps/web/.env`:
   - `API_BASE_URL` — base URL API для server-side fetch в Next.js.
   - `NEXT_PUBLIC_API_BASE_URL` — base URL API для browser fetch.
+  - `NEXT_PUBLIC_SITE_URL` — канонический публичный URL сайта (metadataBase, robots, sitemap).
 - `dev` пример:
   - `API_BASE_URL=http://localhost:8000`
   - `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
+  - `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000`
 - `prod` правило:
   - использовать публичный URL API (например, `https://api.vsezapchasti.ru`)
+  - использовать публичный URL web (например, `https://vsezapchasti.ru`)
   - не использовать `localhost` в production-окружении
 
 ## High-level steps (без команд; конкретика появится после появления compose/infra)

@@ -95,11 +95,11 @@ export default function AdminReportsPage() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const endpoints = [
-        "/api/admin/leads?limit=500",
-        "/api/admin/vin-requests?limit=500",
-        "/api/admin/service-requests?limit=500",
-        "/api/admin/orders?limit=500",
-        "/api/admin/products?limit=500",
+        "/api/admin/leads?limit=100",
+        "/api/admin/vin-requests?limit=100",
+        "/api/admin/service-requests?limit=100",
+        "/api/admin/orders?limit=100",
+        "/api/admin/products?limit=100",
         "/api/admin/categories",
       ];
 
@@ -114,26 +114,34 @@ export default function AdminReportsPage() {
         return;
       }
 
-      const failed = responses.find((response) => !response.ok);
-      if (failed) {
-        throw new Error("Не удалось загрузить отчёты");
-      }
+      const failedSections: string[] = [];
+      const parseArray = async <T,>(response: Response, sectionLabel: string): Promise<T[]> => {
+        if (!response.ok) {
+          failedSections.push(sectionLabel);
+          return [];
+        }
+        const payload = await response.json().catch(() => null);
+        return Array.isArray(payload) ? (payload as T[]) : [];
+      };
 
       const [leadsData, vinData, serviceData, ordersData, productsData, categoriesData] = await Promise.all([
-        responses[0].json(),
-        responses[1].json(),
-        responses[2].json(),
-        responses[3].json(),
-        responses[4].json(),
-        responses[5].json(),
+        parseArray<LeadReportItem>(responses[0], "заявки"),
+        parseArray<VinReportItem>(responses[1], "VIN-заявки"),
+        parseArray<ServiceReportItem>(responses[2], "сервис"),
+        parseArray<OrderReportItem>(responses[3], "заказы"),
+        parseArray<ProductReportItem>(responses[4], "товары"),
+        parseArray<CategoryReportItem>(responses[5], "категории"),
       ]);
 
-      setLeads(Array.isArray(leadsData) ? (leadsData as LeadReportItem[]) : []);
-      setVinRequests(Array.isArray(vinData) ? (vinData as VinReportItem[]) : []);
-      setServiceRequests(Array.isArray(serviceData) ? (serviceData as ServiceReportItem[]) : []);
-      setOrders(Array.isArray(ordersData) ? (ordersData as OrderReportItem[]) : []);
-      setProducts(Array.isArray(productsData) ? (productsData as ProductReportItem[]) : []);
-      setCategories(Array.isArray(categoriesData) ? (categoriesData as CategoryReportItem[]) : []);
+      setLeads(leadsData);
+      setVinRequests(vinData);
+      setServiceRequests(serviceData);
+      setOrders(ordersData);
+      setProducts(productsData);
+      setCategories(categoriesData);
+      if (failedSections.length > 0) {
+        setError(`Часть разделов не загрузилась: ${failedSections.join(", ")}`);
+      }
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Ошибка загрузки отчётов");
