@@ -171,59 +171,102 @@ export default function AdminProductsPage() {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
             Найдено товаров: {filteredProducts.length}
           </div>
-          <table className="w-full min-w-[980px]">
-            <thead className="border-b border-neutral-200 bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">SKU</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">OEM</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Название</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Бренд</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Цена</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Остаток</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Действия</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {filteredProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-neutral-50">
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.sku}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.oem || "—"}</td>
-                  <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
-                  <td className="px-4 py-3 text-sm">{product.brand || "—"}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.price ? `${product.price.toLocaleString()} ₽` : "—"}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{product.stock_quantity}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <span className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
-                      {product.is_active ? "Активен" : "Выключен"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/admin/products/${product.id}`}
-                        className="rounded-lg border border-[#1F3B73]/20 bg-white px-2 py-1 text-xs font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5"
-                      >
-                        Редактировать
-                      </Link>
-                      <Link
-                        href={`/parts/p/${encodeURIComponent(product.sku)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
-                      >
-                        На сайте
-                      </Link>
-                    </div>
-                  </td>
+
+          <div className="divide-y divide-neutral-200 md:hidden">
+            {filteredProducts.map((product) => (
+              <article key={product.id} className="space-y-3 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-all text-xs text-neutral-500">{product.sku}</p>
+                    <p className="mt-1 font-medium text-neutral-900">{product.name}</p>
+                    <p className="mt-1 text-sm text-neutral-600">OEM: {product.oem || "—"}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
+                    {product.is_active ? "Активен" : "Выключен"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm text-neutral-700">
+                  <p>Бренд: {product.brand || "—"}</p>
+                  <p>Остаток: {product.stock_quantity}</p>
+                  <p className="col-span-2">Цена: {product.price ? `${product.price.toLocaleString()} ₽` : "—"}</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/admin/products/${product.id}`}
+                    className="rounded-lg border border-[#1F3B73]/20 bg-white px-2 py-1 text-xs font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5"
+                  >
+                    Редактировать
+                  </Link>
+                  <Link
+                    href={`/parts/p/${encodeURIComponent(product.sku)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                  >
+                    На сайте
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[980px]">
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">SKU</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">OEM</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Название</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Бренд</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Цена</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Остаток</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Действия</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.sku}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.oem || "—"}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
+                    <td className="px-4 py-3 text-sm">{product.brand || "—"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.price ? `${product.price.toLocaleString()} ₽` : "—"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.stock_quantity}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <span className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
+                        {product.is_active ? "Активен" : "Выключен"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/admin/products/${product.id}`}
+                          className="rounded-lg border border-[#1F3B73]/20 bg-white px-2 py-1 text-xs font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5"
+                        >
+                          Редактировать
+                        </Link>
+                        <Link
+                          href={`/parts/p/${encodeURIComponent(product.sku)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                        >
+                          На сайте
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
