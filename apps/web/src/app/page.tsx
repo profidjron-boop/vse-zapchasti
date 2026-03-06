@@ -220,7 +220,7 @@ export default async function Page() {
 
       {/* Виды работ */}
       <section className="bg-white py-16">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-8 lg:grid-cols-2">
             <div className="h-80 rounded-3xl bg-gradient-to-br from-[#1F3B73]/10 to-[#FF7A00]/10" />
             <div>
@@ -231,8 +231,8 @@ export default async function Page() {
                   "Ремонт и обслуживание",
                   "Шиномонтаж и автоэлектрика",
                 ].map((work) => (
-                  <div key={work} className="flex items-center justify-between rounded-2xl border border-neutral-200 p-4">
-                    <span className="font-medium text-neutral-700">{work}</span>
+                  <div key={work} className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 p-4">
+                    <span className="min-w-0 break-words font-medium text-neutral-700">{work}</span>
                     <span className="text-[#FF7A00]">→</span>
                   </div>
                 ))}
@@ -271,7 +271,7 @@ export default async function Page() {
 
       {/* Контакты */}
       <section className="bg-white py-16">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-8 lg:grid-cols-2">
             <div>
               <h2 className="text-2xl font-bold text-[#1F3B73]">Контакты</h2>
