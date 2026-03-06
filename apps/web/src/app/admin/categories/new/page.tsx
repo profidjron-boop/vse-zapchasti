@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 export default function NewCategoryPage() {
   const router = useRouter();
@@ -81,24 +82,32 @@ export default function NewCategoryPage() {
       }
 
       const apiBaseUrl = getClientApiBaseUrl();
-      const response = await fetch(withApiBase(apiBaseUrl, "/api/admin/categories"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+      await fetchJsonWithTimeout<{ id: number }>(
+        withApiBase(apiBaseUrl, "/api/admin/categories"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error("Ошибка при создании категории");
-      }
+        12000
+      );
 
       router.push("/admin/categories");
       router.refresh();
     } catch (err) {
-      setError("Не удалось создать категорию. Попробуйте позже.");
-      console.error(err);
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        localStorage.removeItem("admin_token");
+        router.push("/admin/login");
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setError("Не удалось создать категорию. Попробуйте позже.");
+      }
     } finally {
       setIsSubmitting(false);
     }
