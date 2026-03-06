@@ -57,8 +57,8 @@ export default async function Page() {
     <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
       {/* Header */}
       <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-2xl font-bold text-[#1F3B73]">{brandName}</div>
             <nav className="hidden items-center gap-8 md:flex">
               <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
@@ -72,18 +72,27 @@ export default async function Page() {
             <div className="flex items-center gap-3">
               <Link
                 href="/contacts"
-                className="rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73]"
+                className="hidden rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73] sm:inline-block"
               >
                 Для дилеров
               </Link>
               <Link
                 href="/contacts#callback-form"
-                className="rounded-2xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20"
+                className="rounded-2xl bg-[#FF7A00] px-3 py-2 text-xs font-medium text-white shadow-lg shadow-[#FF7A00]/20 sm:px-4 sm:text-sm"
               >
                 Заказать звонок
               </Link>
             </div>
           </div>
+          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
+            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
+            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
+            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
+            <Link href="/about" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navAbout}</Link>
+            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
+            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
+            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
+          </nav>
         </div>
       </header>
 
@@ -92,24 +101,24 @@ export default async function Page() {
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
         </div>
-        <div className="relative mx-auto max-w-6xl px-6">
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
           <div className="max-w-2xl">
-            <h1 className="text-4xl font-bold text-white sm:text-5xl">
+            <h1 className="text-3xl font-bold text-white sm:text-5xl">
               {heroTitle}
             </h1>
-            <p className="mt-4 text-lg text-white/80">
+            <p className="mt-4 text-base text-white/80 sm:text-lg">
               {heroSubtitle}
             </p>
-            <div className="mt-8 flex gap-4">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:gap-4">
               <Link
                 href="/parts"
-                className="rounded-2xl bg-white px-6 py-3 font-medium text-[#1F3B73] shadow-lg transition hover:bg-white/90"
+                className="rounded-2xl bg-white px-6 py-3 text-center font-medium text-[#1F3B73] shadow-lg transition hover:bg-white/90"
               >
                 {heroCtaParts}
               </Link>
               <Link
                 href="/service"
-                className="rounded-2xl border border-white/30 bg-white/10 px-6 py-3 font-medium text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="rounded-2xl border border-white/30 bg-white/10 px-6 py-3 text-center font-medium text-white backdrop-blur-sm transition hover:bg-white/20"
               >
                 {heroCtaService}
               </Link>
@@ -119,7 +128,7 @@ export default async function Page() {
       </section>
 
       {/* Две дороги - ключевой блок */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Левая карточка - Запчасти */}
           <div className="rounded-3xl bg-white p-8 shadow-xl">
@@ -132,7 +141,7 @@ export default async function Page() {
             <div className="mt-6 h-40 rounded-2xl bg-gradient-to-br from-[#1F3B73]/5 to-[#FF7A00]/5" />
             <div className="mt-6">
               <label className="text-sm font-medium text-neutral-700">Поиск по артикулу или OEM</label>
-              <form action="/parts" method="get" className="mt-2 flex gap-3">
+              <form action="/parts" method="get" className="mt-2 flex flex-col gap-3 sm:flex-row">
                 <input
                   type="text"
                   name="q"
@@ -154,7 +163,7 @@ export default async function Page() {
 
           {/* Правая карточка - Сервис */}
           <div className="rounded-3xl bg-white p-8 shadow-xl">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="text-2xl font-bold text-[#1F3B73]">Автосервис</h2>
               <div className="flex gap-2">
                 <span className="rounded-full bg-[#1F3B73]/10 px-3 py-1 text-xs font-medium text-[#1F3B73]">
@@ -190,7 +199,7 @@ export default async function Page() {
       </section>
 
       {/* Категории запчастей */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="text-2xl font-bold text-[#1F3B73]">Категории запчастей</h2>
         <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {[
@@ -240,7 +249,7 @@ export default async function Page() {
       </section>
 
       {/* Запчасти под заказ */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="rounded-3xl bg-gradient-to-r from-[#1F3B73] to-[#14294F] p-8 text-white lg:p-12">
           <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
             <div>
@@ -297,12 +306,12 @@ export default async function Page() {
 
       {/* Footer */}
       <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-neutral-600">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
           © {new Date().getFullYear()} {footerText}
         </div>
       </footer>
       {/* Legal links */}
-      <div className="mx-auto max-w-6xl px-6 pb-10">
+      <div className="mx-auto max-w-6xl px-4 pb-10 sm:px-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-neutral-600">
           <Link href="/privacy" className="hover:text-[#1F3B73]">
             {legalPrivacyLabel}
