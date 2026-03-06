@@ -213,6 +213,48 @@ async def test_import_products_skip_invalid_allows_completion(monkeypatch):
     assert result["updated"] == 0
 
 
+@pytest.mark.asyncio
+async def test_import_products_accepts_trigger_mode(monkeypatch):
+    db = FakeAsyncSession()
+    current_user = SimpleNamespace(id=1, role="admin", is_active=True)
+
+    monkeypatch.setattr(admin, "_parse_import_rows", lambda _name, _content: [])
+
+    upload = FakeUploadFile(filename="products.csv", content=b"sku,name\n")
+    result = await admin.admin_import_products(
+        file=upload,
+        default_category_id=1,
+        skip_invalid=False,
+        trigger_mode="daily",
+        db=db,
+        current_user=current_user,
+    )
+
+    assert result["trigger_mode"] == "daily"
+
+
+@pytest.mark.asyncio
+async def test_import_products_rejects_invalid_trigger_mode(monkeypatch):
+    db = FakeAsyncSession()
+    current_user = SimpleNamespace(id=1, role="admin", is_active=True)
+
+    monkeypatch.setattr(admin, "_parse_import_rows", lambda _name, _content: [])
+
+    upload = FakeUploadFile(filename="products.csv", content=b"sku,name\n")
+    with pytest.raises(HTTPException) as exc:
+        await admin.admin_import_products(
+            file=upload,
+            default_category_id=1,
+            skip_invalid=False,
+            trigger_mode="weekly",
+            db=db,
+            current_user=current_user,
+        )
+
+    assert exc.value.status_code == 400
+    assert "trigger_mode must be one of" in str(exc.value.detail)
+
+
 def test_snapshot_product_normalization_keeps_compatibilities():
     normalized = public._normalize_snapshot_product(
         {
