@@ -61,6 +61,7 @@ export default function LeadsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [pageInput, setPageInput] = useState('1');
   const [statuses, setStatuses] = useState<string[]>([]);
   const searchRef = useRef(filters.search);
 
@@ -152,6 +153,10 @@ export default function LeadsPage() {
   useEffect(() => {
     void fetchLeads(searchRef.current);
   }, [fetchLeads]);
+
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
 
   async function handleDelete(id: number) {
     try {
@@ -279,6 +284,18 @@ export default function LeadsPage() {
     setFilters(defaultFilters);
     setPage(1);
     setError('');
+  };
+
+  const handlePageJump = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsed = Number.parseInt(pageInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageInput(String(page));
+      return;
+    }
+    const nextPage = Math.max(1, parsed);
+    setPage(nextPage);
+    setPageInput(String(nextPage));
   };
 
   const handleSavePreset = () => {
@@ -807,6 +824,23 @@ export default function LeadsPage() {
               >
                 Вперёд
               </button>
+              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
+                <label htmlFor="leads-page-jump" className="text-xs text-neutral-500">Стр.</label>
+                <input
+                  id="leads-page-jump"
+                  type="number"
+                  min={1}
+                  value={pageInput}
+                  onChange={(event) => setPageInput(event.target.value)}
+                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                >
+                  Перейти
+                </button>
+              </form>
             </div>
           </div>
         </div>
