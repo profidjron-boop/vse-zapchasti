@@ -43,10 +43,12 @@ export default function ImportRunDetailsPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case "finished":
       case "success":
         return "Успешно";
       case "failed":
         return "Ошибка";
+      case "started":
       case "processing":
         return "В обработке";
       default:
