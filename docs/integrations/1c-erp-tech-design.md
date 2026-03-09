@@ -95,5 +95,10 @@ Common pipeline for all modes:
   - source modes: `manual/hourly/daily/event`,
   - direct source pull: `IMPORT_SOURCE_URL` (+ optional auth header/basic auth),
   - import target: existing admin pipeline `/api/admin/products/import`.
+- For API-native trigger (without file upload), use:
+  - `POST /api/admin/products/import-from-source?trigger_mode=event`,
+  - source settings are read from API env: `IMPORT_SOURCE_URL`, `IMPORT_SOURCE_AUTH_HEADER`,
+    `IMPORT_SOURCE_USERNAME`, `IMPORT_SOURCE_PASSWORD`,
+    optional hardening: `IMPORT_SOURCE_ALLOWED_HOSTS`, timeout envs.
 - This gives immediate 1C/ERP pull integration without changing public catalog contracts.
 - Next stage (optional): dedicated adapter service with richer protocol mapping/retries.
