@@ -514,7 +514,7 @@ export default function ServicePage() {
         </div>
       </section>
 
-      <section id="truck-services" className="bg-white py-12">
+      <section id="truck-services" className="bg-white py-12 scroll-mt-36">
         <div className="mx-auto max-w-7xl scroll-mt-36 px-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
