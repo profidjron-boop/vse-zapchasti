@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -210,6 +210,8 @@ const PAGE_PRESETS: PagePreset[] = [
   },
 ];
 
+const CONTENT_PAGE_SIZE = 20;
+
 export default function ContentEditorPage() {
   const router = useRouter();
   const [content, setContent] = useState<ContentBlock[]>([]);
@@ -223,6 +225,7 @@ export default function ContentEditorPage() {
   const [deletingKey, setDeletingKey] = useState('');
   const [pendingDeleteKey, setPendingDeleteKey] = useState('');
   const [keyFilter, setKeyFilter] = useState('');
+  const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingValue, setEditingValue] = useState<{[key: string]: string}>({});
@@ -597,6 +600,38 @@ export default function ContentEditorPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [dirtyCount]);
 
+  const filteredContent = useMemo(() => {
+    const filter = keyFilter.trim().toLowerCase();
+    if (!filter) return content;
+    return content.filter((block) => {
+      const description = (block.description || '').toLowerCase();
+      return block.key.toLowerCase().includes(filter) || description.includes(filter);
+    });
+  }, [content, keyFilter]);
+
+  const totalPages = useMemo(() => {
+    if (filteredContent.length <= 0) return 1;
+    return Math.ceil(filteredContent.length / CONTENT_PAGE_SIZE);
+  }, [filteredContent.length]);
+
+  const pagedContent = useMemo(() => {
+    const offset = (page - 1) * CONTENT_PAGE_SIZE;
+    return filteredContent.slice(offset, offset + CONTENT_PAGE_SIZE);
+  }, [filteredContent, page]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const existingKeys = new Set(content.map((block) => block.key));
+  const totalPresetKeys = PAGE_PRESETS.reduce((sum, preset) => sum + preset.blocks.length, 0);
+  const totalMissingPresetKeys = PAGE_PRESETS.reduce(
+    (sum, preset) => sum + preset.blocks.filter((block) => !existingKeys.has(block.key)).length,
+    0
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -604,18 +639,6 @@ export default function ContentEditorPage() {
       </div>
     );
   }
-
-  const filteredContent = content.filter((block) => {
-    const filter = keyFilter.trim().toLowerCase();
-    if (!filter) return true;
-    return block.key.toLowerCase().includes(filter);
-  });
-  const existingKeys = new Set(content.map((block) => block.key));
-  const totalPresetKeys = PAGE_PRESETS.reduce((sum, preset) => sum + preset.blocks.length, 0);
-  const totalMissingPresetKeys = PAGE_PRESETS.reduce(
-    (sum, preset) => sum + preset.blocks.filter((block) => !existingKeys.has(block.key)).length,
-    0
-  );
 
   return (
     <div>
@@ -675,7 +698,10 @@ export default function ContentEditorPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setKeyFilter(preset.keyPrefix)}
+                  onClick={() => {
+                    setKeyFilter(preset.keyPrefix);
+                    setPage(1);
+                  }}
                   className="mt-3 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
                 >
                   Открыть ключи страницы
@@ -769,13 +795,19 @@ export default function ContentEditorPage() {
           <input
             type="text"
             value={keyFilter}
-            onChange={(event) => setKeyFilter(event.target.value)}
-            placeholder="Например: contacts_"
+            onChange={(event) => {
+              setKeyFilter(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Ключ или описание, например: contacts_"
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
           <button
             type="button"
-            onClick={() => setKeyFilter('')}
+            onClick={() => {
+              setKeyFilter('');
+              setPage(1);
+            }}
             className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             Сбросить
@@ -784,7 +816,13 @@ export default function ContentEditorPage() {
       </div>
 
       <div className="space-y-6">
-        {filteredContent.map((block) => (
+        {filteredContent.length > 0 && (
+          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500">
+            Показано: {pagedContent.length} из {filteredContent.length} · Страница {page} из {totalPages}
+          </div>
+        )}
+
+        {pagedContent.map((block) => (
           <div key={block.key} className="border border-neutral-200 rounded-2xl bg-white p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -911,6 +949,33 @@ export default function ContentEditorPage() {
           </div>
         ))}
       </div>
+
+      {filteredContent.length > 0 && (
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm">
+          <div className="text-neutral-500">Фильтр применяется ко всем контент-ключам.</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+            >
+              Назад
+            </button>
+            <span className="min-w-[7rem] text-center text-neutral-600">
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+            >
+              Вперёд
+            </button>
+          </div>
+        </div>
+      )}
 
       {filteredContent.length === 0 && (
         <div className="text-center py-12 bg-white rounded-2xl border border-neutral-200">
