@@ -28,6 +28,7 @@ type ImportResponse = {
 };
 
 type UpdateMode = "manual" | "hourly" | "daily" | "event";
+const PAGE_SIZE = 25;
 
 function normalizeUpdateMode(value: string | null | undefined): UpdateMode {
   const normalized = (value || "").trim().toLowerCase();
@@ -51,6 +52,8 @@ export default function AdminImportsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [defaultCategoryId, setDefaultCategoryId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
   const [isSavingMode, setIsSavingMode] = useState(false);
   const [modeMessage, setModeMessage] = useState("");
@@ -107,12 +110,22 @@ export default function AdminImportsPage() {
     try {
       setError("");
       const apiBaseUrl = getClientApiBaseUrl();
+      const query = new URLSearchParams({
+        skip: String((page - 1) * PAGE_SIZE),
+        limit: String(PAGE_SIZE + 1),
+      });
+      if (statusFilter) {
+        query.set("status", statusFilter);
+      }
       const data = await fetchJsonWithTimeout<ImportRun[]>(
-        withApiBase(apiBaseUrl, "/api/admin/imports?limit=100"),
+        withApiBase(apiBaseUrl, `/api/admin/imports?${query.toString()}`),
         {},
         12000
       );
-      setRuns(data);
+      const nextPageAvailable = data.length > PAGE_SIZE;
+      const pageRows = nextPageAvailable ? data.slice(0, PAGE_SIZE) : data;
+      setRuns(pageRows);
+      setHasNextPage(nextPageAvailable);
 
       try {
         const modePayload = await fetchJsonWithTimeout<{ value?: string }>(
@@ -144,16 +157,11 @@ export default function AdminImportsPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [router]);
+  }, [page, router, statusFilter]);
 
   useEffect(() => {
     void fetchRuns();
   }, [fetchRuns]);
-
-  const filteredRuns = useMemo(() => {
-    if (!statusFilter) return runs;
-    return runs.filter((run) => run.status === statusFilter);
-  }, [runs, statusFilter]);
 
   async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -438,12 +446,15 @@ export default function AdminImportsPage() {
       ) : (
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-neutral-500">Найдено запусков: {filteredRuns.length}</div>
+            <div className="text-sm text-neutral-500">Показано запусков: {runs.length}</div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs uppercase tracking-wide text-neutral-500">Статус</label>
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setPage(1);
+                }}
                 className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
               >
                 <option value="">Все</option>
@@ -454,7 +465,7 @@ export default function AdminImportsPage() {
             </div>
           </div>
           <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 md:hidden">
-            {filteredRuns.map((run) => (
+            {runs.map((run) => (
               <article key={run.id} className="space-y-3 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -501,7 +512,7 @@ export default function AdminImportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {filteredRuns.map((run) => (
+                {runs.map((run) => (
                   <tr key={run.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
                       {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
@@ -535,6 +546,30 @@ export default function AdminImportsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
+            <div className="text-neutral-500">
+              Показано запусков: {runs.length} · Страница {page}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1 || isRefreshing}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <span className="min-w-[5rem] text-center text-neutral-600">Стр. {page}</span>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!hasNextPage || isRefreshing}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Вперёд
+              </button>
+            </div>
           </div>
         </div>
       )}
