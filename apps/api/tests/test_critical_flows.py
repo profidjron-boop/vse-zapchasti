@@ -340,6 +340,51 @@ async def test_import_products_from_source_uses_downloaded_payload(monkeypatch):
     assert result["failed"] == 0
 
 
+def test_build_import_source_filename_uses_path_extension():
+    name = admin._build_import_source_filename("https://erp.example/export/products.xlsx?token=abc")
+    assert name == "products.xlsx"
+
+
+def test_build_import_source_filename_falls_back_to_csv():
+    name = admin._build_import_source_filename("https://erp.example/feed")
+    assert name == "source-import.csv"
+
+
+def test_is_allowed_source_host_supports_subdomains():
+    assert admin._is_allowed_source_host("api.erp.example", {"erp.example"}) is True
+    assert admin._is_allowed_source_host("evil.example.org", {"erp.example"}) is False
+
+
+@pytest.mark.asyncio
+async def test_download_import_source_payload_rejects_invalid_scheme():
+    with pytest.raises(HTTPException) as exc:
+        await admin._download_import_source_payload(
+            source_url="file:///tmp/catalog.csv",
+            source_auth_header="",
+            source_username="",
+            source_password="",
+        )
+
+    assert exc.value.status_code == 400
+    assert "http/https" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_download_import_source_payload_rejects_non_allowlisted_host(monkeypatch):
+    monkeypatch.setenv("IMPORT_SOURCE_ALLOWED_HOSTS", "erp.example")
+
+    with pytest.raises(HTTPException) as exc:
+        await admin._download_import_source_payload(
+            source_url="https://evil.example.org/export.csv",
+            source_auth_header="",
+            source_username="",
+            source_password="",
+        )
+
+    assert exc.value.status_code == 400
+    assert "allowlisted" in str(exc.value.detail)
+
+
 def test_admin_csrf_validation_accepts_matching_cookie_and_header():
     request = _make_request_with_headers(
         "/api/admin/leads",
