@@ -79,6 +79,12 @@ make migrate-check # текущее состояние миграций (alembic
 - `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit.sh`
   - дополнительно проверяет `/api/admin/auth/me`, `/api/admin/leads`, `/api/admin/service-requests`.
 
+Локальный one-command запуск runtime-аудита с автоподъёмом стека:
+
+- `bash scripts/runtime-audit-local.sh`
+- с admin проверками:
+  - `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit-local.sh`
+
 ## Dependency audit notes
 
 - `apps/web/pnpm-lock.yaml` является source of truth для Web audit.
