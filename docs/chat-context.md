@@ -64,6 +64,7 @@ Service catalog:
 - Umbrella gate: `bash scripts/verify-all.sh`
 - API coverage gate: `cd apps/api && make test-cov` (>=65% total)
 - Smoke: `bash scripts/smoke.sh` и `bash scripts/smoke.sh --with-write`
+- Runtime audit local: `bash scripts/runtime-audit-local.sh`
 - Release readiness: `bash scripts/release-check.sh`
 
 ## Current QA Status (2026-03-09)
