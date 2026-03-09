@@ -65,6 +65,7 @@ export default function ServicePage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [selectedServiceType, setSelectedServiceType] = useState("");
+  const [selectedVehicleType, setSelectedVehicleType] = useState<"passenger" | "truck">("passenger");
   const [contentMap, setContentMap] = useState<Record<string, string>>({});
   const [services, setServices] = useState(fallbackServices);
   const [installPrefill, setInstallPrefill] = useState<{
@@ -88,6 +89,8 @@ export default function ServicePage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const preselectedServiceType = (params.get("service_type") || "").trim();
+    const preselectedVehicleType = params.get("vehicle_type") === "truck" ? "truck" : "passenger";
     const sku = (params.get("product_sku") || params.get("requested_product_sku") || "").trim().toUpperCase();
     const name = (params.get("product_name") || params.get("requested_product_name") || "").trim();
     const rawBundleTotal = (params.get("bundle_total") || "").trim().replace(",", ".");
@@ -100,8 +103,11 @@ export default function ServicePage() {
       requestedBundleTotal: bundleTotal,
       installWithPartFlow: flow,
     });
+    setSelectedVehicleType(preselectedVehicleType);
     if (flow) {
       setSelectedServiceType(installServiceType);
+    } else if (preselectedServiceType) {
+      setSelectedServiceType(preselectedServiceType);
     }
   }, []);
 
@@ -349,22 +355,17 @@ export default function ServicePage() {
     />
   );
 
-  const serviceBenefits = [
-    "Запись оформляется заявкой, менеджер подтверждает удобное время.",
-    "Работаем с легковыми и коммерческими автомобилями.",
-    "Можно сразу приложить VIN, пробег и описание симптомов.",
-  ];
+  const buildServiceFormHref = (serviceType: string, vehicleType: "passenger" | "truck"): string => {
+    const params = new URLSearchParams();
+    params.set("service_type", serviceType);
+    params.set("vehicle_type", vehicleType);
+    return `/service?${params.toString()}#form`;
+  };
 
-  const processSteps = [
-    "Выбираете направление работ и оставляете заявку.",
-    "Менеджер уточняет детали, стоимость и время приёма.",
-    "Подтверждаем запись и готовим сервис к вашему приезду.",
-  ];
-
-  const renderServiceCard = (service: ServiceCard) => (
+  const renderServiceCard = (service: ServiceCard, vehicleType: "passenger" | "truck") => (
     <article
-      key={service.title}
-      className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
+      key={`${vehicleType}-${service.title}`}
+      className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1F3B73] to-[#365CAD] text-sm font-black tracking-[0.12em] text-white">
@@ -382,6 +383,14 @@ export default function ServicePage() {
           {service.prepaymentLabel}
         </div>
       ) : null}
+      <div className="mt-5">
+        <Link
+          href={buildServiceFormHref(service.title, vehicleType)}
+          className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1F3B73] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
+        >
+          Записаться на услугу
+        </Link>
+      </div>
     </article>
   );
 
@@ -426,7 +435,7 @@ export default function ServicePage() {
       {serviceHeader}
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:py-14">
+        <div className="mx-auto max-w-[92rem] px-4 py-10 sm:px-6 lg:py-14">
           <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               service · diagnostics · maintenance
@@ -449,58 +458,11 @@ export default function ServicePage() {
                 Перейти в каталог
               </Link>
             </div>
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {serviceBenefits.map((benefit) => (
-                <div key={benefit} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/76">
-                  {benefit}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">маршрут записи</div>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Как проходит запись</h2>
-              <div className="mt-5 space-y-3">
-                {processSteps.map((step, index) => (
-                  <div key={step} className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1F3B73] text-sm font-black text-white">
-                      {index + 1}
-                    </div>
-                    <p className="text-sm leading-6 text-neutral-600">{step}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Link
-                href="#passenger-services"
-                className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
-              >
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">легковые</div>
-                <div className="mt-3 text-lg font-bold text-neutral-900">Открыть направления работ</div>
-                <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  Диагностика, ТО, автоэлектрика, ходовая часть и другие направления.
-                </p>
-              </Link>
-              <Link
-                href="#truck-services"
-                className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
-              >
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">грузовые</div>
-                <div className="mt-3 text-lg font-bold text-neutral-900">Сервис для коммерческого транспорта</div>
-                <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  Отдельные направления и работы для грузовых автомобилей и коммерческого парка.
-                </p>
-              </Link>
-            </div>
           </div>
         </div>
       </section>
 
-      <section id="passenger-services" className="mx-auto max-w-7xl scroll-mt-36 px-4 py-12 sm:px-6">
+      <section id="passenger-services" className="mx-auto max-w-[92rem] scroll-mt-36 px-4 py-12 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">легковые автомобили</div>
@@ -514,16 +476,16 @@ export default function ServicePage() {
           </Link>
         </div>
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {services.passenger.map(renderServiceCard)}
+          {services.passenger.map((service) => renderServiceCard(service, "passenger"))}
         </div>
       </section>
 
       <section id="truck-services" className="bg-white py-12 scroll-mt-36">
-        <div className="mx-auto max-w-7xl scroll-mt-36 px-4 sm:px-6">
+        <div className="mx-auto max-w-[92rem] scroll-mt-36 px-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">коммерческий транспорт</div>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Грузовой сервис</h2>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Направления работ</h2>
             </div>
             <Link
               href="#form"
@@ -533,29 +495,30 @@ export default function ServicePage() {
             </Link>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {services.truck.map(renderServiceCard)}
+            {services.truck.map((service) => renderServiceCard(service, "truck"))}
           </div>
         </div>
       </section>
 
-      <section id="form" className="mx-auto max-w-7xl scroll-mt-36 px-4 py-12 sm:px-6">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,0.85fr)]">
-          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+      <section id="form" className="mx-auto max-w-[92rem] scroll-mt-36 px-4 py-12 sm:px-6">
+        <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">заявка на обслуживание</div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">{formTitle}</h2>
             <p className="mt-3 text-sm leading-7 text-neutral-600 sm:text-base">
               {formSubtitle}
             </p>
 
-            {error ? (
-              <div
-                role="alert"
-                aria-live="assertive"
-                className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
-              >
-                {error}
-              </div>
-            ) : null}
+            <div className="mt-6 min-h-[4.5rem]">
+              {error ? (
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+                >
+                  {error}
+                </div>
+              ) : null}
+            </div>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -593,6 +556,8 @@ export default function ServicePage() {
                   <select
                     name="vehicle_type"
                     required
+                    value={selectedVehicleType}
+                    onChange={(event) => setSelectedVehicleType(event.target.value === "truck" ? "truck" : "passenger")}
                     className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
                   >
                     <option value="passenger">Легковой</option>
@@ -786,48 +751,6 @@ export default function ServicePage() {
                 {isSubmitting ? "Отправка..." : "Отправить заявку"}
               </button>
             </form>
-          </div>
-
-          <aside className="space-y-4">
-            <div className="rounded-[2rem] bg-[linear-gradient(135deg,#10264B_0%,#1F3B73_100%)] p-6 text-white shadow-[0_28px_70px_rgba(16,38,75,0.18)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">что важно</div>
-              <div className="mt-4 space-y-3">
-                {[
-                  "Запись подтверждается менеджером, а не формируется автоматически.",
-                  "Можно сразу выбрать направление работ из каталога услуг.",
-                  "Если по услуге предусмотрена предоплата, она будет указана в карточке.",
-                ].map((item) => (
-                  <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/78">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">быстрые переходы</div>
-              <div className="mt-4 flex flex-col gap-3">
-                <Link
-                  href="/parts"
-                  className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
-                >
-                  Открыть каталог запчастей
-                </Link>
-                <Link
-                  href="/parts/vin"
-                  className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
-                >
-                  VIN-заявка
-                </Link>
-                <Link
-                  href="/contacts"
-                  className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
-                >
-                  Контакты сервиса
-                </Link>
-              </div>
-            </div>
-          </aside>
         </div>
       </section>
 

@@ -306,12 +306,14 @@ export default function AdminServiceCatalogPage() {
         </button>
       </div>
 
-      {error ? (
-        <div role="alert" aria-live="assertive" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-      ) : null}
-      {success ? (
-        <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>
-      ) : null}
+      <div className="mb-4 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>
+        ) : null}
+      </div>
 
       <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4">
         <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск услуги</label>

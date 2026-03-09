@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeoutAndResponse } from "@/lib/fetch-json";
 
@@ -23,19 +23,45 @@ type Product = {
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
+function normalizeStockFilter(value: string | null): "all" | "in_stock" | "out_of_stock" {
+  if (value === "in_stock" || value === "out_of_stock") {
+    return value;
+  }
+  return "all";
+}
+
+function normalizePageSize(value: string | null): number {
+  const parsed = Number.parseInt(value || "", 10);
+  if (PAGE_SIZE_OPTIONS.includes(parsed as typeof PAGE_SIZE_OPTIONS[number])) {
+    return parsed;
+  }
+  return DEFAULT_PAGE_SIZE;
+}
+
+function normalizePage(value: string | null): number {
+  const parsed = Number.parseInt(value || "1", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
 export default function AdminProductsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [totalProducts, setTotalProducts] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">("all");
-  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
-  const [pageInput, setPageInput] = useState("1");
+  const [search, setSearch] = useState(() => (searchParams.get("q") || "").trim());
+  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">(
+    () => normalizeStockFilter(searchParams.get("stock"))
+  );
+  const [pageSize, setPageSize] = useState<number>(() => normalizePageSize(searchParams.get("page_size")));
+  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
 
   const fetchProducts = useCallback(async (showRefreshing = false) => {
     setError("");
@@ -83,8 +109,16 @@ export default function AdminProductsPage() {
   }, [router, search, stockFilter, page, pageSize]);
 
   useEffect(() => {
-    setPage(1);
-  }, [search, stockFilter, pageSize]);
+    const nextSearch = (searchParams.get("q") || "").trim();
+    const nextStockFilter = normalizeStockFilter(searchParams.get("stock"));
+    const nextPageSize = normalizePageSize(searchParams.get("page_size"));
+    const nextPage = normalizePage(searchParams.get("page"));
+
+    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    setStockFilter((prev) => (prev === nextStockFilter ? prev : nextStockFilter));
+    setPageSize((prev) => (prev === nextPageSize ? prev : nextPageSize));
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [searchParams]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -108,6 +142,25 @@ export default function AdminProductsPage() {
   useEffect(() => {
     setPageInput(String(page));
   }, [page]);
+
+  useEffect(() => {
+    const query = new URLSearchParams();
+    const normalizedSearch = search.trim();
+    if (normalizedSearch) {
+      query.set("q", normalizedSearch);
+    }
+    if (stockFilter !== "all") {
+      query.set("stock", stockFilter);
+    }
+    if (pageSize !== DEFAULT_PAGE_SIZE) {
+      query.set("page_size", String(pageSize));
+    }
+    if (page > 1) {
+      query.set("page", String(page));
+    }
+    const target = query.toString() ? `/admin/products?${query.toString()}` : "/admin/products";
+    router.replace(target, { scroll: false });
+  }, [page, pageSize, router, search, stockFilter]);
 
   function handlePageJump(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -161,7 +214,10 @@ export default function AdminProductsPage() {
           <input
             type="text"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
             placeholder="SKU, OEM, бренд или название"
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
@@ -170,7 +226,10 @@ export default function AdminProductsPage() {
           <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Наличие</label>
           <select
             value={stockFilter}
-            onChange={(event) => setStockFilter(event.target.value as "all" | "in_stock" | "out_of_stock")}
+            onChange={(event) => {
+              setStockFilter(event.target.value as "all" | "in_stock" | "out_of_stock");
+              setPage(1);
+            }}
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           >
             <option value="all">Все</option>
@@ -182,7 +241,10 @@ export default function AdminProductsPage() {
           <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">На странице</label>
           <select
             value={String(pageSize)}
-            onChange={(event) => setPageSize(Number.parseInt(event.target.value, 10) || DEFAULT_PAGE_SIZE)}
+            onChange={(event) => {
+              setPageSize(Number.parseInt(event.target.value, 10) || DEFAULT_PAGE_SIZE);
+              setPage(1);
+            }}
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           >
             {PAGE_SIZE_OPTIONS.map((option) => (
@@ -192,13 +254,29 @@ export default function AdminProductsPage() {
             ))}
           </select>
         </div>
+        <div className="md:col-span-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setStockFilter("all");
+              setPageSize(DEFAULT_PAGE_SIZE);
+              setPage(1);
+            }}
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+          >
+            Сбросить фильтры
+          </button>
+        </div>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+      </div>
 
       {products.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">

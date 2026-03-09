@@ -20,15 +20,30 @@ export default function FavoritesPage() {
   const isEmptyState = !loading && items.length === 0;
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
       setItems(loadFavorites());
       setLoading(false);
-    }, 0);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setNotice("");
+    }, 2600);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [notice]);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,11 +215,13 @@ export default function FavoritesPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        {notice ? (
-          <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 shadow-[0_10px_30px_rgba(34,197,94,0.08)]">
-            {notice}
-          </div>
-        ) : null}
+        <div className="mb-6 min-h-[3.75rem]">
+          {notice ? (
+            <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 shadow-[0_10px_30px_rgba(34,197,94,0.08)]">
+              {notice}
+            </div>
+          ) : null}
+        </div>
 
         {loading ? (
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-500 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">

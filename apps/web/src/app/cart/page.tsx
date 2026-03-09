@@ -447,21 +447,23 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                {error ? (
-                  <div role="alert" aria-live="assertive" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
-                  </div>
-                ) : null}
+                <div className="mt-4 min-h-[5rem]">
+                  {error ? (
+                    <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {error}
+                    </div>
+                  ) : null}
 
-                {success ? (
-                  <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                    {success}
-                    {orderId ? <span className="mt-1 block text-xs">Номер заказа: #{orderId}</span> : null}
-                    <Link href="/account/orders" className="mt-2 inline-block text-xs font-semibold text-green-800 hover:underline">
-                      Перейти в мои заказы
-                    </Link>
-                  </div>
-                ) : null}
+                  {!error && success ? (
+                    <div role="status" aria-live="polite" className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                      {success}
+                      {orderId ? <span className="mt-1 block text-xs">Номер заказа: #{orderId}</span> : null}
+                      <Link href="/account/orders" className="mt-2 inline-block text-xs font-semibold text-green-800 hover:underline">
+                        Перейти в мои заказы
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
 
                 <form onSubmit={handleSubmitOrder} className="mt-5 space-y-4">
                   <div>

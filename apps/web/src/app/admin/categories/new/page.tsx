@@ -117,11 +117,13 @@ export default function NewCategoryPage() {
         <h1 className="text-2xl font-bold text-[#1F3B73]">Новая категория</h1>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-          {error}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+      </div>
 
       <form onSubmit={handleSubmit} className="max-w-2xl space-y-4">
         <div>

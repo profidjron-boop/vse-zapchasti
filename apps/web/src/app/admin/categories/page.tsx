@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -16,16 +16,25 @@ type Category = {
 
 const PAGE_SIZE = 50;
 
+function normalizePage(value: string | null): number {
+  const parsed = Number.parseInt(value || "1", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
 export default function AdminCategoriesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageInput, setPageInput] = useState("1");
+  const [search, setSearch] = useState(() => (searchParams.get("q") || "").trim());
+  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
+  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
 
   const fetchCategories = useCallback(async (showRefreshing = false) => {
     setError("");
@@ -61,6 +70,13 @@ export default function AdminCategoriesPage() {
     void fetchCategories();
   }, [fetchCategories]);
 
+  useEffect(() => {
+    const nextSearch = (searchParams.get("q") || "").trim();
+    const nextPage = normalizePage(searchParams.get("page"));
+    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [searchParams]);
+
   const filteredCategories = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return categories;
@@ -88,6 +104,19 @@ export default function AdminCategoriesPage() {
   useEffect(() => {
     setPageInput(String(page));
   }, [page]);
+
+  useEffect(() => {
+    const query = new URLSearchParams();
+    const normalizedSearch = search.trim();
+    if (normalizedSearch) {
+      query.set("q", normalizedSearch);
+    }
+    if (page > 1) {
+      query.set("page", String(page));
+    }
+    const target = query.toString() ? `/admin/categories?${query.toString()}` : "/admin/categories";
+    router.replace(target, { scroll: false });
+  }, [page, router, search]);
 
   function handlePageJump(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -136,23 +165,37 @@ export default function AdminCategoriesPage() {
 
       <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
         <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(1);
-          }}
-          placeholder="Название или slug"
-          className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Название или slug"
+            className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none md:flex-1"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setPage(1);
+            }}
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-600 hover:bg-neutral-100"
+          >
+            Сбросить
+          </button>
+        </div>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+      </div>
 
       {filteredCategories.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">

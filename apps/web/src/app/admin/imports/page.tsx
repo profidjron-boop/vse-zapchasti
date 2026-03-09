@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -38,8 +38,17 @@ function normalizeUpdateMode(value: string | null | undefined): UpdateMode {
   return "manual";
 }
 
+function normalizePage(value: string | null): number {
+  const parsed = Number.parseInt(value || "1", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
 export default function AdminImportsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [runs, setRuns] = useState<ImportRun[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -51,10 +60,10 @@ export default function AdminImportsPage() {
   const [uploadResult, setUploadResult] = useState<ImportResponse | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [defaultCategoryId, setDefaultCategoryId] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "");
+  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [pageInput, setPageInput] = useState("1");
+  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
   const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
   const [savedUpdateMode, setSavedUpdateMode] = useState<UpdateMode>("manual");
   const [isSavingMode, setIsSavingMode] = useState(false);
@@ -167,6 +176,25 @@ export default function AdminImportsPage() {
   useEffect(() => {
     void fetchRuns();
   }, [fetchRuns]);
+
+  useEffect(() => {
+    const nextStatusFilter = searchParams.get("status") || "";
+    const nextPage = normalizePage(searchParams.get("page"));
+    setStatusFilter((prev) => (prev === nextStatusFilter ? prev : nextStatusFilter));
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const query = new URLSearchParams();
+    if (statusFilter) {
+      query.set("status", statusFilter);
+    }
+    if (page > 1) {
+      query.set("page", String(page));
+    }
+    const target = query.toString() ? `/admin/imports?${query.toString()}` : "/admin/imports";
+    router.replace(target, { scroll: false });
+  }, [page, router, statusFilter]);
 
   useEffect(() => {
     setPageInput(String(page));
@@ -455,22 +483,26 @@ export default function AdminImportsPage() {
           </button>
         </div>
 
-        {uploadError && <p role="alert" aria-live="assertive" className="mt-3 text-sm text-red-600">{uploadError}</p>}
-        {uploadResult && (
-          <p role="status" aria-live="polite" className="mt-3 text-sm text-green-700">
-            {createdLabel}{" "}
-            <Link href={`/admin/imports/${uploadResult.run_id}`} className="font-medium underline">
-              Открыть детали
-            </Link>
-          </p>
-        )}
+        <div className="mt-3 min-h-[3.25rem]">
+          {uploadError ? <p role="alert" aria-live="assertive" className="text-sm text-red-600">{uploadError}</p> : null}
+          {!uploadError && uploadResult ? (
+            <p role="status" aria-live="polite" className="text-sm text-green-700">
+              {createdLabel}{" "}
+              <Link href={`/admin/imports/${uploadResult.run_id}`} className="font-medium underline">
+                Открыть детали
+              </Link>
+            </p>
+          ) : null}
+        </div>
       </form>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+      </div>
 
       {isLoading ? (
         <div className="py-12 text-center text-neutral-500">Загрузка...</div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -22,6 +22,14 @@ type OrderRow = {
 
 const PAGE_SIZE = 25;
 
+function normalizePage(value: string | null): number {
+  const parsed = Number.parseInt(value || "1", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
 function statusLabel(value: string): string {
   if (value === "new") return "Новый";
   if (value === "in_progress") return "В работе";
@@ -39,19 +47,23 @@ function sourceLabel(value: string): string {
 
 export default function AdminOrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") || "";
+  const initialSearch = (searchParams.get("q") || "").trim();
+  const initialPage = normalizePage(searchParams.get("page"));
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [appliedStatus, setAppliedStatus] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState(initialStatus);
+  const [search, setSearch] = useState(initialSearch);
+  const [appliedStatus, setAppliedStatus] = useState(initialStatus);
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch);
+  const [page, setPage] = useState(initialPage);
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [pageInput, setPageInput] = useState("1");
+  const [pageInput, setPageInput] = useState(String(initialPage));
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -118,8 +130,36 @@ export default function AdminOrdersPage() {
   }, [fetchStatuses]);
 
   useEffect(() => {
+    const nextStatus = searchParams.get("status") || "";
+    const nextSearch = (searchParams.get("q") || "").trim();
+    const nextPage = normalizePage(searchParams.get("page"));
+
+    setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    setAppliedStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    setAppliedSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [searchParams]);
+
+  useEffect(() => {
     void fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    const query = new URLSearchParams();
+    const normalizedSearch = appliedSearch.trim();
+    if (appliedStatus) {
+      query.set("status", appliedStatus);
+    }
+    if (normalizedSearch) {
+      query.set("q", normalizedSearch);
+    }
+    if (page > 1) {
+      query.set("page", String(page));
+    }
+    const target = query.toString() ? `/admin/orders?${query.toString()}` : "/admin/orders";
+    router.replace(target, { scroll: false });
+  }, [appliedSearch, appliedStatus, page, router]);
 
   function handleApplyFilters(event: React.FormEvent) {
     event.preventDefault();
@@ -221,11 +261,13 @@ export default function AdminOrdersPage() {
         </div>
       </form>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+      </div>
 
       {orders.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">

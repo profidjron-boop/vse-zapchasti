@@ -171,16 +171,18 @@ export default function VinRequestDetailsPage() {
         <h1 className="mt-2 text-2xl font-bold text-[#1F3B73]">VIN-заявка #{request.id}</h1>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div role="status" aria-live="polite" className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {success}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            {success}
+          </div>
+        ) : null}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">

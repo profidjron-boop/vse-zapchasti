@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { CART_UPDATED_EVENT, getCartTotals, loadCart } from "@/lib/cart";
 
 export type PublicNavKey =
   | "parts"
@@ -77,20 +81,60 @@ function mobileNavItemClass(active: boolean): string {
     : `${base} border-neutral-200 bg-white text-neutral-700 hover:border-[#1F3B73]/20 hover:text-[#1F3B73]`;
 }
 
+function getCartCount(): number {
+  return getCartTotals(loadCart()).count;
+}
+
+function renderNavLabel(key: PublicNavKey, label: string, cartCount: number) {
+  if (key !== "cart") {
+    return label;
+  }
+  const cartLabel = cartCount > 99 ? "99+" : String(cartCount);
+  const cartBadgeClass = cartCount > 0
+    ? "bg-[#1F3B73] text-white"
+    : "bg-neutral-200 text-neutral-600";
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span>{label}</span>
+      <span className={`inline-flex h-5 w-7 items-center justify-center rounded-full text-[11px] font-semibold leading-none ${cartBadgeClass}`}>
+        {cartLabel}
+      </span>
+    </span>
+  );
+}
+
 export function PublicHeader({
   brandName = "Все запчасти",
   activeKey,
   labels,
   showActions = true,
 }: PublicHeaderProps) {
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const syncCartCount = () => {
+      setCartCount(getCartCount());
+    };
+
+    syncCartCount();
+    window.addEventListener("storage", syncCartCount);
+    window.addEventListener(CART_UPDATED_EVENT, syncCartCount);
+
+    return () => {
+      window.removeEventListener("storage", syncCartCount);
+      window.removeEventListener(CART_UPDATED_EVENT, syncCartCount);
+    };
+  }, []);
+
   const merged = { ...DEFAULT_LABELS, ...(labels ?? {}) };
   const primaryItems = NAV_ITEMS.filter((item) => PRIMARY_NAV_KEYS.includes(item.key));
   const utilityItems = NAV_ITEMS.filter((item) => UTILITY_NAV_KEYS.includes(item.key));
 
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-md">
-      <div className="border-b border-neutral-200 bg-neutral-50/90">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 text-xs text-neutral-500 sm:px-6">
+    <header className="sticky top-0 z-50 border-b border-neutral-200 bg-white/95 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-md supports-[backdrop-filter]:bg-white/90">
+      <div className="hidden border-b border-neutral-200 bg-neutral-50/90 sm:block">
+        <div className="mx-auto flex max-w-[92rem] items-center justify-between gap-3 px-4 py-1.5 text-xs text-neutral-500 sm:px-6">
           <p className="truncate font-medium text-neutral-600">
             Каталог запчастей и сервис для коммерческого транспорта и легковых авто
           </p>
@@ -102,14 +146,14 @@ export function PublicHeader({
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:gap-6">
+      <div className="mx-auto max-w-[92rem] px-4 py-2 sm:px-6">
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:gap-5">
           <div className="flex items-center justify-between gap-4 xl:w-[15rem] xl:flex-none">
             <Link href="/" className="min-w-0 shrink-0">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#FF7A00]">
                 industrial parts
               </div>
-              <div className="truncate text-2xl font-black tracking-tight text-[#1F3B73]">
+              <div className="truncate text-xl font-black tracking-tight text-[#1F3B73]">
                 {brandName}
               </div>
             </Link>
@@ -125,7 +169,7 @@ export function PublicHeader({
                 name="q"
                 type="search"
                 placeholder="Поиск по артикулу, OEM или названию"
-                className="h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 pr-32 text-sm text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] outline-none transition-colors placeholder:text-neutral-400 focus:border-[#1F3B73]/30"
+                className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-4 pr-32 text-sm text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] outline-none transition-colors placeholder:text-neutral-400 focus:border-[#1F3B73]/30"
               />
               <span className="pointer-events-none absolute inset-y-0 right-4 hidden items-center text-xs font-medium uppercase tracking-[0.18em] text-neutral-400 md:flex">
                 SKU / OEM
@@ -133,7 +177,7 @@ export function PublicHeader({
             </div>
             <button
               type="submit"
-              className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl bg-[#FF7A00] px-5 text-sm font-semibold text-white shadow-lg shadow-[#FF7A00]/20 transition-colors hover:bg-[#E86F00]"
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-[#FF7A00] px-5 text-sm font-semibold text-white shadow-lg shadow-[#FF7A00]/20 transition-colors hover:bg-[#E86F00]"
             >
               Найти
             </button>
@@ -159,13 +203,13 @@ export function PublicHeader({
           <nav className="hidden items-center gap-2 2xl:flex">
             {utilityItems.map((item) => (
               <Link key={item.key} href={item.href} className={utilityItemClass(activeKey === item.key)}>
-                {merged[item.key]}
+                {renderNavLabel(item.key, merged[item.key], cartCount)}
               </Link>
             ))}
           </nav>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-neutral-200 pt-4">
+        <div className="mt-1.5 flex flex-col gap-2 border-t border-neutral-200 pt-1.5">
           <div className="hidden items-center justify-between gap-3 xl:flex">
             <nav className="flex flex-wrap items-center gap-2">
               {primaryItems.map((item) => (
@@ -178,7 +222,7 @@ export function PublicHeader({
             <nav className="flex flex-wrap items-center gap-2 2xl:hidden">
               {utilityItems.map((item) => (
                 <Link key={item.key} href={item.href} className={utilityItemClass(activeKey === item.key)}>
-                  {merged[item.key]}
+                  {renderNavLabel(item.key, merged[item.key], cartCount)}
                 </Link>
               ))}
             </nav>
@@ -205,18 +249,11 @@ export function PublicHeader({
             <nav className="flex items-center gap-2 overflow-x-auto pb-1">
               {[...primaryItems, ...utilityItems].map((item) => (
                 <Link key={item.key} href={item.href} className={mobileNavItemClass(activeKey === item.key)}>
-                  {merged[item.key]}
+                  {renderNavLabel(item.key, merged[item.key], cartCount)}
                 </Link>
               ))}
             </nav>
           </div>
-        </div>
-      </div>
-
-      <div className="bg-[linear-gradient(90deg,rgba(31,59,115,0.04),rgba(255,122,0,0.08),rgba(31,59,115,0.04))]">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 text-xs font-medium text-neutral-600 sm:px-6">
-          <span>Поиск по SKU/OEM, быстрый заказ, запись на сервис без регистрации</span>
-          <span className="hidden md:inline">Self-hosted storefront · NO CDN</span>
         </div>
       </div>
     </header>

@@ -218,7 +218,7 @@ export default function ContactsPage() {
       />
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:py-14">
+        <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:py-14">
           <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               contacts · callback · route
@@ -302,13 +302,13 @@ export default function ContactsPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+      <section className="mx-auto max-w-[92rem] px-4 py-12 sm:px-6">
         <div className="grid gap-4 md:grid-cols-3">
           {contactCards.map((card) => (
             <a
               key={card.title}
               href={card.href}
-              className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
+              className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
             >
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">{card.title}</div>
               <div className="mt-3 text-2xl font-black tracking-tight text-[#10264B]">{card.value}</div>
@@ -319,7 +319,7 @@ export default function ContactsPage() {
       </section>
 
       <section className="bg-white py-12">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,0.85fr)]">
+        <div className="mx-auto grid max-w-[92rem] gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,0.85fr)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">обратный звонок</div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">Напишите нам</h2>
@@ -327,16 +327,18 @@ export default function ContactsPage() {
               Оставьте телефон и сообщение. Менеджер свяжется с вами в рабочее время по каталогу, заказу или сервисной записи.
             </p>
 
-            {error ? (
-              <div role="alert" aria-live="assertive" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                {error}
-              </div>
-            ) : null}
-            {success ? (
-              <div role="status" aria-live="polite" className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                {success}
-              </div>
-            ) : null}
+            <div className="mt-6 min-h-[5rem]">
+              {error ? (
+                <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+              {!error && success ? (
+                <div role="status" aria-live="polite" className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                  {success}
+                </div>
+              ) : null}
+            </div>
 
             <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-8 space-y-4 scroll-mt-36">
               <div className="grid gap-4 sm:grid-cols-2">

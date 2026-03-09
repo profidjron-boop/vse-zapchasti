@@ -15,6 +15,8 @@
 html {
   /* Global fluid scale: compact on small screens, slightly larger on wide screens. */
   font-size: clamp(14px, 0.25vw + 13px, 17px);
+  scrollbar-gutter: stable both-edges;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -96,8 +98,7 @@ select:focus-visible {
     background-color 0.18s ease,
     border-color 0.18s ease,
     color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+    box-shadow 0.18s ease;
 }
 
 :where(a, button)[class*="bg-[#1F3B73]"][class*="text-white"]:hover,

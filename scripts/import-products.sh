@@ -306,31 +306,35 @@ if [[ -z "$token" ]]; then
 fi
 
 if [[ "$IMPORT_SERVER_SOURCE" == "1" ]]; then
-  endpoint="$API_BASE_URL/api/admin/products/import-from-source?trigger_mode=$mode"
+  endpoint="$API_BASE_URL/api/admin/products/import-from-source"
 else
-  endpoint="$API_BASE_URL/api/admin/products/import?trigger_mode=$mode"
-fi
-if [[ "$IMPORT_SKIP_INVALID" == "1" ]]; then
-  endpoint="${endpoint}&skip_invalid=true"
-fi
-if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" ]]; then
-  endpoint="${endpoint}&default_category_id=$IMPORT_DEFAULT_CATEGORY_ID"
+  endpoint="$API_BASE_URL/api/admin/products/import"
 fi
 
 tmp="$(mktemp)"
+curl_args=(
+  -sS
+  -o "$tmp"
+  -w "%{http_code}"
+  --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS"
+  --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS"
+  -X POST
+  "$endpoint"
+  -G
+  --data-urlencode "trigger_mode=$mode"
+  -H "Authorization: Bearer $token"
+)
+if [[ "$IMPORT_SKIP_INVALID" == "1" ]]; then
+  curl_args+=(--data-urlencode "skip_invalid=true")
+fi
+if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" ]]; then
+  curl_args+=(--data-urlencode "default_category_id=$IMPORT_DEFAULT_CATEGORY_ID")
+fi
+
 if [[ "$IMPORT_SERVER_SOURCE" == "1" ]]; then
-  code="$(curl -sS -o "$tmp" -w "%{http_code}" \
-    --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
-    --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
-    -X POST "$endpoint" \
-    -H "Authorization: Bearer $token")"
+  code="$(curl "${curl_args[@]}")"
 else
-  code="$(curl -sS -o "$tmp" -w "%{http_code}" \
-    --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
-    --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
-    -X POST "$endpoint" \
-    -H "Authorization: Bearer $token" \
-    -F "file=@$IMPORT_FILE_PATH")"
+  code="$(curl "${curl_args[@]}" -F "file=@$IMPORT_FILE_PATH")"
 fi
 
 if [[ "$code" != "200" ]]; then

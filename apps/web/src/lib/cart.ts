@@ -7,6 +7,7 @@ export type CartItem = {
 };
 
 const CART_STORAGE_KEY = "vsez_guest_cart_v1";
+export const CART_UPDATED_EVENT = "vsez:cart-updated";
 
 function clampQuantity(value: number): number {
   if (!Number.isFinite(value)) return 1;
@@ -18,6 +19,11 @@ function clampQuantity(value: number): number {
 
 function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function notifyCartUpdated(items: CartItem[]): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<CartItem[]>(CART_UPDATED_EVENT, { detail: items }));
 }
 
 export function loadCart(): CartItem[] {
@@ -52,6 +58,7 @@ export function loadCart(): CartItem[] {
 export function saveCart(items: CartItem[]): void {
   if (!canUseStorage()) return;
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  notifyCartUpdated(items);
 }
 
 export function addToCart(item: Omit<CartItem, "quantity">, quantity = 1): CartItem[] {
@@ -91,6 +98,7 @@ export function removeFromCart(productId: number): CartItem[] {
 export function clearCart(): void {
   if (!canUseStorage()) return;
   localStorage.removeItem(CART_STORAGE_KEY);
+  notifyCartUpdated([]);
 }
 
 export function getCartTotals(items: CartItem[]): { count: number; amount: number | null } {

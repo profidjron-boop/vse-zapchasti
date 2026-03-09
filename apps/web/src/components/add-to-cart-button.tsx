@@ -13,6 +13,7 @@ type AddToCartButtonProps = {
   buttonLabel?: string;
   buttonClassName?: string;
   noticeClassName?: string;
+  stabilizeNoticeHeight?: boolean;
 };
 
 const DEFAULT_BUTTON_CLASS =
@@ -30,6 +31,7 @@ export function AddToCartButton({
   buttonLabel = "В корзину",
   buttonClassName = DEFAULT_BUTTON_CLASS,
   noticeClassName = DEFAULT_NOTICE_CLASS,
+  stabilizeNoticeHeight = false,
 }: AddToCartButtonProps) {
   const [notice, setNotice] = useState("");
 
@@ -53,14 +55,16 @@ export function AddToCartButton({
       <button type="button" onClick={handleAddToCart} className={buttonClassName}>
         {buttonLabel}
       </button>
-      {notice ? (
-        <div role="status" aria-live="polite" className={noticeClassName}>
-          {notice}{" "}
-          <Link href="/cart" className="font-semibold underline">
-            Перейти в корзину
-          </Link>
-        </div>
-      ) : null}
+      <div className={stabilizeNoticeHeight ? "mt-2 min-h-[3.5rem]" : "mt-2"}>
+        {notice ? (
+          <div role="status" aria-live="polite" className={noticeClassName}>
+            {notice}{" "}
+            <Link href="/cart" className="font-semibold underline">
+              Перейти в корзину
+            </Link>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

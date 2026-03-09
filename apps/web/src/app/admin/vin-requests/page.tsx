@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -37,14 +37,39 @@ type FilterPreset = {
 };
 
 const FILTER_PRESETS_STORAGE_KEY = "admin_vin_requests_filter_presets_v1";
+const DEFAULT_PAGE_SIZE = 25;
+
+function normalizePage(value: string | null): number {
+  const parsed = Number.parseInt(value || "1", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
+function normalizePageSize(value: string | null): number {
+  const parsed = Number.parseInt(value || "", 10);
+  if (parsed === 25 || parsed === 50 || parsed === 100) {
+    return parsed;
+  }
+  return DEFAULT_PAGE_SIZE;
+}
 
 export default function AdminVinRequestsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") || "";
+  const initialSearch = (searchParams.get("q") || "").trim();
+  const initialPage = normalizePage(searchParams.get("page"));
+  const initialPageSize = normalizePageSize(searchParams.get("page_size"));
   const [requests, setRequests] = useState<VinRequest[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [appliedFilters, setAppliedFilters] = useState<VinFilters>({ status: "", search: "" });
+  const [status, setStatus] = useState(initialStatus);
+  const [search, setSearch] = useState(initialSearch);
+  const [appliedFilters, setAppliedFilters] = useState<VinFilters>({
+    status: initialStatus,
+    search: initialSearch,
+  });
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
@@ -53,10 +78,10 @@ export default function AdminVinRequestsPage() {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [presetName, setPresetName] = useState("");
   const [selectedPresetId, setSelectedPresetId] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(initialPage);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [pageInput, setPageInput] = useState("1");
+  const [pageInput, setPageInput] = useState(String(initialPage));
   const [selectedRequestIds, setSelectedRequestIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -130,6 +155,42 @@ export default function AdminVinRequestsPage() {
   }, [fetchRequests]);
 
   useEffect(() => {
+    const nextStatus = searchParams.get("status") || "";
+    const nextSearch = (searchParams.get("q") || "").trim();
+    const nextPage = normalizePage(searchParams.get("page"));
+    const nextPageSize = normalizePageSize(searchParams.get("page_size"));
+
+    setStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    setAppliedFilters((prev) => (
+      prev.status === nextStatus && prev.search === nextSearch
+        ? prev
+        : { status: nextStatus, search: nextSearch }
+    ));
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+    setPageSize((prev) => (prev === nextPageSize ? prev : nextPageSize));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const query = new URLSearchParams();
+    const normalizedSearch = appliedFilters.search.trim();
+    if (appliedFilters.status) {
+      query.set("status", appliedFilters.status);
+    }
+    if (normalizedSearch) {
+      query.set("q", normalizedSearch);
+    }
+    if (pageSize !== DEFAULT_PAGE_SIZE) {
+      query.set("page_size", String(pageSize));
+    }
+    if (page > 1) {
+      query.set("page", String(page));
+    }
+    const target = query.toString() ? `/admin/vin-requests?${query.toString()}` : "/admin/vin-requests";
+    router.replace(target, { scroll: false });
+  }, [appliedFilters.search, appliedFilters.status, page, pageSize, router]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(FILTER_PRESETS_STORAGE_KEY);
       if (!raw) return;
@@ -148,11 +209,8 @@ export default function AdminVinRequestsPage() {
 
   function handleApplyFilters(event: React.FormEvent) {
     event.preventDefault();
-    if (page !== 1) {
-      setPage(1);
-      return;
-    }
     setAppliedFilters({ status, search });
+    setPage(1);
   }
 
   function handleResetFilters() {
@@ -467,16 +525,18 @@ export default function AdminVinRequestsPage() {
         </div>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div role="status" aria-live="polite" className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {success}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            {success}
+          </div>
+        ) : null}
+      </div>
 
       {requests.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">
@@ -529,7 +589,7 @@ export default function AdminVinRequestsPage() {
                 <select
                   value={String(pageSize)}
                   onChange={(event) => {
-                    setPageSize(Number(event.target.value));
+                    setPageSize(normalizePageSize(event.target.value));
                     setPage(1);
                   }}
                   className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"

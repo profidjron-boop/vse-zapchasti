@@ -182,7 +182,7 @@ export default async function Page() {
       />
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)] lg:items-start lg:py-16">
+        <div className="mx-auto grid max-w-[92rem] gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)] lg:items-start lg:py-16">
           <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_32px_80px_rgba(31,59,115,0.18)] lg:p-10">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               Parts · Service · Krasnoyarsk
@@ -281,7 +281,7 @@ export default async function Page() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <section className="mx-auto max-w-[92rem] px-4 py-14 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">каталог</div>
@@ -300,7 +300,7 @@ export default async function Page() {
             <Link
               key={category.id}
               href={category.href}
-              className="group rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(15,23,42,0.10)]"
+              className="group rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_22px_54px_rgba(15,23,42,0.10)]"
             >
               <div
                 className={`inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-[#1F3B73]/10 ${
@@ -333,7 +333,7 @@ export default async function Page() {
       </section>
 
       <section className="bg-white py-14">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)]">
+        <div className="mx-auto grid max-w-[92rem] gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] lg:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как мы работаем</div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">
@@ -435,7 +435,7 @@ export default async function Page() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <section className="mx-auto max-w-[92rem] px-4 py-14 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(20rem,0.85fr)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">контакты</div>

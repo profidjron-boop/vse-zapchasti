@@ -5,6 +5,8 @@
   "scripts": {
     "web:lint": "pnpm --dir apps/web run lint",
     "web:typecheck": "pnpm --dir apps/web run typecheck",
-    "web:test": "pnpm --dir apps/web run test"
+    "web:test": "pnpm --dir apps/web run test",
+    "web:build": "pnpm --dir apps/web run build",
+    "web:audit": "pnpm --dir apps/web audit --prod --audit-level high"
   }
 }

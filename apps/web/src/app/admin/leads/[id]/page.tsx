@@ -227,16 +227,18 @@ export default function LeadDetailPage() {
         </h1>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div role="status" aria-live="polite" className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
-          {success}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+            {error}
+          </div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+            {success}
+          </div>
+        ) : null}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Основная информация */}

@@ -548,6 +548,26 @@ def test_notifications_validate_webhook_url_rejects_invalid_scheme_and_host():
         notifications._validate_webhook_url("https://evil.example.org/hook", {"example.com"})
 
 
+def test_notifications_validate_webhook_url_rejects_http_without_explicit_flag():
+    with pytest.raises(ValueError):
+        notifications._validate_webhook_url("http://localhost/hook", {"localhost"})
+
+
+def test_notifications_validate_webhook_url_allows_http_only_for_localhost_with_flag(monkeypatch):
+    monkeypatch.setenv("NOTIFY_ALLOW_INSECURE_HTTP_WEBHOOKS", "1")
+
+    validated = notifications._validate_webhook_url("http://localhost/hook", {"localhost"})
+    assert validated == "http://localhost/hook"
+
+    with pytest.raises(ValueError):
+        notifications._validate_webhook_url("http://example.com/hook", {"example.com"})
+
+
+def test_notifications_validate_webhook_url_rejects_embedded_credentials():
+    with pytest.raises(ValueError):
+        notifications._validate_webhook_url("https://user:pass@example.com/hook", {"example.com"})
+
+
 def test_admin_parse_import_rows_rejects_oversized_content(monkeypatch):
     monkeypatch.setattr(admin, "PRODUCT_IMPORT_MAX_BYTES", 10)
 

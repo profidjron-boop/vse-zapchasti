@@ -573,16 +573,18 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div role="status" aria-live="polite" className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
-          {success}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+            {error}
+          </div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-2xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+            {success}
+          </div>
+        ) : null}
+      </div>
 
       {leads.length === 0 ? (
         <div className="text-center py-12 text-neutral-500">
@@ -768,10 +770,10 @@ export default function LeadsPage() {
                     <td className="py-3 px-4 text-sm whitespace-nowrap">
                       <Link
                         href={`/admin/leads/${lead.id}`}
-                        className="text-[#1F3B73] hover:underline mr-3"
+                        className="mr-3 text-[#1F3B73] hover:underline"
                         aria-label={`Открыть заявку ${lead.id}`}
                       >
-                        👁️
+                        Открыть
                       </Link>
                       {pendingDeleteLeadId === lead.id ? (
                         <>

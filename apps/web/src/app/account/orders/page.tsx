@@ -247,11 +247,13 @@ export default function AccountOrdersPage() {
             </button>
           </form>
 
-          {error ? (
-            <div role="alert" aria-live="assertive" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
+          <div className="mt-4 min-h-[4.5rem]">
+            {error ? (
+              <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {searched && !loading && orders.length === 0 ? (

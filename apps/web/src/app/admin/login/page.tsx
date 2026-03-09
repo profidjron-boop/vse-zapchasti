@@ -67,11 +67,13 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl p-8">
-          {error && (
-            <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-              {error}
-            </div>
-          )}
+          <div className="mb-6 min-h-[4.5rem]">
+            {error ? (
+              <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                {error}
+              </div>
+            ) : null}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

@@ -12,7 +12,8 @@ import httpx
 
 
 logger = logging.getLogger("notifications")
-WEBHOOK_ALLOWED_SCHEMES = {"https", "http"}
+WEBHOOK_ALLOWED_SCHEMES = {"https"}
+LOCAL_WEBHOOK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 def _csv_env(name: str) -> list[str]:
@@ -46,12 +47,21 @@ def _is_allowed_webhook_host(host: str, allowed_hosts: set[str]) -> bool:
 def _validate_webhook_url(url: str, allowed_hosts: set[str]) -> str:
     parsed = urlsplit(url)
     scheme = (parsed.scheme or "").lower()
-    if scheme not in WEBHOOK_ALLOWED_SCHEMES:
-        raise ValueError(f"Webhook scheme '{scheme}' is not allowed")
+    if parsed.username or parsed.password:
+        raise ValueError("Webhook URL credentials are not allowed")
 
     host = (parsed.hostname or "").strip().lower()
     if not host:
         raise ValueError("Webhook host is required")
+
+    allow_insecure_http = _bool_env("NOTIFY_ALLOW_INSECURE_HTTP_WEBHOOKS", False)
+    if scheme == "http":
+        if not allow_insecure_http:
+            raise ValueError("Webhook scheme 'http' is not allowed without NOTIFY_ALLOW_INSECURE_HTTP_WEBHOOKS=1")
+        if host not in LOCAL_WEBHOOK_HOSTS:
+            raise ValueError("Insecure http webhooks are allowed only for localhost hosts")
+    elif scheme not in WEBHOOK_ALLOWED_SCHEMES:
+        raise ValueError(f"Webhook scheme '{scheme}' is not allowed")
 
     if not _is_allowed_webhook_host(host, allowed_hosts):
         raise ValueError(f"Webhook host '{host}' is not in NOTIFY_WEBHOOK_ALLOWED_HOSTS")

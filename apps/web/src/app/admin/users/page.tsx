@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
@@ -32,14 +32,23 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
 
 const PAGE_SIZE = 50;
 
+function normalizePage(value: string | null): number {
+  const parsed = Number.parseInt(value || "1", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
 export default function AdminUsersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [drafts, setDrafts] = useState<Record<number, UserDraft>>({});
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(() => (searchParams.get("q") || "").trim());
+  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [pageInput, setPageInput] = useState("1");
+  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
@@ -108,8 +117,24 @@ export default function AdminUsersPage() {
   }, [loadUsers]);
 
   useEffect(() => {
-    setPage(1);
-  }, [search]);
+    const nextSearch = (searchParams.get("q") || "").trim();
+    const nextPage = normalizePage(searchParams.get("page"));
+    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const query = new URLSearchParams();
+    const normalizedSearch = search.trim();
+    if (normalizedSearch) {
+      query.set("q", normalizedSearch);
+    }
+    if (page > 1) {
+      query.set("page", String(page));
+    }
+    const target = query.toString() ? `/admin/users?${query.toString()}` : "/admin/users";
+    router.replace(target, { scroll: false });
+  }, [page, router, search]);
 
   useEffect(() => {
     setPageInput(String(page));
@@ -240,12 +265,14 @@ export default function AdminUsersPage() {
         <h1 className="text-2xl font-bold text-[#1F3B73]">Пользователи</h1>
       </div>
 
-      {error ? (
-        <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-      ) : null}
-      {success ? (
-        <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>
-      ) : null}
+      <div className="min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>
+        ) : null}
+      </div>
 
       <div className="rounded-2xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold text-neutral-700">Создать пользователя</h2>
@@ -309,7 +336,10 @@ export default function AdminUsersPage() {
         <div className="flex flex-wrap items-center gap-3">
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
             placeholder="Поиск по email/имени (от 2 символов)"
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm sm:min-w-72 sm:w-auto"
           />

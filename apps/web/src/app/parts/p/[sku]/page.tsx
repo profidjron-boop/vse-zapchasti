@@ -11,6 +11,7 @@ import FavoriteToggleButton from "./favorite-toggle-button";
 
 type Product = {
   id: number;
+  category_id: number;
   sku: string;
   oem: string | null;
   brand: string | null;
@@ -53,6 +54,28 @@ async function getProductBySku(sku: string): Promise<{ product: Product | null; 
     return { product: (await response.json()) as Product, hasError: false };
   } catch {
     return { product: null, hasError: true };
+  }
+}
+
+async function getCategoryNameById(categoryId: number): Promise<string | null> {
+  if (!Number.isInteger(categoryId) || categoryId <= 0) return null;
+
+  try {
+    const apiBaseUrl = getServerApiBaseUrl();
+    const response = await fetch(
+      withApiBase(apiBaseUrl, `/api/public/categories?active_only=false`),
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+
+    const payload = (await response.json()) as Array<{ id?: number; name?: string }>;
+    if (!Array.isArray(payload)) return null;
+
+    const category = payload.find((item) => item?.id === categoryId);
+    const name = category?.name?.trim();
+    return name || null;
+  } catch {
+    return null;
   }
 }
 
@@ -167,14 +190,48 @@ export async function generateMetadata({
 
 export default async function ProductBySkuPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ sku: string }>;
+  searchParams: Promise<{
+    direction?: string;
+    category?: string;
+    category_name?: string;
+    page?: string;
+  }>;
 }) {
   const routeParams = await params;
+  const queryParams = await searchParams;
   const sku = routeParams.sku?.trim();
   if (!sku) {
     notFound();
   }
+
+  const directionParam = (queryParams.direction || "").trim().toLowerCase();
+  const categoryParam = Number.parseInt(queryParams.category || "", 10);
+  const categoryNameParam = (queryParams.category_name || "").trim();
+  const pageParam = Number.parseInt(queryParams.page || "", 10);
+  const normalizedCategoryName = categoryNameParam.replace(/\s+/g, " ").slice(0, 120);
+  const catalogRootParams = new URLSearchParams();
+  if (directionParam === "parts" || directionParam === "oils") {
+    catalogRootParams.set("direction", directionParam);
+  }
+  const catalogRootHref = catalogRootParams.toString()
+    ? `/parts?${catalogRootParams.toString()}`
+    : "/parts";
+  const backToCatalogParams = new URLSearchParams();
+  if (directionParam === "parts" || directionParam === "oils") {
+    backToCatalogParams.set("direction", directionParam);
+  }
+  if (Number.isInteger(categoryParam) && categoryParam > 0) {
+    backToCatalogParams.set("category", String(categoryParam));
+  }
+  if (Number.isInteger(pageParam) && pageParam > 1) {
+    backToCatalogParams.set("page", String(pageParam));
+  }
+  const backToCatalogHref = backToCatalogParams.toString()
+    ? `/parts?${backToCatalogParams.toString()}`
+    : "/parts";
 
   const { product, hasError } = await getProductBySku(sku);
   if (!product && !hasError) {
@@ -191,7 +248,7 @@ export default async function ProductBySkuPage({
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link
-                href="/parts"
+                href={backToCatalogHref}
                 className="rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#14294F]"
               >
                 Вернуться в каталог
@@ -219,6 +276,23 @@ export default async function ProductBySkuPage({
   const compatibilities = currentProduct.compatibilities ?? [];
   const requestMode = isPriceOnRequest(currentProduct.attributes, currentProduct.price);
   const effectivePrice = requestMode ? null : currentProduct.price;
+  const resolvedCategoryId =
+    Number.isInteger(categoryParam) && categoryParam > 0 ? categoryParam : currentProduct.category_id;
+  const resolvedCategoryName =
+    normalizedCategoryName || (resolvedCategoryId > 0 ? await getCategoryNameById(resolvedCategoryId) : null);
+  const productBackToCatalogParams = new URLSearchParams();
+  if (directionParam === "parts" || directionParam === "oils") {
+    productBackToCatalogParams.set("direction", directionParam);
+  }
+  if (Number.isInteger(resolvedCategoryId) && resolvedCategoryId > 0) {
+    productBackToCatalogParams.set("category", String(resolvedCategoryId));
+  }
+  if (Number.isInteger(pageParam) && pageParam > 1) {
+    productBackToCatalogParams.set("page", String(pageParam));
+  }
+  const productBackToCatalogHref = productBackToCatalogParams.toString()
+    ? `/parts?${productBackToCatalogParams.toString()}`
+    : "/parts";
   const installRequestParams = new URLSearchParams({
     install_with_part: "1",
     product_sku: currentProduct.sku,
@@ -240,11 +314,27 @@ export default async function ProductBySkuPage({
               Главная
             </Link>
             <span>/</span>
-            <Link href="/parts" className="transition-colors hover:text-[#1F3B73]">
+            <Link href={catalogRootHref} className="transition-colors hover:text-[#1F3B73]">
               Каталог
             </Link>
+            {resolvedCategoryName ? (
+              <>
+                <span>/</span>
+                <Link href={productBackToCatalogHref} className="transition-colors hover:text-[#1F3B73]">
+                  {resolvedCategoryName}
+                </Link>
+              </>
+            ) : null}
             <span>/</span>
             <span className="text-neutral-700">{currentProduct.sku}</span>
+          </div>
+          <div className="mt-3">
+            <Link
+              href={productBackToCatalogHref}
+              className="inline-flex items-center rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-600 transition-colors hover:border-[#1F3B73]/20 hover:text-[#1F3B73]"
+            >
+              ← К разделу каталога
+            </Link>
           </div>
 
           <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,26rem)]">

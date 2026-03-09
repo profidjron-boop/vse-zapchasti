@@ -673,17 +673,18 @@ export default function ContentEditorPage() {
         <span className="text-xs text-neutral-500">Несохранённых блоков: {dirtyCount}</span>
       </div>
       
-      {error && (
-        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div role="status" aria-live="polite" className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-600 border border-green-200">
-          {success}
-        </div>
-      )}
+      <div className="mb-6 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+            {error}
+          </div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-2xl bg-green-50 p-4 text-sm text-green-600 border border-green-200">
+            {success}
+          </div>
+        ) : null}
+      </div>
 
       <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-[#1F3B73]">Страницы сайта</h2>

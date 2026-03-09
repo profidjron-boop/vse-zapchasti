@@ -206,7 +206,7 @@ export default function VinRequestPage() {
       {vinHeader}
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:py-14">
+        <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:py-14">
           <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               vin · compatibility · manager request
@@ -247,17 +247,19 @@ export default function VinRequestPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+      <section className="mx-auto max-w-[92rem] px-4 py-12 sm:px-6">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <section className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] sm:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">форма VIN-заявки</div>
             <h2 className="mt-2 text-3xl font-bold text-[#10264B]">Отправить запрос на подбор</h2>
 
-            {error ? (
-              <div role="alert" aria-live="assertive" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            ) : null}
+            <div className="mt-5 min-h-[4.25rem]">
+              {error ? (
+                <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+            </div>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-5">
               <div>

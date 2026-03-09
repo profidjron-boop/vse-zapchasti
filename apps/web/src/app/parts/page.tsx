@@ -258,19 +258,43 @@ export default async function PartsPage({
       || name.includes("фильтр");
     return selectedDirection === "oils" ? isOilLike : !isOilLike;
   });
+  const visibleCategoryIds = new Set(visibleCategories.map((category) => category.id));
+  const topCategories = visibleCategories.filter((category) => (
+    category.parent_id === null || !visibleCategoryIds.has(category.parent_id)
+  ));
   const selectedCategory =
     visibleCategories.find((category) => category.id === selectedCategoryParam)
+    ?? topCategories[0]
     ?? visibleCategories[0]
     ?? null;
+  const activeRootCategory = selectedCategory
+    ? (
+      selectedCategory.parent_id !== null
+        ? visibleCategories.find((category) => category.id === selectedCategory.parent_id) ?? selectedCategory
+        : selectedCategory
+    )
+    : null;
+  const rootSubcategories = activeRootCategory
+    ? visibleCategories.filter((category) => category.parent_id === activeRootCategory.id)
+    : [];
+  const activeLeafCategory = selectedCategory
+    ? (
+      selectedCategory.parent_id === (activeRootCategory?.id ?? null)
+        ? selectedCategory
+        : rootSubcategories.length === 0
+          ? selectedCategory
+          : null
+    )
+    : null;
   const catalogOffset = (currentPage - 1) * catalogPageSize;
   const selectedCategoryProductsResult =
-    normalizedQuery || hasVehicleFilters || !selectedCategory
+    normalizedQuery || hasVehicleFilters || !activeLeafCategory
       ? []
-      : await getProductsByCategory(selectedCategory.id, catalogPageSize + 1, catalogOffset);
+      : await getProductsByCategory(activeLeafCategory.id, catalogPageSize + 1, catalogOffset);
   const categoryProducts = (selectedCategoryProductsResult ?? []).slice(0, catalogPageSize);
   const hasNextCategoryPage = (selectedCategoryProductsResult?.length ?? 0) > catalogPageSize;
   const hasPrevCategoryPage = currentPage > 1;
-  const catalogError = categoriesError || (!!selectedCategory && selectedCategoryProductsResult === null);
+  const catalogError = categoriesError || (!!activeLeafCategory && selectedCategoryProductsResult === null);
 
   const brandName = contentValue("site_brand_name", "Все запчасти");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
@@ -325,12 +349,31 @@ export default async function PartsPage({
     },
   ];
 
-  const renderProductCard = (product: Product) => (
+  const buildProductHref = (sku: string): string => {
+    const queryParams = new URLSearchParams();
+    if (selectedDirection) {
+      queryParams.set("direction", selectedDirection);
+    }
+    if (!normalizedQuery && !hasVehicleFilters && activeLeafCategory) {
+      queryParams.set("category", String(activeLeafCategory.id));
+      queryParams.set("category_name", activeLeafCategory.name);
+      if (currentPage > 1) {
+        queryParams.set("page", String(currentPage));
+      }
+    }
+    const queryString = queryParams.toString();
+    const productPath = `/parts/p/${encodeURIComponent(sku)}`;
+    return queryString ? `${productPath}?${queryString}` : productPath;
+  };
+
+  const renderProductCard = (product: Product) => {
+    const productHref = buildProductHref(product.sku);
+    return (
     <article
       key={product.id}
-      className="group rounded-[1.75rem] border border-neutral-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(15,23,42,0.10)]"
+      className="group rounded-[1.75rem] border border-neutral-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_54px_rgba(15,23,42,0.10)]"
     >
-      <Link href={`/parts/p/${encodeURIComponent(product.sku)}`} className="block">
+      <Link href={productHref} className="block">
         <div className="relative h-44 overflow-hidden rounded-[1.25rem] border border-neutral-200 bg-neutral-100">
           {getMainImageUrl(product) ? (
             <Image
@@ -354,7 +397,7 @@ export default async function PartsPage({
       <div className="mt-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            href={`/parts/p/${encodeURIComponent(product.sku)}`}
+            href={productHref}
             className="line-clamp-2 text-base font-bold leading-6 text-neutral-900 transition-colors group-hover:text-[#1F3B73]"
           >
             {getProductDisplayName(product)}
@@ -410,16 +453,17 @@ export default async function PartsPage({
           sku={product.sku}
           name={getProductDisplayName(product)}
           price={isPriceOnRequest(product.attributes, product.price) ? null : product.price}
+          stabilizeNoticeHeight
         />
         <div className="grid gap-2 sm:grid-cols-2">
           <Link
-            href={`/parts/p/${encodeURIComponent(product.sku)}`}
+            href={productHref}
             className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
           >
             Открыть карточку
           </Link>
           <Link
-            href={`/parts/p/${encodeURIComponent(product.sku)}#product-lead-form`}
+            href={`${productHref}#product-lead-form`}
             className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
           >
             Запросить
@@ -428,6 +472,7 @@ export default async function PartsPage({
       </div>
     </article>
   );
+  };
 
   return (
     <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
@@ -448,7 +493,7 @@ export default async function PartsPage({
       />
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
-        <div className="mx-auto grid max-w-7xl gap-5 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(21rem,0.8fr)] lg:gap-6 lg:py-14">
+        <div className="mx-auto grid max-w-[92rem] gap-5 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(21rem,0.8fr)] lg:gap-6 lg:py-14">
           <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-6 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)] sm:p-8">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               catalog · sku · vin
@@ -567,34 +612,37 @@ export default async function PartsPage({
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+      <section className="mx-auto max-w-[92rem] px-4 py-12 sm:px-6">
         {!normalizedQuery && !hasVehicleFilters ? (
           <>
             {catalogError ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
                 Каталог временно недоступен. Попробуйте поиск по артикулу или VIN-подбор.
               </div>
-            ) : visibleCategories.length === 0 ? (
+            ) : topCategories.length === 0 ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
                 Категории пока не опубликованы. Загрузите товары через админку или используйте поиск по артикулу.
               </div>
-            ) : !selectedCategory ? (
+            ) : !activeRootCategory ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
                 Не удалось определить активную категорию. Откройте каталог заново.
               </div>
             ) : (
               <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
-                <aside className="space-y-4 xl:sticky xl:top-44 xl:self-start">
+                <aside className="space-y-4 xl:self-start">
                   <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
                     <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">категории</div>
                     <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Разделы каталога</h2>
+                    <p className="mt-2 text-xs text-neutral-500">
+                      Разделов: {topCategories.length}.
+                    </p>
                     <div className="mt-5 flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2">
-                      {visibleCategories.map((category, index) => (
+                      {topCategories.map((category, index) => (
                         <Link
                           key={category.id}
                           href={buildCatalogHref(category.id, 1)}
                           className={`flex w-[15rem] shrink-0 items-center gap-3 rounded-2xl px-3 py-3 transition-colors xl:w-auto ${
-                            category.id === selectedCategory.id
+                            category.id === activeRootCategory.id
                               ? "bg-[#EEF3FF] text-[#1F3B73]"
                               : "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100"
                           }`}
@@ -615,16 +663,41 @@ export default async function PartsPage({
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">активная категория</div>
                         <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">
-                          {selectedCategory.name}
+                          {activeRootCategory.name}
                         </h2>
                       </div>
                       <div className="rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-600">
-                        Страница {currentPage}
+                        {activeLeafCategory ? `Страница ${currentPage}` : "Выберите подкатегорию"}
                       </div>
                     </div>
+
+                    {rootSubcategories.length > 0 ? (
+                      <div className="mt-5">
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">подкатегории</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {rootSubcategories.map((subcategory) => (
+                            <Link
+                              key={subcategory.id}
+                              href={buildCatalogHref(subcategory.id, 1)}
+                              className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                                activeLeafCategory?.id === subcategory.id
+                                  ? "bg-[#EEF3FF] text-[#1F3B73]"
+                                  : "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100"
+                              }`}
+                            >
+                              {subcategory.name}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
-                  {categoryProducts.length === 0 ? (
+                  {!activeLeafCategory ? (
+                    <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+                      Выберите подкатегорию, чтобы открыть товары и перейти к карточкам.
+                    </div>
+                  ) : categoryProducts.length === 0 ? (
                     <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
                       В выбранной категории пока нет активных товаров.
                     </div>
@@ -634,10 +707,10 @@ export default async function PartsPage({
                     </div>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  {activeLeafCategory ? <div className="flex flex-wrap items-center gap-3">
                     {hasPrevCategoryPage ? (
                       <Link
-                        href={buildCatalogHref(selectedCategory.id, currentPage - 1)}
+                        href={buildCatalogHref(activeLeafCategory.id, currentPage - 1)}
                         className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
                       >
                         ← Предыдущая страница
@@ -649,7 +722,7 @@ export default async function PartsPage({
                     )}
                     {hasNextCategoryPage ? (
                       <Link
-                        href={buildCatalogHref(selectedCategory.id, currentPage + 1)}
+                        href={buildCatalogHref(activeLeafCategory.id, currentPage + 1)}
                         className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
                       >
                         Следующая страница →
@@ -659,7 +732,7 @@ export default async function PartsPage({
                         Следующая страница →
                       </span>
                     )}
-                  </div>
+                  </div> : null}
                 </section>
               </div>
             )}

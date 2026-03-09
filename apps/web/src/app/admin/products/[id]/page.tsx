@@ -302,15 +302,17 @@ export default function AdminProductEditPage() {
         <h1 className="break-words text-xl font-bold text-[#1F3B73] sm:text-2xl">Редактирование товара #{productId}</h1>
       </div>
 
-      {error ? (
-        <div role="alert" aria-live="assertive" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-      ) : null}
-      {success ? (
-        <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {success}
-          {lastUpdated ? <span className="ml-2 text-xs text-green-800">({lastUpdated})</span> : null}
-        </div>
-      ) : null}
+      <div className="mb-4 min-h-[4.5rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {success}
+            {lastUpdated ? <span className="ml-2 text-xs text-green-800">({lastUpdated})</span> : null}
+          </div>
+        ) : null}
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">

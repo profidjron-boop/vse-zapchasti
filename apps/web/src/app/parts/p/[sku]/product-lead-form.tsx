@@ -148,48 +148,50 @@ export default function ProductLeadForm({
         Оставьте телефон, и менеджер уточнит наличие и условия заказа.
       </p>
 
-      {error && (
-        <div role="alert" aria-live="assertive" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div role="status" aria-live="polite" className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {success}
-          {leadId ? (
-            <span className="mt-1 block text-xs text-green-800">
-              Для оператора: заявка #{leadId} в админке{" "}
-              <Link href={`/admin/leads/${leadId}`} className="underline">
-                открыть
-              </Link>
-            </span>
-          ) : null}
-          {orderId ? (
-            <>
+      <div className="mt-3 min-h-[5.25rem]">
+        {error ? (
+          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+        {!error && success ? (
+          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {success}
+            {leadId ? (
               <span className="mt-1 block text-xs text-green-800">
-                Для оператора: заказ #{orderId} в админке{" "}
-                <Link href="/admin/orders" className="underline">
-                  открыть список заказов
+                Для оператора: заявка #{leadId} в админке{" "}
+                <Link href={`/admin/leads/${leadId}`} className="underline">
+                  открыть
                 </Link>
               </span>
-              <span className="mt-1 block text-xs text-green-800">
-                Для клиента:{" "}
-                <Link href="/account/orders" className="underline">
-                  проверить статус в “Мои заказы”
-                </Link>
-              </span>
-            </>
-          ) : null}
-        </div>
-      )}
-      {cartNotice && (
-        <div role="status" aria-live="polite" className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {cartNotice}{" "}
-          <Link href="/cart" className="underline">
-            Перейти в корзину
-          </Link>
-        </div>
-      )}
+            ) : null}
+            {orderId ? (
+              <>
+                <span className="mt-1 block text-xs text-green-800">
+                  Для оператора: заказ #{orderId} в админке{" "}
+                  <Link href="/admin/orders" className="underline">
+                    открыть список заказов
+                  </Link>
+                </span>
+                <span className="mt-1 block text-xs text-green-800">
+                  Для клиента:{" "}
+                  <Link href="/account/orders" className="underline">
+                    проверить статус в “Мои заказы”
+                  </Link>
+                </span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        {!error && !success && cartNotice ? (
+          <div role="status" aria-live="polite" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {cartNotice}{" "}
+            <Link href="/cart" className="underline">
+              Перейти в корзину
+            </Link>
+          </div>
+        ) : null}
+      </div>
 
       <form onSubmit={handleSubmit} className="mt-3 space-y-3">
         <div>
