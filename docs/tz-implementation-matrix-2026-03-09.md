@@ -27,7 +27,7 @@
 | 2) Админка: отчёты (минимально) | Implemented | `apps/web/src/app/admin/reports/page.tsx` | — |
 | 2) Админка: О компании / Контакты | Implemented | `apps/web/src/app/admin/content/page.tsx` + публичные `about/contacts` | — |
 | 3) Карточка товара: SKU/OEM/бренд/совместимость/аналоги/фото/характеристики/акции | Implemented | models/schemas + admin product forms (`apps/api/models.py`, `apps/api/schemas.py`, `apps/web/src/app/admin/products/*`, `apps/web/src/app/parts/p/[sku]/page.tsx`) | — |
-| 4) Источники данных: ручной/CSV-XLSX/1С-ERP | Partial/Scope-Limited | Ручной + CSV/XLSX реализованы (`admin` CRUD, `POST /api/admin/products/import`); import UI/script | 1С/ERP: выбран import-first, online sync вне текущего этапа |
+| 4) Источники данных: ручной/CSV-XLSX/1С-ERP | Partial/Scope-Limited | Ручной + CSV/XLSX реализованы (`admin` CRUD, `POST /api/admin/products/import`); source-trigger path реализован (`POST /api/admin/products/import-from-source`), import UI/script | 1С/ERP: выбран import-first; отдельный adapter-service с расширенным протоколом/retry — вне текущего этапа |
 | 4) Режимы обновления: ручной/расписание/событие | Implemented | `apps/web/src/app/admin/imports/page.tsx`, ключ `import_products_update_mode`, `scripts/import-products.sh` | Фактический scheduler/webhook зависит от внедрения |
 | 5) Статусы заказа `new → in_progress → ready → closed/canceled` | Implemented | `ORDER_STATUSES` + status update в `apps/api/routers/admin.py`; admin order UI | Переходы валидируются на API |
 | 6) Сервис-форма: contacts + авто-поля (включая engine, VIN, mileage) | Implemented | `apps/web/src/app/service/page.tsx`, `ServiceRequestBase` в `apps/api/schemas.py` | `name` опционально (по ТЗ) |
@@ -39,7 +39,7 @@
 | 12) Ops/наблюдаемость (`health/ready`, logs+trace_id, backup/restore) | Implemented | `apps/api/main.py`, `docs/backup.sh`, `docs/restore-check.sh`, `scripts/release-check.sh` | — |
 | 13) DoD/Release-Rollback | Implemented | `scripts/verify-all.sh`, `scripts/runtime-audit-local.sh`, `scripts/release-check.sh`, `docs/release-rollback-runbook.md` | — |
 | 14) Assumptions (VIN и сервис как заявка, no online payment by default) | Implemented | публичные API flow и UI соответствуют модели заявок; payment set ограничен | — |
-| 15) v1.1 решения (import-first, update modes, promo format, prepayment off by default) | Implemented / Scope-Limited | `docs/requirements.md`, `admin/imports`, import script, service catalog prepayment flags | online sync/платёжный подпроект остаются отдельными этапами |
+| 15) v1.1 решения (import-first, update modes, promo format, prepayment off by default) | Implemented / Scope-Limited | `docs/requirements.md`, `admin/imports`, `POST /api/admin/products/import-from-source`, import script, service catalog prepayment flags | adapter-service online sync/платёжный подпроект остаются отдельными этапами |
 
 ## Открытый остаток (не блокирует pre-prod, но блокирует “fully hardened prod”)
 1. Заполнить production metadata в handoff/state: домены, доступы, владельцы, SLA/эскалации.

@@ -30,7 +30,7 @@
 - Импорт и режимы обновления:
   - CSV/XLSX import pipeline;
   - режимы `manual | hourly | daily | event` через `import_products_update_mode`;
-  - запуск через `scripts/import-products.sh`.
+  - запуск через `scripts/import-products.sh` и API source-trigger (`POST /api/admin/products/import-from-source`).
 - Security/Ops baseline:
   - consent + audit fields по публичным формам;
   - rate-limit с Redis backend и in-memory fallback;
@@ -46,7 +46,8 @@
   - финальное включение зависит от выбранных провайдеров/секретов на внедрении.
 - 1С/ERP:
   - принят путь import-first;
-  - online sync не включён в текущий scope (по ADR/tech design).
+  - в текущем этапе доступен source-trigger import path;
+  - отдельный adapter-service с расширенным online-sync протоколом — следующий этап (по ADR/tech design).
 
 ## 4) Необязательное (optional scope)
 - Связка `Запчасть + установка` как отдельный продуктовый поток:
