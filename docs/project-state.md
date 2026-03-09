@@ -35,6 +35,7 @@
   - `docs/tz-implementation-matrix-2026-03-09.md` — детальная матрица соответствия ТЗ по разделам 1–15
   - `docs/production-metadata-template-2026-03-09.md` — шаблон закрытия операционных данных перед финальным handoff
   - `docs/production-metadata-draft-2026-03-09.md` — рабочий драфт с авто-заполненными repo-facts и TBD полями
+  - `docs/customer-production-metadata-form-2026-03-09.md` — анкета для заказчика на недостающие production данные
   - `docs/verify-gates.md` — current verify/release gates
   - `docs/project-handoff-2026-03-09.md` — handoff pack draft
   - `scripts/release-check.sh` logs (2026-03-09) — full green path
