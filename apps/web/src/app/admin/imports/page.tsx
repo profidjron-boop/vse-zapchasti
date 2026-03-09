@@ -56,6 +56,7 @@ export default function AdminImportsPage() {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [pageInput, setPageInput] = useState("1");
   const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
+  const [savedUpdateMode, setSavedUpdateMode] = useState<UpdateMode>("manual");
   const [isSavingMode, setIsSavingMode] = useState(false);
   const [modeMessage, setModeMessage] = useState("");
   const [showTechnicalCommand, setShowTechnicalCommand] = useState(false);
@@ -134,10 +135,13 @@ export default function AdminImportsPage() {
           {},
           12000
         );
-        setUpdateMode(normalizeUpdateMode(modePayload.value));
+        const normalizedMode = normalizeUpdateMode(modePayload.value);
+        setUpdateMode(normalizedMode);
+        setSavedUpdateMode(normalizedMode);
       } catch (modeError) {
         if (modeError instanceof ApiRequestError && modeError.status === 404) {
           setUpdateMode("manual");
+          setSavedUpdateMode("manual");
         } else if (modeError instanceof ApiRequestError && (modeError.status === 401 || modeError.status === 403)) {
           throw modeError;
         }
@@ -313,6 +317,7 @@ export default function AdminImportsPage() {
       }
 
       setModeMessage("Режим обновления сохранён");
+      setSavedUpdateMode(updateMode);
     } catch (saveError) {
       if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
         router.push("/admin/login");
@@ -369,7 +374,10 @@ export default function AdminImportsPage() {
               <label className="mb-1 block text-sm font-medium text-neutral-700">Режим обновления</label>
               <select
                 value={updateMode}
-                onChange={(event) => setUpdateMode(normalizeUpdateMode(event.target.value))}
+                onChange={(event) => {
+                  setModeMessage("");
+                  setUpdateMode(normalizeUpdateMode(event.target.value));
+                }}
                 className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
               >
                 <option value="manual">Ручной запуск</option>
@@ -381,12 +389,12 @@ export default function AdminImportsPage() {
             <button
               type="button"
               onClick={() => void handleSaveUpdateMode()}
-              disabled={isSavingMode}
+              disabled={isSavingMode || updateMode === savedUpdateMode}
               className="rounded-xl border border-[#1F3B73]/20 bg-white px-3 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-50"
             >
               {isSavingMode ? "Сохранение..." : "Сохранить режим"}
             </button>
-            {modeMessage ? <p className="text-sm text-green-700">{modeMessage}</p> : null}
+            {modeMessage ? <p role="status" aria-live="polite" className="text-sm text-green-700">{modeMessage}</p> : null}
           </div>
           <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
             <p className="text-sm text-neutral-700">{modeHint.text}</p>
