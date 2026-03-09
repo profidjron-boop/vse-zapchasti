@@ -274,7 +274,11 @@ export default function AdminOrderDetailsPage() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={
+                saving ||
+                (selectedStatus === order.status &&
+                  managerComment.trim() === (order.manager_comment || "").trim())
+              }
               className="w-full rounded-xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-60"
             >
               {saving ? "Сохранение..." : "Сохранить изменения"}
