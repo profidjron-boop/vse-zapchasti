@@ -94,7 +94,8 @@ Common pipeline for all modes:
 - Operational online sync is available via `scripts/import-products.sh`:
   - source modes: `manual/hourly/daily/event`,
   - direct source pull: `IMPORT_SOURCE_URL` (+ optional auth header/basic auth),
-  - import target: existing admin pipeline `/api/admin/products/import`.
+  - import target: existing admin pipeline `/api/admin/products/import`,
+  - API-side source trigger mode: `--server-source` (calls `/api/admin/products/import-from-source`).
 - For API-native trigger (without file upload), use:
   - `POST /api/admin/products/import-from-source?trigger_mode=event`,
   - source settings are read from API env: `IMPORT_SOURCE_URL`, `IMPORT_SOURCE_AUTH_HEADER`,
