@@ -276,21 +276,17 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-params=("--data-urlencode" "trigger_mode=$mode")
+endpoint="$API_BASE_URL/api/admin/products/import?trigger_mode=$mode"
 if [[ "$IMPORT_SKIP_INVALID" == "1" ]]; then
-  params+=("--data-urlencode" "skip_invalid=true")
+  endpoint="${endpoint}&skip_invalid=true"
 fi
 if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" ]]; then
-  params+=("--data-urlencode" "default_category_id=$IMPORT_DEFAULT_CATEGORY_ID")
+  endpoint="${endpoint}&default_category_id=$IMPORT_DEFAULT_CATEGORY_ID"
 fi
-
-endpoint="$API_BASE_URL/api/admin/products/import"
 
 tmp="$(mktemp)"
 code="$(curl -sS -o "$tmp" -w "%{http_code}" \
-  --get \
   -X POST "$endpoint" \
-  "${params[@]}" \
   -H "Authorization: Bearer $token" \
   -F "file=@$IMPORT_FILE_PATH")"
 
