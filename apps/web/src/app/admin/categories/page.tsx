@@ -14,6 +14,8 @@ type Category = {
   is_active: boolean;
 };
 
+const PAGE_SIZE = 50;
+
 export default function AdminCategoriesPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -22,6 +24,7 @@ export default function AdminCategoriesPage() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const fetchCategories = useCallback(async (showRefreshing = false) => {
     setError("");
@@ -65,6 +68,22 @@ export default function AdminCategoriesPage() {
     );
   }, [categories, search]);
 
+  const totalPages = useMemo(() => {
+    if (filteredCategories.length <= 0) return 1;
+    return Math.ceil(filteredCategories.length / PAGE_SIZE);
+  }, [filteredCategories.length]);
+
+  const pagedCategories = useMemo(() => {
+    const offset = (page - 1) * PAGE_SIZE;
+    return filteredCategories.slice(offset, offset + PAGE_SIZE);
+  }, [filteredCategories, page]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -103,7 +122,10 @@ export default function AdminCategoriesPage() {
         <input
           type="text"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
           placeholder="Название или slug"
           className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
         />
@@ -132,11 +154,11 @@ export default function AdminCategoriesPage() {
       ) : (
         <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
-            Найдено категорий: {filteredCategories.length}
+            Показано: {pagedCategories.length} из {filteredCategories.length} · Страница {page} из {totalPages}
           </div>
 
           <div className="divide-y divide-neutral-200 md:hidden">
-            {filteredCategories.map((category) => (
+            {pagedCategories.map((category) => (
               <article key={category.id} className="space-y-2 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -169,7 +191,7 @@ export default function AdminCategoriesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {filteredCategories.map((category) => (
+                {pagedCategories.map((category) => (
                   <tr key={category.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{category.id}</td>
                     <td className="px-4 py-3 text-sm font-medium">{category.name}</td>
@@ -188,6 +210,33 @@ export default function AdminCategoriesPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
+            <div className="text-neutral-500">
+              Поиск выполняется по всем категориям.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <span className="min-w-[7rem] text-center text-neutral-600">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Вперёд
+              </button>
+            </div>
           </div>
         </div>
       )}
