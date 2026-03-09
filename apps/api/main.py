@@ -35,14 +35,22 @@ AUTO_CREATE_SCHEMA_ON_START = _env_bool("AUTO_CREATE_SCHEMA_ON_START", default=F
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("🚀 API starting up...")
+    logger.info(
+        json.dumps(
+            {
+                "event": "app_startup",
+                "auto_create_schema_on_start": AUTO_CREATE_SCHEMA_ON_START,
+            },
+            ensure_ascii=False,
+        )
+    )
     if AUTO_CREATE_SCHEMA_ON_START:
         async with engine.begin() as conn:
             # Explicitly opt-in only (development fallback), production uses Alembic migrations.
             await conn.run_sync(Base.metadata.create_all)
     yield
     # Shutdown
-    print("🛑 API shutting down...")
+    logger.info(json.dumps({"event": "app_shutdown"}, ensure_ascii=False))
     await engine.dispose()
 
 app = FastAPI(
