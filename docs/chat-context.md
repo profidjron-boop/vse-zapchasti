@@ -110,6 +110,7 @@ Release note:
   - `docs/audit-closure-2026-03-09.md`
   - `docs/tz-gap-report-2026-03-09.md`
   - `docs/tz-implementation-matrix-2026-03-09.md`
+  - `docs/production-metadata-draft-2026-03-09.md`
 
 ## AI Checklist Applicability
 - Источник: `docs/master-prompts/AI_Project_Checklist_v2.docx`

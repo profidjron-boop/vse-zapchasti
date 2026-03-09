@@ -19,7 +19,7 @@
 - Не предоставлены фактические production домены, серверные адреса, регистратор DNS и список ответственных лиц.
 - Нет подтверждённой даты последнего production deploy.
 - Нет подписанных SLA/гарантийных условий в репозитории.
-- Для закрытия этих пунктов использовать шаблон: `docs/production-metadata-template-2026-03-09.md`.
+- Для закрытия этих пунктов использовать рабочий драфт: `docs/production-metadata-draft-2026-03-09.md` (или шаблон `docs/production-metadata-template-2026-03-09.md`).
 
 Профиль сложности: M  
 Release commit / tag: `60a3c8e` (`chore(handoff): add metadata-only strict gate path`)
