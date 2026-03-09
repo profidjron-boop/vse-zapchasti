@@ -487,14 +487,14 @@ export default function ContentEditorPage() {
     setSuccess('');
 
     try {
+      const apiBaseUrl = getClientApiBaseUrl();
+      const knownKeys = new Set(content.map((block) => block.key));
       let createdTotal = 0;
       for (const preset of PAGE_PRESETS) {
-        const existingKeys = new Set(content.map((block) => block.key));
-        const missing = preset.blocks.filter((block) => !existingKeys.has(block.key));
+        const missing = preset.blocks.filter((block) => !knownKeys.has(block.key));
         if (missing.length === 0) continue;
 
         setCreatingPresetRoute(preset.route);
-        const apiBaseUrl = getClientApiBaseUrl();
         const created: ContentBlock[] = [];
         for (const block of missing) {
           const createdBlock = await fetchJsonWithTimeout<ContentBlock>(
@@ -514,6 +514,7 @@ export default function ContentEditorPage() {
             12000
           );
           created.push(createdBlock);
+          knownKeys.add(createdBlock.key);
         }
 
         if (created.length > 0) {
