@@ -793,10 +793,10 @@ export default function LeadsPage() {
                       ) : (
                         <button
                           onClick={() => setPendingDeleteLeadId(lead.id)}
-                          className="text-red-600 hover:underline"
+                          className="text-xs text-red-600 hover:underline"
                           aria-label={`Удалить заявку ${lead.id}`}
                         >
-                          🗑️
+                          Удалить
                         </button>
                       )}
                     </td>
