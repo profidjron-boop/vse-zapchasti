@@ -16,9 +16,9 @@ type NavItem = {
 };
 
 function roleLabel(role: UserRole): string {
-  if (role === "admin") return "Admin";
-  if (role === "manager") return "Manager (parts)";
-  return "Service Manager";
+  if (role === "admin") return "Администратор";
+  if (role === "manager") return "Менеджер запчастей";
+  return "Менеджер сервиса";
 }
 
 const navItems: NavItem[] = [
@@ -215,7 +215,7 @@ export default function AdminLayout({
           <nav className="w-full shrink-0 xl:w-64">
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <div className="mb-4 rounded-2xl bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_100%)] px-4 py-4 text-white">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/65">admin shell</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/65">Панель управления</div>
                 <div className="mt-2 text-lg font-bold">Рабочая панель</div>
                 <div className="mt-1 text-sm text-white/75">Навигация сгруппирована по бизнес-потокам.</div>
               </div>

@@ -25,9 +25,9 @@ type UserDraft = {
 };
 
 const roleOptions: Array<{ value: UserRole; label: string }> = [
-  { value: "admin", label: "Admin" },
-  { value: "manager", label: "Manager" },
-  { value: "service_manager", label: "Service Manager" },
+  { value: "admin", label: "Администратор" },
+  { value: "manager", label: "Менеджер запчастей" },
+  { value: "service_manager", label: "Менеджер сервиса" },
 ];
 
 export default function AdminUsersPage() {

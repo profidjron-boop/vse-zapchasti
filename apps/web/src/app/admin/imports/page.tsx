@@ -54,6 +54,7 @@ export default function AdminImportsPage() {
   const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
   const [isSavingMode, setIsSavingMode] = useState(false);
   const [modeMessage, setModeMessage] = useState("");
+  const [showTechnicalCommand, setShowTechnicalCommand] = useState(false);
 
   const createdLabel = useMemo(() => {
     if (!uploadResult) return "";
@@ -356,9 +357,22 @@ export default function AdminImportsPage() {
           </div>
           <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
             <p className="text-sm text-neutral-700">{modeHint.text}</p>
-            <code className="mt-2 block overflow-x-auto rounded-lg bg-neutral-900/95 px-3 py-2 text-xs text-neutral-100">
-              {modeHint.command}
-            </code>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTechnicalCommand((prev) => !prev)}
+                aria-expanded={showTechnicalCommand}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+              >
+                {showTechnicalCommand ? "Скрыть техкоманду" : "Показать техкоманду для интегратора"}
+              </button>
+              <span className="text-xs text-neutral-500">Нужно только техническому специалисту.</span>
+            </div>
+            {showTechnicalCommand ? (
+              <code className="mt-2 block overflow-x-auto rounded-lg bg-neutral-900/95 px-3 py-2 text-xs text-neutral-100">
+                {modeHint.command}
+              </code>
+            ) : null}
           </div>
         </div>
 
