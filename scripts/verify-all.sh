@@ -122,6 +122,10 @@ log "api:test"
 ( cd apps/api && make test ) || fail "api:test"
 ok "api:test"
 
+log "api:test-cov"
+( cd apps/api && make test-cov ) || fail "api:test-cov"
+ok "api:test-cov"
+
 # DB-dependent gate
 ensure_postgres
 
