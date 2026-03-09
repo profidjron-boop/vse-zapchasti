@@ -271,8 +271,12 @@ export default function ServicePage() {
         }
         estimatedBundleTotal = parsed;
       }
-      const installWithPart = formData.get("install_with_part") === "on"
-        || Boolean(requestedProductSkuValue || requestedProductNameValue);
+      const includeInstallWithPart = formData.get("install_with_part") === "on";
+      const effectiveRequestedProductSku = includeInstallWithPart ? requestedProductSkuValue : "";
+      const effectiveRequestedProductName = includeInstallWithPart ? requestedProductNameValue : "";
+      const effectiveEstimatedBundleTotal = includeInstallWithPart ? estimatedBundleTotal : undefined;
+      const installWithPart = includeInstallWithPart
+        && Boolean(effectiveRequestedProductSku || effectiveRequestedProductName || typeof effectiveEstimatedBundleTotal === "number");
       if (!description) {
         throw new Error("Опишите проблему или задачу для сервиса");
       }
@@ -291,9 +295,9 @@ export default function ServicePage() {
         mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string, 10) : undefined,
         description,
         install_with_part: installWithPart,
-        requested_product_sku: requestedProductSkuValue || undefined,
-        requested_product_name: requestedProductNameValue || undefined,
-        estimated_bundle_total: estimatedBundleTotal,
+        requested_product_sku: effectiveRequestedProductSku || undefined,
+        requested_product_name: effectiveRequestedProductName || undefined,
+        estimated_bundle_total: effectiveEstimatedBundleTotal,
         preferred_date: formData.get("preferred_date") || undefined,
         consent_given: formData.get("consent") === "on",
         consent_version: "v1.0",
