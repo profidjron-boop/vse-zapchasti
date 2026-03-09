@@ -10,6 +10,7 @@
 cd apps/api
 make lint        # ruff check
 make test        # pytest
+make test-cov    # pytest + coverage gate (>=65% total)
 make migrate     # alembic upgrade head
 make migrate-check # текущее состояние миграций (alembic current)
 
@@ -21,6 +22,8 @@ make migrate-check # текущее состояние миграций (alembic
 ## Release gates (перед публикацией)
 0. `bash scripts/release-check.sh` — единый прогон release readiness:
    - preflight verify (`scripts/verify-all.sh`)
+   - dependency audit API (`uv run --with pip-audit pip-audit --strict` в `apps/api`)
+   - dependency audit Web (`pnpm --dir apps/web audit --prod --audit-level high`)
    - backup (`docs/backup.sh`)
    - restore-check (`docs/restore-check.sh`)
    - smoke (`scripts/smoke.sh` + `--with-write`)
@@ -29,11 +32,13 @@ make migrate-check # текущее состояние миграций (alembic
      `RELEASE_REQUIRE_ADMIN_SMOKE=1 bash scripts/release-check.sh`
      (требует `ADMIN_TOKEN` или `SMOKE_ADMIN_EMAIL` + `SMOKE_ADMIN_PASSWORD`).
 1. `pnpm web:lint && pnpm web:typecheck && pnpm --dir apps/web run build`
-2. `cd apps/api && make lint && make test && make migrate-check`
-3. `docker-compose build`
-4. `bash docs/backup.sh` — бэкап БД
-5. `bash docs/restore-check.sh --input <path-to-backup.dump>` — проверка восстановления из backup
-6. Smoke:
+2. `pnpm --dir apps/web audit --prod --audit-level high`
+3. `cd apps/api && make lint && make test && make test-cov && make migrate-check`
+4. `cd apps/api && UV_CACHE_DIR=./.uv-cache ./.venv/bin/uv run --with pip-audit pip-audit --strict`
+5. `docker-compose build`
+6. `bash docs/backup.sh` — бэкап БД
+7. `bash docs/restore-check.sh --input <path-to-backup.dump>` — проверка восстановления из backup
+8. Smoke:
    - `bash scripts/smoke.sh`
    - `bash scripts/smoke.sh --with-write`
    - `scripts/smoke.sh` сам поднимает `postgres` (`docker compose up -d postgres`), запускает API на `:8000` и Web на `:3000` (build + start), ждёт готовность `/health` и `/`, затем останавливает фоновые процессы API/Web по `trap EXIT`.
@@ -59,6 +64,25 @@ make migrate-check # текущее состояние миграций (alembic
 - Включает `web:no-remote-assets`:
   - fail, если в runtime web-коде найдены внешние источники ассетов/скриптов/стилей
     (например `next/font/google`, `https://` в `script src`, `stylesheet href`, CSS `@import/url(...)`).
+
+## Functional runtime audit
+
+Дополнительная проверка работоспособности основных пользовательских и admin-флоу:
+
+- `bash scripts/runtime-audit.sh`
+  - проверяет доступность ключевых web/api роутов;
+  - проверяет shape публичных категорий (не только технические `Бренд:` / `Импорт`);
+  - проверяет публичные POST флоу (`/api/public/service-requests`, `/api/public/leads`).
+
+Для проверки admin API добавить env:
+
+- `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit.sh`
+  - дополнительно проверяет `/api/admin/auth/me`, `/api/admin/leads`, `/api/admin/service-requests`.
+
+## Dependency audit notes
+
+- `apps/web/pnpm-lock.yaml` является source of truth для Web audit.
+- root `pnpm-lock.yaml` не требуется: использовать `pnpm --dir apps/web audit ...`.
 
 ## CI gates
 

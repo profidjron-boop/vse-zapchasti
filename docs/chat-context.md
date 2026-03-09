@@ -62,6 +62,7 @@ Service catalog:
 ## Ops / Verify
 - Verify gates: `docs/verify-gates.md`
 - Umbrella gate: `bash scripts/verify-all.sh`
+- API coverage gate: `cd apps/api && make test-cov` (>=65% total)
 - Smoke: `bash scripts/smoke.sh` и `bash scripts/smoke.sh --with-write`
 - Release readiness: `bash scripts/release-check.sh`
 
