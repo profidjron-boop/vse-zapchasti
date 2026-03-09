@@ -569,13 +569,22 @@ export default function LeadsPage() {
 
       {leads.length === 0 ? (
         <div className="text-center py-12 text-neutral-500">
-          <p>Заявок пока нет</p>
-          <p className="text-sm mt-2">Заявки появятся здесь после отправки форм на сайте</p>
+          {filters.status || filters.type || filters.search.trim() || filters.dateFrom || filters.dateTo ? (
+            <>
+              <p>По выбранным фильтрам заявок не найдено</p>
+              <p className="text-sm mt-2">Попробуйте изменить параметры поиска или сбросить фильтры</p>
+            </>
+          ) : (
+            <>
+              <p>Заявок пока нет</p>
+              <p className="text-sm mt-2">Заявки появятся здесь после отправки форм на сайте</p>
+            </>
+          )}
         </div>
       ) : (
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3">
-            <div className="text-sm text-neutral-500">Найдено заявок: {leads.length}</div>
+            <div className="text-sm text-neutral-500">Показано на странице: {leads.length} · Страница {page}</div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="text-sm text-neutral-600">Выбрано: {selectedLeadIds.length}</div>
               <select
