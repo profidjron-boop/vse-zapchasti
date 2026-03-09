@@ -338,7 +338,7 @@ export default function ContactsPage() {
               </div>
             ) : null}
 
-            <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-8 space-y-4">
+            <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-8 space-y-4 scroll-mt-36">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium text-neutral-700">Имя</label>
