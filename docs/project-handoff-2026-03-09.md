@@ -22,7 +22,7 @@
 - Для закрытия этих пунктов использовать шаблон: `docs/production-metadata-template-2026-03-09.md`.
 
 Профиль сложности: M  
-Release commit / tag: `d086646` (`feat: finalize v1.1 hardening, QA gates, and handoff docs`)
+Release commit / tag: `60a3c8e` (`chore(handoff): add metadata-only strict gate path`)
 Дата последнего production deploy: не предоставлено
 
 ## 2) Для клиента: как это работает
@@ -167,12 +167,13 @@ Rollback: `docs/release-rollback-runbook.md`
 - Инциденты на стороне внешних провайдеров (хостинг, DNS, почта), если не оговорено договором.
 
 ## 9) Release evidence
-- Release commit / tag: `d086646`, production tag не предоставлен.
+- Release commit / tag: `60a3c8e`, production tag не предоставлен.
 - Дата deploy: не предоставлена.
 - Backup artifact: `backups/postgres/release_20260309_172501.dump`.
 - Smoke result: `✅ all checks passed` (read + write + mandatory admin checks, 2026-03-09 17:25–17:26).
 - Migration result: `alembic current -> f6e2c1a9b7d3 (head)`.
 - Restore check: `ok: restored tables=15`, `alembic_version=f6e2c1a9b7d3`.
+- Handoff metadata gate: `RELEASE_REQUIRE_HANDOFF_METADATA=1 bash scripts/release-check.sh --skip-write-smoke` (падает до заполнения production metadata).
 
 ## 10) Подписи
 Сдал: Сергей (CTO) _________________ Дата: _________  

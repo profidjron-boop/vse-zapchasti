@@ -66,6 +66,7 @@ Service catalog:
 - Smoke: `bash scripts/smoke.sh` и `bash scripts/smoke.sh --with-write`
 - Runtime audit local: `bash scripts/runtime-audit-local.sh`
 - Release readiness: `bash scripts/release-check.sh`
+- Handoff metadata gate (final acceptance): `RELEASE_REQUIRE_HANDOFF_METADATA=1 bash scripts/release-check.sh --skip-write-smoke`
 
 ## Current QA Status (2026-03-09)
 - API tests: `70 passed` (`cd apps/api && make test`)
@@ -87,6 +88,9 @@ Service catalog:
   - `RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
   - result: `RELEASE CHECK GREEN` (read/write smoke + admin protected checks)
   - backup artifact: `backups/postgres/release_20260309_172501.dump`
+- Latest handoff metadata gate run (2026-03-09 17:37, Asia/Krasnoyarsk):
+  - `RELEASE_REQUIRE_HANDOFF_METADATA=1 bash scripts/release-check.sh --skip-write-smoke`
+  - result: `expected fail` (handoff metadata placeholders are still present)
 
 Release note:
 - `scripts/smoke.sh`: в bootstrap smoke-admin добавлен `DATABASE_URL` при генерации hash (исправлен падал full release-check path).

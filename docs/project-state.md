@@ -12,7 +12,7 @@
 - Status: active
 - Owner: Сергей
 - Current date: 2026-03-09
-- Last updated: 2026-03-09 17:27 (Asia/Krasnoyarsk)
+- Last updated: 2026-03-09 17:40 (Asia/Krasnoyarsk)
 
 ## 2) Source Of Truth Now
 - Current governing artifact: handoff pack + release evidence + repo state
@@ -79,6 +79,7 @@
   - `bash scripts/runtime-audit-local.sh`
   - `bash scripts/release-check.sh`
   - `RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
+  - `RELEASE_REQUIRE_HANDOFF_METADATA=1 bash scripts/release-check.sh --skip-write-smoke`
   - full smoke path with bootstrap admin and write checks
   - handoff artifact completeness against `PROMPT_PROJECT_HANDOFF_RU_v1.0`
 - What passed:
@@ -89,10 +90,12 @@
   - backup + restore-check green
   - smoke read/write green
 - What failed or remains unverified:
-  - production access metadata and signed acceptance are still pending
+  - `RELEASE_REQUIRE_HANDOFF_METADATA=1` currently fails as expected because production access metadata is not filled
+  - signed acceptance is still pending
 - Evidence:
   - strict release-check run at 2026-03-09 17:25–17:26 (Asia/Krasnoyarsk): `✅ RELEASE CHECK GREEN` with mandatory admin smoke
-  - latest verify-all at 2026-03-09 17:25 (Asia/Krasnoyarsk): `✅ ALL GREEN`, `70 passed`, total coverage `70.27%`
+  - strict handoff metadata gate run at 2026-03-09 17:37 (Asia/Krasnoyarsk): `expected fail` on unresolved production placeholders
+  - latest verify-all at 2026-03-09 17:37–17:38 (Asia/Krasnoyarsk): `✅ ALL GREEN`, `70 passed`, total coverage `70.27%`
   - latest release backup artifact: `backups/postgres/release_20260309_172501.dump`
 
 ## 9) Release / Operational Signals
