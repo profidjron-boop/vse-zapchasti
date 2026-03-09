@@ -38,8 +38,14 @@ export default function AdminProductsPage() {
 
     try {
       const apiBaseUrl = getClientApiBaseUrl();
+      const searchParams = new URLSearchParams({ limit: "100" });
+      const normalizedSearch = search.trim();
+      if (normalizedSearch) {
+        searchParams.set("search", normalizedSearch);
+      }
+
       const data = await fetchJsonWithTimeout<Product[]>(
-        withApiBase(apiBaseUrl, "/api/admin/products?limit=100"),
+        withApiBase(apiBaseUrl, `/api/admin/products?${searchParams.toString()}`),
         {},
         12000
       );
@@ -59,11 +65,15 @@ export default function AdminProductsPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [router]);
+  }, [router, search]);
 
   useEffect(() => {
-    void fetchProducts();
-  }, [fetchProducts]);
+    const timeout = window.setTimeout(() => {
+      void fetchProducts();
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [fetchProducts, search]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -184,7 +194,9 @@ export default function AdminProductsPage() {
                 <div className="grid grid-cols-2 gap-2 text-sm text-neutral-700">
                   <p>Бренд: {product.brand || "—"}</p>
                   <p>Остаток: {product.stock_quantity}</p>
-                  <p className="col-span-2">Цена: {product.price ? `${product.price.toLocaleString()} ₽` : "—"}</p>
+                  <p className="col-span-2">
+                    Цена: {typeof product.price === "number" ? `${product.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -228,7 +240,9 @@ export default function AdminProductsPage() {
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{product.oem || "—"}</td>
                     <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
                     <td className="px-4 py-3 text-sm">{product.brand || "—"}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.price ? `${product.price.toLocaleString()} ₽` : "—"}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {typeof product.price === "number" ? `${product.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                    </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{product.stock_quantity}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
                       <span className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>

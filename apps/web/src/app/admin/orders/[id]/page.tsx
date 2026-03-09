@@ -29,6 +29,8 @@ type OrderDetails = {
   payment_method: string | null;
   legal_entity_name: string | null;
   legal_entity_inn: string | null;
+  invoice_requisites_file_url: string | null;
+  invoice_requisites_file_name: string | null;
   manager_comment: string | null;
   consent_given: boolean;
   consent_version: string | null;
@@ -52,6 +54,10 @@ function sourceLabel(value: string): string {
   if (value === "checkout") return "Оформление";
   if (value === "one_click") return "Быстрый заказ";
   return value;
+}
+
+function formatPrice(value: number | null): string {
+  return typeof value === "number" ? `${Math.round(value).toLocaleString("ru-RU")} ₽` : "Цена по запросу";
 }
 
 export default function AdminOrderDetailsPage() {
@@ -213,6 +219,21 @@ export default function AdminOrderDetailsPage() {
             <div><dt className="text-neutral-500">Оплата</dt><dd>{order.payment_method || "—"}</dd></div>
             <div><dt className="text-neutral-500">Юрлицо</dt><dd>{order.legal_entity_name || "—"}</dd></div>
             <div><dt className="text-neutral-500">ИНН</dt><dd>{order.legal_entity_inn || "—"}</dd></div>
+            <div>
+              <dt className="text-neutral-500">Файл реквизитов</dt>
+              <dd>
+                {order.invoice_requisites_file_url ? (
+                  <a
+                    href={order.invoice_requisites_file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#1F3B73] hover:underline"
+                  >
+                    {order.invoice_requisites_file_name || "Открыть файл"}
+                  </a>
+                ) : "—"}
+              </dd>
+            </div>
             <div><dt className="text-neutral-500">Комментарий клиента</dt><dd className="whitespace-pre-wrap break-words">{order.comment || "—"}</dd></div>
             <div><dt className="text-neutral-500">Согласие 152-ФЗ</dt><dd>{order.consent_given ? "Да" : "Нет"}</dd></div>
             <div><dt className="text-neutral-500">Версия согласия</dt><dd>{order.consent_version || "—"}</dd></div>
@@ -274,8 +295,8 @@ export default function AdminOrderDetailsPage() {
                   <p className="break-all font-medium text-neutral-900">{item.product_sku || "—"}</p>
                   <p className="text-neutral-700">{item.product_name}</p>
                   <p className="text-neutral-700">Кол-во: {item.quantity}</p>
-                  <p className="text-neutral-700">Цена: {item.unit_price ?? "—"}</p>
-                  <p className="text-neutral-700">Сумма: {item.line_total ?? "—"}</p>
+                  <p className="text-neutral-700">Цена: {formatPrice(item.unit_price)}</p>
+                  <p className="text-neutral-700">Сумма: {formatPrice(item.line_total)}</p>
                 </article>
               ))}
             </div>
@@ -296,8 +317,8 @@ export default function AdminOrderDetailsPage() {
                       <td className="px-3 py-2">{item.product_sku || "—"}</td>
                       <td className="px-3 py-2">{item.product_name}</td>
                       <td className="px-3 py-2">{item.quantity}</td>
-                      <td className="px-3 py-2">{item.unit_price ?? "—"}</td>
-                      <td className="px-3 py-2">{item.line_total ?? "—"}</td>
+                      <td className="px-3 py-2">{formatPrice(item.unit_price)}</td>
+                      <td className="px-3 py-2">{formatPrice(item.line_total)}</td>
                     </tr>
                   ))}
                 </tbody>

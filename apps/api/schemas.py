@@ -166,6 +166,8 @@ class OrderBase(BaseModel):
     payment_method: Optional[str] = None
     legal_entity_name: Optional[str] = None
     legal_entity_inn: Optional[str] = None
+    invoice_requisites_file_url: Optional[str] = None
+    invoice_requisites_file_name: Optional[str] = None
 
     consent_given: bool = False
     consent_version: Optional[str] = None
@@ -209,7 +211,7 @@ class OrderBase(BaseModel):
             )
         return normalized
 
-    @field_validator("customer_name", "comment", "legal_entity_name")
+    @field_validator("customer_name", "comment", "legal_entity_name", "invoice_requisites_file_name")
     @classmethod
     def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
@@ -224,6 +226,20 @@ class OrderBase(BaseModel):
             return None
         normalized = re.sub(r"\D", "", value)
         return normalized or None
+
+    @field_validator("invoice_requisites_file_url")
+    @classmethod
+    def validate_invoice_requisites_file_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if normalized.startswith("http://") or normalized.startswith("https://"):
+            raise ValueError("External invoice requisites file URLs are not allowed")
+        if not normalized.startswith("/uploads/"):
+            raise ValueError("Invoice requisites file URL must point to self-hosted /uploads path")
+        return normalized
 
 
 class OrderCreate(OrderBase):
@@ -291,6 +307,13 @@ class OrderPublicResponse(BaseModel):
     items: List[OrderPublicItemResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OrderRequisitesUploadResponse(BaseModel):
+    url: str
+    filename: str
+    size_bytes: int
+    content_type: str
 
 # ---------- Lead Schemas ----------
 class LeadBase(BaseModel):
@@ -422,11 +445,12 @@ class VinRequestStatusUpdate(BaseModel):
 class ServiceRequestBase(BaseModel):
     vehicle_type: str  # 'passenger', 'truck'
     service_type: str
-    name: str
+    name: Optional[str] = None
     phone: str
     email: Optional[EmailStr] = None
     vehicle_make: Optional[str] = None
     vehicle_model: Optional[str] = None
+    vehicle_engine: Optional[str] = None
     vehicle_year: Optional[int] = None
     vin: Optional[str] = None
     mileage: Optional[int] = None
@@ -450,13 +474,21 @@ class ServiceRequestBase(BaseModel):
     def validate_phone(cls, value: str) -> str:
         return normalize_phone(value)
 
-    @field_validator("name", "service_type", "description")
+    @field_validator("service_type", "description")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
             raise ValueError("Field must not be empty")
         return normalized
+
+    @field_validator("name", "vehicle_make", "vehicle_model", "vehicle_engine", "vin")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
     @field_validator("operator_comment")
     @classmethod
@@ -629,7 +661,11 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
+    email: str
+    name: Optional[str] = None
+    role: str = "manager"
+    is_active: bool = True
     id: int
     created_at: datetime
     updated_at: datetime

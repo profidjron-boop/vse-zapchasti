@@ -42,6 +42,7 @@ type FormState = {
   name: string;
   description: string;
   price: string;
+  price_on_request: boolean;
   stock_quantity: string;
   is_active: boolean;
   old_price: string;
@@ -62,6 +63,7 @@ const emptyFormState: FormState = {
   name: "",
   description: "",
   price: "",
+  price_on_request: false,
   stock_quantity: "0",
   is_active: true,
   old_price: "",
@@ -133,6 +135,9 @@ export default function AdminProductEditPage() {
             : "";
       const discountLabelRaw = product.attributes?.discount_label;
       const discountLabel = typeof discountLabelRaw === "string" ? discountLabelRaw : "";
+      const priceOnRequestRaw = product.attributes?.price_on_request;
+      const priceOnRequest =
+        typeof priceOnRequestRaw === "boolean" ? priceOnRequestRaw : product.price === null;
 
       setFormState({
         category_id: String(product.category_id),
@@ -142,6 +147,7 @@ export default function AdminProductEditPage() {
         name: product.name ?? "",
         description: product.description ?? "",
         price: product.price !== null ? String(product.price) : "",
+        price_on_request: priceOnRequest,
         stock_quantity: String(product.stock_quantity ?? 0),
         is_active: product.is_active,
         old_price: oldPrice,
@@ -193,7 +199,7 @@ export default function AdminProductEditPage() {
         .filter(Boolean);
 
       const attributes: Record<string, unknown> = {};
-      if (formState.old_price.trim()) {
+      if (!formState.price_on_request && formState.old_price.trim()) {
         attributes.old_price = Number(formState.old_price);
       }
       if (formState.discount_label.trim()) {
@@ -201,6 +207,9 @@ export default function AdminProductEditPage() {
       }
       if (analogs.length > 0) {
         attributes.analogs = analogs;
+      }
+      if (formState.price_on_request) {
+        attributes.price_on_request = true;
       }
 
       const compatibilities =
@@ -223,7 +232,7 @@ export default function AdminProductEditPage() {
         brand: formState.brand.trim() || null,
         name: formState.name.trim(),
         description: formState.description.trim() || null,
-        price: formState.price.trim() ? Number(formState.price) : null,
+        price: formState.price_on_request ? null : formState.price.trim() ? Number(formState.price) : null,
         stock_quantity: Number(formState.stock_quantity || "0"),
         is_active: formState.is_active,
         attributes,
@@ -349,6 +358,17 @@ export default function AdminProductEditPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
+          <div className="md:col-span-3">
+            <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+              <input
+                type="checkbox"
+                checked={formState.price_on_request}
+                onChange={(event) => updateField("price_on_request", event.target.checked)}
+                className="rounded border-neutral-300 text-[#1F3B73] focus:ring-[#1F3B73]"
+              />
+              Цена по запросу
+            </label>
+          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">Цена</label>
             <input
@@ -357,7 +377,8 @@ export default function AdminProductEditPage() {
               min="0"
               value={formState.price}
               onChange={(event) => updateField("price", event.target.value)}
-              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
+              disabled={formState.price_on_request}
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
             />
           </div>
           <div>
@@ -368,7 +389,8 @@ export default function AdminProductEditPage() {
               min="0"
               value={formState.old_price}
               onChange={(event) => updateField("old_price", event.target.value)}
-              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
+              disabled={formState.price_on_request}
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
             />
           </div>
           <div>

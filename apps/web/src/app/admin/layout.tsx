@@ -11,6 +11,7 @@ type UserRole = "admin" | "manager" | "service_manager";
 type NavItem = {
   href: string;
   label: string;
+  section: string;
   roles: UserRole[];
 };
 
@@ -21,18 +22,18 @@ function roleLabel(role: UserRole): string {
 }
 
 const navItems: NavItem[] = [
-  { href: "/admin", label: "Дашборд", roles: ["admin"] },
-  { href: "/admin/content", label: "Редактор сайта", roles: ["admin"] },
-  { href: "/admin/imports", label: "Импорты", roles: ["admin"] },
-  { href: "/admin/users", label: "Пользователи", roles: ["admin"] },
-  { href: "/admin/leads", label: "Заявки (запчасти)", roles: ["admin", "manager"] },
-  { href: "/admin/vin-requests", label: "VIN-заявки", roles: ["admin", "manager"] },
-  { href: "/admin/products", label: "Товары", roles: ["admin", "manager"] },
-  { href: "/admin/categories", label: "Категории", roles: ["admin", "manager"] },
-  { href: "/admin/orders", label: "Заказы", roles: ["admin"] },
-  { href: "/admin/service-catalog", label: "Справочник услуг", roles: ["admin"] },
-  { href: "/admin/service-requests", label: "Заявки (сервис)", roles: ["admin", "service_manager"] },
-  { href: "/admin/reports", label: "Отчёты", roles: ["admin"] },
+  { href: "/admin", label: "Дашборд", section: "Управление", roles: ["admin"] },
+  { href: "/admin/content", label: "Редактор сайта", section: "Управление", roles: ["admin"] },
+  { href: "/admin/reports", label: "Отчёты", section: "Управление", roles: ["admin"] },
+  { href: "/admin/products", label: "Товары", section: "Каталог", roles: ["admin", "manager"] },
+  { href: "/admin/categories", label: "Категории", section: "Каталог", roles: ["admin", "manager"] },
+  { href: "/admin/imports", label: "Импорты", section: "Каталог", roles: ["admin"] },
+  { href: "/admin/leads", label: "Заявки (запчасти)", section: "Продажи", roles: ["admin", "manager"] },
+  { href: "/admin/vin-requests", label: "VIN-заявки", section: "Продажи", roles: ["admin", "manager"] },
+  { href: "/admin/orders", label: "Заказы", section: "Продажи", roles: ["admin"] },
+  { href: "/admin/service-catalog", label: "Справочник услуг", section: "Сервис", roles: ["admin"] },
+  { href: "/admin/service-requests", label: "Заявки (сервис)", section: "Сервис", roles: ["admin", "service_manager"] },
+  { href: "/admin/users", label: "Пользователи", section: "Система", roles: ["admin"] },
 ];
 
 const navOrder: Record<string, number> = {
@@ -158,6 +159,12 @@ export default function AdminLayout({
   const filteredNavItems = visibleNavItems.filter((item) =>
     item.label.toLowerCase().includes(menuSearch.trim().toLowerCase())
   );
+  const groupedNavItems = filteredNavItems.reduce<Record<string, NavItem[]>>((groups, item) => {
+    const bucket = groups[item.section] ?? [];
+    bucket.push(item);
+    groups[item.section] = bucket;
+    return groups;
+  }, {});
 
   const handleLogout = async () => {
     const apiBaseUrl = getClientApiBaseUrl();
@@ -207,6 +214,11 @@ export default function AdminLayout({
           {/* Sidebar */}
           <nav className="w-full shrink-0 xl:w-64">
             <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <div className="mb-4 rounded-2xl bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_100%)] px-4 py-4 text-white">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/65">admin shell</div>
+                <div className="mt-2 text-lg font-bold">Рабочая панель</div>
+                <div className="mt-1 text-sm text-white/75">Навигация сгруппирована по бизнес-потокам.</div>
+              </div>
               <div className="mb-3">
                 <input
                   type="text"
@@ -216,19 +228,28 @@ export default function AdminLayout({
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
                 />
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                {filteredNavItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`block rounded-xl px-4 py-3 text-sm font-medium transition ${
-                      pathname === item.href
-                        ? "bg-[#1F3B73] text-white"
-                        : "text-neutral-600 hover:bg-neutral-100"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
+              <div className="space-y-4">
+                {Object.entries(groupedNavItems).map(([section, items]) => (
+                  <div key={section}>
+                    <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                      {section}
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                      {items.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`block rounded-xl px-4 py-3 text-sm font-medium transition ${
+                            pathname === item.href
+                              ? "bg-[#1F3B73] text-white"
+                              : "text-neutral-600 hover:bg-neutral-100"
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
               {filteredNavItems.length === 0 ? (

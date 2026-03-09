@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <style>
+      .s{fill:none;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .a{fill:#ff8a00;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .f{fill:#eaf2ff;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect class="f" x="22" y="46" width="84" height="52" rx="10"/>
+  <path class="s" d="M40 46v-8h14v8"/>
+  <path class="s" d="M74 46v-8h14v8"/>
+  <path class="s" d="M34 72h14"/>
+  <path class="s" d="M84 72h10"/>
+  <path class="a" d="M64 58l-10 20h12l-6 18 18-26H66l6-12z"/>
+
+</svg>

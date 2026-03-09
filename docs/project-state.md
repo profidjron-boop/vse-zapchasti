@@ -1,6 +1,6 @@
 # Project State — vse-zapchasti
 
-Версия: v1.0
+Версия: v1.1
 Дата: 2026-03-09
 Ответственный: Сергей (CTO)
 
@@ -12,7 +12,7 @@
 - Status: active
 - Owner: Сергей
 - Current date: 2026-03-09
-- Last updated: 2026-03-09 16:33 (Asia/Krasnoyarsk)
+- Last updated: 2026-03-09 17:06 (Asia/Krasnoyarsk)
 
 ## 2) Source Of Truth Now
 - Current governing artifact: handoff pack + release evidence + repo state
@@ -31,6 +31,9 @@
 - Handoff pack: yes (draft)
 - Artifacts list:
   - `docs/audit-closure-2026-03-09.md` — audit closure recorded
+  - `docs/tz-gap-report-2026-03-09.md` — фактический gap-check по ТЗ v1.1
+  - `docs/tz-implementation-matrix-2026-03-09.md` — детальная матрица соответствия ТЗ по разделам 1–15
+  - `docs/production-metadata-template-2026-03-09.md` — шаблон закрытия операционных данных перед финальным handoff
   - `docs/verify-gates.md` — current verify/release gates
   - `docs/project-handoff-2026-03-09.md` — handoff pack draft
   - `scripts/release-check.sh` logs (2026-03-09) — full green path
@@ -52,9 +55,9 @@
   - release evidence reproducible
 
 ## 5) Current Delivery Shape
-- Current slice: handoff preparation and transfer readiness
-- Slice objective: зафиксировать передачу с release evidence и операционными инструкциями
-- Current milestone: handoff draft собран
+- Current slice: hardening + TZ conformance evidence
+- Slice objective: подтвердить фактическое соответствие v1.1 и закрытие audit-tail пунктов
+- Current milestone: verify/runtime/release green + gap report актуализирован
 - Next milestone: заполнить production access metadata и подписать акт передачи
 
 ## 6) Blocking Open Questions
@@ -73,11 +76,13 @@
   - handoff readiness (draft completeness)
 - What was checked:
   - `bash scripts/verify-all.sh`
+  - `bash scripts/runtime-audit-local.sh`
   - `bash scripts/release-check.sh`
   - full smoke path with bootstrap admin and write checks
   - handoff artifact completeness against `PROMPT_PROJECT_HANDOFF_RU_v1.0`
 - What passed:
   - verify-all green
+  - runtime-audit-local green
   - pip-audit green
   - pnpm audit green
   - backup + restore-check green
@@ -85,7 +90,8 @@
 - What failed or remains unverified:
   - production access metadata and signed acceptance are still pending
 - Evidence:
-  - release-check run at 2026-03-09 16:20–16:22 (Asia/Krasnoyarsk): `✅ RELEASE CHECK GREEN`
+  - release-check run at 2026-03-09 16:57–16:59 (Asia/Krasnoyarsk): `✅ RELEASE CHECK GREEN`
+  - latest verify-all at 2026-03-09 17:06 (Asia/Krasnoyarsk): `✅ ALL GREEN`, `70 passed`, total coverage `70.27%`
 
 ## 9) Release / Operational Signals
 - Prod-impacting flow: public leads/orders/service + admin management routes

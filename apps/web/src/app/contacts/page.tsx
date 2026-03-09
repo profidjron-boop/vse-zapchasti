@@ -1,9 +1,12 @@
 'use client';
 
+import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 
 function normalizePhone(value: string): string | null {
   const digits = value.replace(/\D/g, "");
@@ -44,7 +47,7 @@ export default function ContactsPage() {
           setContentMap(nextMap);
         }
       } catch {
-        // Keep defaults when content API is unavailable.
+        // keep defaults
       }
     }
 
@@ -59,7 +62,7 @@ export default function ContactsPage() {
       const value = contentMap[key];
       return value && value.trim() ? value : fallback;
     },
-    [contentMap]
+    [contentMap],
   );
 
   const toTelHref = useMemo(
@@ -74,7 +77,7 @@ export default function ContactsPage() {
       }
       return fallbackHref;
     },
-    []
+    [],
   );
 
   const contactAddress = contentValue("contacts_address", "660000, г. Красноярск, пр. Металлургов, 2В");
@@ -98,13 +101,25 @@ export default function ContactsPage() {
   const legalBankName = contentValue("contacts_bank_name", "ПАО Сбербанк г. Красноярск");
   const legalBik = contentValue("contacts_bank_bik", "040407123");
 
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+
   const mapYandexUrl = contentValue(
     "contacts_map_yandex_url",
-    "https://yandex.ru/maps/?text=%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D1%8F%D1%80%D1%81%D0%BA%2C%20%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%2C%202%D0%92"
+    "https://yandex.ru/maps/?text=%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D1%8F%D1%80%D1%81%D0%BA%2C%20%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%2C%202%D0%92",
   );
   const map2gisUrl = contentValue(
     "contacts_map_2gis_url",
-    "https://2gis.ru/krasnoyarsk/search/%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%202%D0%92"
+    "https://2gis.ru/krasnoyarsk/search/%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%202%D0%92",
   );
 
   async function handleCallbackSubmit(event: FormEvent<HTMLFormElement>) {
@@ -147,7 +162,7 @@ export default function ContactsPage() {
           },
           body: JSON.stringify(payload),
         },
-        12000
+        12000,
       );
 
       form.reset();
@@ -163,299 +178,279 @@ export default function ContactsPage() {
     }
   }
 
+  const contactCards = [
+    {
+      title: "Отдел запчастей",
+      value: phoneParts,
+      href: toTelHref(phoneParts, "tel:+73912589500"),
+      description: "Подбор, наличие, статусы и уточнение заказов.",
+    },
+    {
+      title: "Автосервис",
+      value: phoneService,
+      href: toTelHref(phoneService, "tel:+73912589501"),
+      description: "Запись на диагностику, ТО и ремонт.",
+    },
+    {
+      title: "Единая линия",
+      value: phoneMain,
+      href: toTelHref(phoneMain, "tel:+73912589500"),
+      description: "Общий номер для консультации и распределения запросов.",
+    },
+  ];
+
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      {/* Header */}
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Контакты</Link>
-            </nav>
-            <div className="flex items-center gap-3">
-              <Link
-                href="/contacts"
-                className="hidden rounded-2xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73] sm:inline-block"
-              >
-                Для дилеров
-              </Link>
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
+      <PublicHeader
+        brandName={brandName}
+        activeKey="contacts"
+        labels={{
+          parts: navParts,
+          service: navService,
+          contacts: navContacts,
+          about: navAbout,
+          favorites: navFavorites,
+          cart: navCart,
+          orders: navOrders,
+          dealer: navDealer,
+          callback: navCallback,
+        }}
+      />
+
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              contacts · callback · route
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Контакты и реквизиты</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
+              Приезжайте, звоните или отправляйте заявку онлайн. Работаем в Красноярске, принимаем обращения по каталогу и сервису.
+            </p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {[
+                `Пн–Пт ${scheduleWeekdays}`,
+                `Сб ${scheduleSaturday}`,
+                `Вс ${scheduleSunday}`,
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-medium text-white/78">
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
+                href={toTelHref(phoneMain, "tel:+73912589500")}
+                className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#EEF3FF]"
+              >
+                Позвонить сейчас
+              </a>
+              <Link
                 href="#callback-form"
-                className="rounded-2xl bg-[#FF7A00] px-3 py-2 text-xs font-medium text-white shadow-lg shadow-[#FF7A00]/20 sm:px-4 sm:text-sm"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
               >
                 Заказать звонок
-              </a>
+              </Link>
             </div>
           </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-[#1F3B73]">Контакты</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-          </nav>
-        </div>
-      </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1F3B73] to-[#14294F] py-16">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
-        </div>
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">Контакты</h1>
-          <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
-            Приезжайте, звоните или оставляйте заявки онлайн
-          </p>
+          <div className="space-y-4">
+            <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как добраться</div>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Адрес и точка обслуживания</h2>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                {contactAddress}
+              </p>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                Вход с торца здания, вывеска «Все запчасти». Пункт выдачи и приемка в сервис находятся по этому же адресу.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={mapYandexUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
+                >
+                  Открыть в Яндекс Картах
+                </a>
+                <a
+                  href={map2gisUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  Открыть в 2GIS
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">почта</div>
+              <div className="mt-4 space-y-3 text-sm">
+                <a href={`mailto:${emailInfo}`} className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white">
+                  {emailInfo}
+                </a>
+                <a href={`mailto:${emailService}`} className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white">
+                  {emailService}
+                </a>
+                <a href={`mailto:${emailPrivacy}`} className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white">
+                  {emailPrivacy}
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Контакты */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="grid gap-8 lg:grid-cols-2">
-          <div className="space-y-8">
-            <div className="rounded-3xl bg-white p-8 shadow-xl">
-              <h2 className="text-2xl font-bold text-[#1F3B73]">Как нас найти</h2>
-              <div className="mt-6 space-y-6">
-                <div className="flex gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF7A00]/10 text-2xl text-[#FF7A00]">
-                    📍
-                  </div>
-                  <div>
-                    <div className="font-medium">Адрес</div>
-                    <div className="mt-1 text-neutral-600">{contactAddress}</div>
-                    <div className="mt-2 text-sm text-neutral-500">
-                      Вход с торца здания, вывеска &quot;Все запчасти&quot;.
-                      <br />
-                      Пункт выдачи и приемка в сервис: тот же адрес.
-                    </div>
-                  </div>
-                </div>
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          {contactCards.map((card) => (
+            <a
+              key={card.title}
+              href={card.href}
+              className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
+            >
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">{card.title}</div>
+              <div className="mt-3 text-2xl font-black tracking-tight text-[#10264B]">{card.value}</div>
+              <p className="mt-3 text-sm leading-6 text-neutral-600">{card.description}</p>
+            </a>
+          ))}
+        </div>
+      </section>
 
-                <div className="flex gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF7A00]/10 text-2xl text-[#FF7A00]">
-                    🕒
-                  </div>
-                  <div>
-                    <div className="font-medium">Режим работы</div>
-                    <div className="mt-1 grid grid-cols-1 gap-2 text-neutral-600 sm:grid-cols-2">
-                      <div>Пн–Пт</div>
-                      <div>{scheduleWeekdays}</div>
-                      <div>Сб</div>
-                      <div>{scheduleSaturday}</div>
-                      <div>Вс</div>
-                      <div>{scheduleSunday}</div>
-                    </div>
-                    <div className="mt-2 text-sm text-neutral-500">
-                      Приём онлайн-заявок: круглосуточно. Обработка менеджером в рабочее время (Красноярск, UTC+7).
-                    </div>
-                  </div>
-                </div>
+      <section className="bg-white py-12">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,0.85fr)]">
+          <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">обратный звонок</div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">Напишите нам</h2>
+            <p className="mt-3 text-sm leading-7 text-neutral-600 sm:text-base">
+              Оставьте телефон и сообщение. Менеджер свяжется с вами в рабочее время по каталогу, заказу или сервисной записи.
+            </p>
 
-                <div className="flex gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF7A00]/10 text-2xl text-[#FF7A00]">
-                    📞
-                  </div>
-                  <div>
-                    <div className="font-medium">Телефоны</div>
-                    <div className="mt-1 space-y-1">
-                      <div>
-                        <div className="text-sm text-neutral-500">Отдел запчастей</div>
-                        <a href={toTelHref(phoneParts, "tel:+73912589500")} className="text-lg font-semibold text-[#1F3B73] hover:underline">
-                          {phoneParts}
-                        </a>
-                      </div>
-                      <div>
-                        <div className="text-sm text-neutral-500">Автосервис</div>
-                        <a href={toTelHref(phoneService, "tel:+73912589501")} className="text-lg font-semibold text-[#1F3B73] hover:underline">
-                          {phoneService}
-                        </a>
-                      </div>
-                      <div>
-                        <div className="text-sm text-neutral-500">Единая линия</div>
-                        <a href={toTelHref(phoneMain, "tel:+73912589500")} className="text-lg font-semibold text-[#1F3B73] hover:underline">
-                          {phoneMain}
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {error ? (
+              <div role="alert" aria-live="assertive" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+            {success ? (
+              <div role="status" aria-live="polite" className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                {success}
+              </div>
+            ) : null}
 
-                <div className="flex gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF7A00]/10 text-2xl text-[#FF7A00]">
-                    ✉️
-                  </div>
-                  <div>
-                    <div className="font-medium">Email</div>
-                    <div className="mt-1 space-y-1">
-                      <a href={`mailto:${emailInfo}`} className="block text-[#1F3B73] hover:underline">
-                        {emailInfo}
-                      </a>
-                      <a href={`mailto:${emailService}`} className="block text-[#1F3B73] hover:underline">
-                        {emailService}
-                      </a>
-                      <a href={`mailto:${emailPrivacy}`} className="block text-[#1F3B73] hover:underline">
-                        {emailPrivacy}
-                      </a>
-                    </div>
-                  </div>
+            <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-8 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Имя</label>
+                  <input
+                    type="text"
+                    name="name"
+                    autoComplete="name"
+                    placeholder="Ваше имя"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Телефон *</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    required
+                    autoComplete="tel"
+                    inputMode="tel"
+                    placeholder="+7 (___) ___-__-__"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  placeholder="Email"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Сообщение</label>
+                <textarea
+                  name="message"
+                  rows={4}
+                  placeholder="Опишите вопрос или задачу"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                <input type="checkbox" name="consent" id="contact-consent" className="mt-1" required />
+                <label htmlFor="contact-consent" className="text-xs leading-6 text-neutral-600">
+                  Согласен на обработку персональных данных в соответствии с политикой конфиденциальности.
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-[#FF7A00] py-4 text-sm font-semibold text-white shadow-lg shadow-[#FF7A00]/20 transition-colors hover:bg-[#E86F00] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? "Отправка..." : "Отправить сообщение"}
+              </button>
+            </form>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-[2rem] bg-[linear-gradient(135deg,#10264B_0%,#1F3B73_100%)] p-6 text-white shadow-[0_28px_70px_rgba(16,38,75,0.18)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">режим работы</div>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-white/78">
+                <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
+                  Пн–Пт: {scheduleWeekdays}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
+                  Сб: {scheduleSaturday}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
+                  Вс: {scheduleSunday}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
+                  Онлайн-заявки принимаются круглосуточно, обработка — в рабочее время.
                 </div>
               </div>
             </div>
 
-            <div className="rounded-3xl bg-white p-8 shadow-xl">
-              <h2 className="text-xl font-bold text-[#1F3B73]">Реквизиты</h2>
-              <div className="mt-4 space-y-2 text-sm text-neutral-600">
-                <p>{legalName}</p>
+            <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">реквизиты</div>
+              <div className="mt-4 space-y-2 text-sm leading-6 text-neutral-600">
+                <p className="font-semibold text-neutral-900">{legalName}</p>
                 <p>ИНН {legalInn}</p>
                 <p>ОГРНИП {legalOgrnip}</p>
-                <p>Юридический адрес: {legalAddress}</p>
+                <p>Юр. адрес: {legalAddress}</p>
                 <p>Расчетный счет: {legalBankAccount}</p>
                 <p>Банк: {legalBankName}</p>
                 <p>БИК: {legalBik}</p>
               </div>
             </div>
-          </div>
 
-          <div className="space-y-8">
-            {/* Карта проезда (без внешних JS SDK, только ссылки) */}
-            <div className="h-96 rounded-3xl bg-gradient-to-br from-[#1F3B73]/10 to-[#FF7A00]/10 p-8 shadow-xl">
-              <div className="flex h-full flex-col justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-[#1F3B73]">Карта проезда</h3>
-                  <p className="mt-2 text-sm text-neutral-600">
-                    {contactAddress}
-                  </p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Без встраивания внешних скриптов: открытие в отдельной вкладке.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <a
-                    href={mapYandexUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
-                  >
-                    Открыть в Яндекс Картах
-                  </a>
-                  <a
-                    href={map2gisUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-2xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                  >
-                    Открыть в 2GIS
-                  </a>
-                </div>
+            <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+              <div className="relative h-56">
+                <Image
+                  src="/images/parts-store.jpg"
+                  alt="Точка обслуживания Все запчасти"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="p-5">
+                <div className="text-sm font-semibold text-neutral-900">Точка приёма и выдачи</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  По одному адресу можно забрать заказ, уточнить подбор и передать автомобиль в сервис.
+                </p>
               </div>
             </div>
-
-            {/* Форма обратной связи */}
-            <div className="rounded-3xl bg-white p-8 shadow-xl">
-              <h2 className="text-xl font-bold text-[#1F3B73]">Напишите нам</h2>
-              {error && (
-                <div role="alert" aria-live="assertive" className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                  {success}
-                </div>
-              )}
-              <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-6 space-y-4">
-                <div>
-                  <input 
-                    type="text" 
-                    name="name"
-                    autoComplete="name"
-                    placeholder="Ваше имя"
-                    className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
-                  />
-                </div>
-                <div>
-                  <input 
-                    type="tel" 
-                    name="phone"
-                    required
-                    autoComplete="tel"
-                    inputMode="tel"
-                    placeholder="Телефон *"
-                    className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
-                  />
-                </div>
-                <div>
-                  <input 
-                    type="email" 
-                    name="email"
-                    autoComplete="email"
-                    placeholder="Email"
-                    className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
-                  />
-                </div>
-                <div>
-                  <textarea 
-                    name="message"
-                    rows={4}
-                    placeholder="Сообщение"
-                    className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
-                  />
-                </div>
-                <div className="flex items-start gap-2">
-                  <input type="checkbox" name="consent" id="consent" className="mt-1" required />
-                  <label htmlFor="consent" className="text-xs text-neutral-600">
-                    Согласен на обработку персональных данных
-                  </label>
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSubmitting ? "Отправка..." : "Отправить сообщение"}
-                </button>
-              </form>
-            </div>
-          </div>
+          </aside>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="grid gap-8 text-sm text-neutral-600 md:grid-cols-3">
-            <div>
-              <div className="font-semibold text-[#1F3B73]">Все запчасти</div>
-              <p className="mt-2 text-xs">
-                Оригинальные запчасти и профессиональный автосервис в Красноярске
-              </p>
-            </div>
-            <div>
-              <div className="font-semibold">Навигация</div>
-              <ul className="mt-2 space-y-1 text-xs">
-                <li><Link href="/" className="hover:text-[#1F3B73]">Главная</Link></li>
-                <li><Link href="/parts" className="hover:text-[#1F3B73]">Запчасти</Link></li>
-                <li><Link href="/service" className="hover:text-[#1F3B73]">Автосервис</Link></li>
-                <li><Link href="/contacts" className="hover:text-[#1F3B73]">Контакты</Link></li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold">Документы</div>
-              <ul className="mt-2 space-y-1 text-xs">
-                <li><Link href="/privacy" className="hover:text-[#1F3B73]">Политика конфиденциальности</Link></li>
-                <li><Link href="/offer" className="hover:text-[#1F3B73]">Публичная оферта</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-8 border-t border-neutral-200 pt-8 text-center text-xs text-neutral-500">
-            © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN (self-hosted assets)
-          </div>
-        </div>
-      </footer>
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

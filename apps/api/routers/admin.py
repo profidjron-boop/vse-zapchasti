@@ -1932,6 +1932,47 @@ def _build_products_import_audit(
     )
 
 
+async def _ensure_import_filename(
+    db: AsyncSession,
+    run: ImportRun,
+    file_name: Optional[str],
+    collected_errors: list[str],
+) -> str:
+    if file_name:
+        return file_name
+
+    collected_errors.append("Filename is required.")
+    run.status = "failed"
+    run.finished_at = _utcnow()
+    run.errors = collected_errors
+    await db.commit()
+    raise HTTPException(status_code=400, detail="Filename is required.")
+
+
+async def _finish_products_import_with_no_rows(
+    db: AsyncSession,
+    run: ImportRun,
+    file_name: str,
+    trigger_mode: str,
+) -> dict[str, Any]:
+    summary = _build_products_import_summary(
+        file_name,
+        trigger_mode,
+        total=0,
+        created=0,
+        updated=0,
+        failed=0,
+    )
+    await _finish_products_import_run(
+        db,
+        run,
+        summary=summary,
+        errors=[],
+        snapshot_data=[],
+    )
+    return _build_products_import_response(run.id, summary, [])
+
+
 @router.post("/products/import")
 async def admin_import_products(
     file: UploadFile = File(...),
@@ -1957,37 +1998,21 @@ async def admin_import_products(
     )
     run_id = run.id
 
-    if not file.filename:
-        collected_errors.append("Filename is required.")
-        run.status = "failed"
-        run.finished_at = _utcnow()
-        run.errors = collected_errors
-        await db.commit()
-        raise HTTPException(status_code=400, detail="Filename is required.")
+    file_name = await _ensure_import_filename(db, run, file.filename, collected_errors)
 
     try:
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        rows = _parse_import_rows(file.filename, content)
+        rows = _parse_import_rows(file_name, content)
         if not rows:
-            summary = _build_products_import_summary(
-                file.filename,
-                normalized_trigger_mode,
-                total=0,
-                created=0,
-                updated=0,
-                failed=0,
-            )
-            await _finish_products_import_run(
+            return await _finish_products_import_with_no_rows(
                 db,
                 run,
-                summary=summary,
-                errors=[],
-                snapshot_data=[],
+                file_name=file_name,
+                trigger_mode=normalized_trigger_mode,
             )
-            return _build_products_import_response(run.id, summary, [])
 
         created, updated, collected_errors = await _process_products_import_rows(
             db,
@@ -2006,7 +2031,7 @@ async def admin_import_products(
 
         await db.flush()
         summary = _build_products_import_summary(
-            file.filename,
+            file_name,
             normalized_trigger_mode,
             total=len(rows),
             created=created,

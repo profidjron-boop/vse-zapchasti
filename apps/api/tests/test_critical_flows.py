@@ -155,8 +155,9 @@ async def test_public_create_service_request_success_and_audit():
     payload = ServiceRequestCreate(
         vehicle_type="passenger",
         service_type="Диагностика",
-        name="Иван",
+        name=None,
         phone="8 999 111 22 33",
+        vehicle_engine=" 2.0 TDI ",
         description="Стук в подвеске",
         consent_given=True,
     )
@@ -165,6 +166,8 @@ async def test_public_create_service_request_success_and_audit():
 
     assert request_obj.status == "new"
     assert request_obj.phone == "+79991112233"
+    assert request_obj.name is None
+    assert request_obj.vehicle_engine == "2.0 TDI"
     assert request_obj.consent_at is not None
     assert any(isinstance(item, AuditLog) and item.entity_type == "service_request" for item in db.added)
 
@@ -696,6 +699,21 @@ def test_admin_extract_xlsx_rows_rejects_unsafe_worksheet_target():
 
     assert exc.value.status_code == 400
     assert "Invalid XLSX worksheet target" in str(exc.value.detail)
+
+
+def test_admin_parse_xlsx_xml_rejects_doctype_payload():
+    malicious_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>&xxe;</sheetData>
+</worksheet>
+"""
+
+    with pytest.raises(HTTPException) as exc:
+        admin._parse_xlsx_xml(malicious_xml, "Invalid XLSX worksheet XML.")
+
+    assert exc.value.status_code == 400
+    assert "Invalid XLSX worksheet XML." in str(exc.value.detail)
 
 
 def test_admin_parse_import_compatibilities_extracts_year_engine_and_dedupes():
@@ -1233,6 +1251,16 @@ class _SingleFetchSession:
         self.added.append(obj)
 
 
+class _CaptureQuerySession:
+    def __init__(self, scalars):
+        self.scalars_result = scalars
+        self.last_query = None
+
+    async def execute(self, query):
+        self.last_query = query
+        return _ExecResult(scalars=self.scalars_result)
+
+
 @pytest.mark.asyncio
 async def test_admin_update_service_request_status_success(monkeypatch):
     service_request = SimpleNamespace(
@@ -1409,6 +1437,49 @@ async def test_admin_get_service_request_success_and_not_found():
     with pytest.raises(HTTPException) as exc:
         await admin.admin_get_service_request(request_id=404, db=missing_db, current_user=current_user)
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_get_service_requests_returns_rows_with_optional_name():
+    current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
+    rows = [
+        SimpleNamespace(id=601, status="new", phone="+79990000001", name=None),
+        SimpleNamespace(id=602, status="in_progress", phone="+79990000002", name="Иван"),
+    ]
+    db = _CaptureQuerySession(scalars=rows)
+
+    result = await admin.admin_get_service_requests(
+        skip=0,
+        limit=50,
+        status=None,
+        search=None,
+        db=db,
+        current_user=current_user,
+    )
+
+    assert len(result) == 2
+    assert result[0].name is None
+    assert result[1].name == "Иван"
+
+
+@pytest.mark.asyncio
+async def test_admin_get_service_requests_builds_status_and_search_filters():
+    current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
+    db = _CaptureQuerySession(scalars=[])
+
+    await admin.admin_get_service_requests(
+        skip=0,
+        limit=10,
+        status=" in_progress ",
+        search=" 999 ",
+        db=db,
+        current_user=current_user,
+    )
+
+    sql_text = str(db.last_query)
+    assert "service_requests.status" in sql_text
+    assert "service_requests.phone" in sql_text
+    assert "service_requests.name" in sql_text
 
 
 @pytest.mark.asyncio
@@ -1742,6 +1813,18 @@ async def test_public_rate_limit_redis_and_fallback_paths(monkeypatch):
     async def _get_redis_broken():
         return _RedisBroken()
 
+    warnings: list[dict[str, object]] = []
+
+    def _capture_warning(message: str, *args, **kwargs):
+        warnings.append(
+            {
+                "message": message,
+                "args": args,
+                "kwargs": kwargs,
+            }
+        )
+
+    monkeypatch.setattr(public.logger, "warning", _capture_warning)
     monkeypatch.setattr(public, "_get_redis_rate_limit_client", _get_redis_broken)
     monkeypatch.setattr(public, "FORM_RATE_LIMITS_PER_SCOPE", {"leads": 1})
     public._rate_limit_buckets.clear()
@@ -1750,6 +1833,8 @@ async def test_public_rate_limit_redis_and_fallback_paths(monkeypatch):
     with pytest.raises(HTTPException) as fallback_limit_exc:
         await public._enforce_form_rate_limit(_make_request("/api/public/leads"), "leads")
     assert fallback_limit_exc.value.status_code == 429
+    assert warnings
+    assert warnings[0]["message"] == "rate-limit redis unavailable; using in-memory fallback"
 
 
 @pytest.mark.asyncio

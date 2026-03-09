@@ -139,12 +139,13 @@ class ServiceRequest(Base):
     vehicle_type = Column(String(20), nullable=False)  # 'passenger', 'truck'
     service_type = Column(String(100), nullable=False)
     
-    name = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=True)
     phone = Column(String(50), nullable=False)
     email = Column(String(255), nullable=True)
     
     vehicle_make = Column(String(100), nullable=True)
     vehicle_model = Column(String(100), nullable=True)
+    vehicle_engine = Column(String(100), nullable=True)
     vehicle_year = Column(Integer, nullable=True)
     vin = Column(String(50), nullable=True)
     mileage = Column(Integer, nullable=True)
@@ -228,6 +229,8 @@ class Order(Base):
     payment_method = Column(String(50), nullable=True)  # cash_on_delivery, invoice
     legal_entity_name = Column(String(255), nullable=True)
     legal_entity_inn = Column(String(20), nullable=True)
+    invoice_requisites_file_url = Column(String(500), nullable=True)
+    invoice_requisites_file_name = Column(String(255), nullable=True)
 
     ip_address = Column(String(50), nullable=True)
     user_agent = Column(Text, nullable=True)

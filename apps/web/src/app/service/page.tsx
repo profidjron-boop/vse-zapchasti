@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 
 type ServiceCard = {
   title: string;
@@ -16,21 +18,21 @@ type ServiceCard = {
 
 const fallbackServices: { passenger: ServiceCard[]; truck: ServiceCard[] } = {
   passenger: [
-    { title: "Диагностика и ТО", desc: "Полная диагностика, плановое ТО, замена жидкостей", icon: "🔧", duration: "60 мин", price: "от 2 000 ₽" },
-    { title: "Ремонт двигателя", desc: "Капитальный ремонт, замена ГРМ, диагностика", icon: "⚙️", duration: "180 мин", price: "от 8 000 ₽" },
-    { title: "Ремонт КПП", desc: "Автомат, механика, вариатор — любой сложности", icon: "🔄", duration: "240 мин", price: "от 9 500 ₽" },
-    { title: "Ходовая часть", desc: "Замена амортизаторов, рычагов, сайлентблоков", icon: "🛞", duration: "120 мин", price: "от 4 000 ₽" },
-    { title: "Автоэлектрика", desc: "Диагностика электрики, ремонт генератора, стартера", icon: "⚡", duration: "90 мин", price: "от 3 500 ₽" },
-    { title: "Шиномонтаж", desc: "Сезонная замена, балансировка, ремонт проколов", icon: "🔩", duration: "45 мин", price: "от 1 500 ₽" }
+    { title: "Диагностика и ТО", desc: "Полная диагностика, плановое ТО, замена жидкостей", icon: "ТО", duration: "60 мин", price: "от 2 000 ₽" },
+    { title: "Ремонт двигателя", desc: "Капитальный ремонт, замена ГРМ, диагностика", icon: "ДВС", duration: "180 мин", price: "от 8 000 ₽" },
+    { title: "Ремонт КПП", desc: "Автомат, механика, вариатор — любой сложности", icon: "КПП", duration: "240 мин", price: "от 9 500 ₽" },
+    { title: "Ходовая часть", desc: "Замена амортизаторов, рычагов, сайлентблоков", icon: "ХД", duration: "120 мин", price: "от 4 000 ₽" },
+    { title: "Автоэлектрика", desc: "Диагностика электрики, ремонт генератора, стартера", icon: "ЭЛ", duration: "90 мин", price: "от 3 500 ₽" },
+    { title: "Шиномонтаж", desc: "Сезонная замена, балансировка, ремонт проколов", icon: "ШМ", duration: "45 мин", price: "от 1 500 ₽" },
   ],
   truck: [
-    { title: "Диагностика грузовых", desc: "Компьютерная диагностика, проверка систем", icon: "🔧", duration: "90 мин", price: "от 3 000 ₽" },
-    { title: "Ремонт ДВС", desc: "Капитальный ремонт двигателей грузовиков", icon: "⚙️", duration: "300 мин", price: "от 15 000 ₽" },
-    { title: "Ремонт КПП", desc: "Ремонт коробок передач ZF, Eaton и др.", icon: "🔄", duration: "300 мин", price: "от 16 000 ₽" },
-    { title: "Ходовая часть", desc: "Замена рессор, сайлентблоков, амортизаторов", icon: "🛞", duration: "180 мин", price: "от 7 000 ₽" },
-    { title: "Электрика", desc: "Ремонт электропроводки, диагностика CAN-шин", icon: "⚡", duration: "120 мин", price: "от 5 000 ₽" },
-    { title: "ТО грузовиков", desc: "Плановое ТО, замена масел и фильтров", icon: "🔩", duration: "90 мин", price: "от 4 500 ₽" }
-  ]
+    { title: "Диагностика грузовых", desc: "Компьютерная диагностика, проверка систем", icon: "DG", duration: "90 мин", price: "от 3 000 ₽" },
+    { title: "Ремонт ДВС", desc: "Капитальный ремонт двигателей грузовиков", icon: "DT", duration: "300 мин", price: "от 15 000 ₽" },
+    { title: "Ремонт КПП", desc: "Ремонт коробок передач ZF, Eaton и других систем", icon: "TG", duration: "300 мин", price: "от 16 000 ₽" },
+    { title: "Ходовая часть", desc: "Замена рессор, сайлентблоков и амортизаторов", icon: "HC", duration: "180 мин", price: "от 7 000 ₽" },
+    { title: "Электрика", desc: "Ремонт электропроводки и диагностика CAN-шин", icon: "EL", duration: "120 мин", price: "от 5 000 ₽" },
+    { title: "ТО грузовиков", desc: "Плановое ТО, замена масел и фильтров", icon: "TR", duration: "90 мин", price: "от 4 500 ₽" },
+  ],
 };
 
 function normalizePhone(value: string): string {
@@ -89,7 +91,7 @@ export default function ServicePage() {
       }
     }
 
-    loadContent();
+    void loadContent();
     return () => {
       cancelled = true;
     };
@@ -130,10 +132,18 @@ export default function ServicePage() {
               ? `от ${Math.round(item.price).toLocaleString("ru-RU")} ₽`
               : "цена по запросу";
 
+          const title = item.name.trim();
+          const iconSeed = title
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() ?? "")
+            .join("")
+            .slice(0, 3);
+
           const card: ServiceCard = {
-            title: item.name,
+            title,
             desc: "Услуга сервисного центра",
-            icon: "🔧",
+            icon: iconSeed || "SV",
             duration: durationLabel,
             price: priceLabel,
             prepaymentLabel:
@@ -179,18 +189,24 @@ export default function ServicePage() {
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
   const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
   const heroTitle = contentValue("service_hero_title", "Автосервис в Красноярске");
   const heroSubtitle = contentValue("service_hero_subtitle", "Профессиональный ремонт и обслуживание автомобилей");
   const formTitle = contentValue("service_form_title", "Заявка на обслуживание");
   const formSubtitle = contentValue(
     "service_form_subtitle",
-    "Заполните форму — менеджер свяжется с вами для подтверждения"
+    "Заполните форму — менеджер свяжется с вами для подтверждения",
   );
   const successTitle = contentValue("service_success_title", "Заявка отправлена!");
   const successText = contentValue(
     "service_success_text",
-    "Менеджер свяжется с вами в рабочее время для подтверждения записи."
+    "Менеджер свяжется с вами в рабочее время для подтверждения записи.",
   );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -213,14 +229,15 @@ export default function ServicePage() {
       const data = {
         vehicle_type: formData.get("vehicle_type") === "truck" ? "truck" : "passenger",
         service_type: formData.get("service_type"),
-        name: formData.get("name"),
+        name: formData.get("name")?.toString().trim() || undefined,
         phone: normalizedPhone,
         email: formData.get("email") || undefined,
         vehicle_make: formData.get("vehicle_make") || undefined,
         vehicle_model: formData.get("vehicle_model") || undefined,
-        vehicle_year: formData.get("vehicle_year") ? parseInt(formData.get("vehicle_year") as string) : undefined,
+        vehicle_engine: formData.get("vehicle_engine")?.toString().trim() || undefined,
+        vehicle_year: formData.get("vehicle_year") ? parseInt(formData.get("vehicle_year") as string, 10) : undefined,
         vin: normalizedVin || undefined,
-        mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string) : undefined,
+        mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string, 10) : undefined,
         description,
         preferred_date: formData.get("preferred_date") || undefined,
         consent_given: formData.get("consent") === "on",
@@ -237,7 +254,7 @@ export default function ServicePage() {
           },
           body: JSON.stringify(data),
         },
-        12000
+        12000,
       );
 
       setIsSuccess(true);
@@ -245,6 +262,8 @@ export default function ServicePage() {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else if (err instanceof Error && err.message) {
+        setError(err.message);
       } else {
         setError("Не удалось отправить заявку. Попробуйте позже.");
       }
@@ -254,237 +273,451 @@ export default function ServicePage() {
   }
 
   const serviceHeader = (
-    <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
-          <nav className="hidden items-center gap-8 md:flex">
-            <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-            <Link href="/service" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navService}</Link>
-            <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-          </nav>
+    <PublicHeader
+      brandName={brandName}
+      activeKey="service"
+      labels={{
+        parts: navParts,
+        service: navService,
+        contacts: navContacts,
+        about: navAbout,
+        favorites: navFavorites,
+        cart: navCart,
+        orders: navOrders,
+        dealer: navDealer,
+        callback: navCallback,
+      }}
+    />
+  );
+
+  const serviceBenefits = [
+    "Запись оформляется заявкой, менеджер подтверждает удобное время.",
+    "Работаем с легковыми и коммерческими автомобилями.",
+    "Можно сразу приложить VIN, пробег и описание симптомов.",
+  ];
+
+  const processSteps = [
+    "Выбираете направление работ и оставляете заявку.",
+    "Менеджер уточняет детали, стоимость и время приёма.",
+    "Подтверждаем запись и готовим сервис к вашему приезду.",
+  ];
+
+  const renderServiceCard = (service: ServiceCard) => (
+    <article
+      key={service.title}
+      className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1F3B73] to-[#365CAD] text-sm font-black tracking-[0.12em] text-white">
+          {service.icon}
         </div>
-        <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-          <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-          <Link href="/service" className="shrink-0 font-medium text-[#1F3B73]">{navService}</Link>
-          <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-          <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-          <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-        </nav>
+        <div className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">
+          {service.duration}
+        </div>
       </div>
-    </header>
+      <h3 className="mt-5 text-xl font-bold tracking-tight text-neutral-900">{service.title}</h3>
+      <p className="mt-2 text-sm leading-6 text-neutral-600">{service.desc}</p>
+      <div className="mt-5 text-2xl font-black tracking-tight text-[#1F3B73]">{service.price}</div>
+      {service.prepaymentLabel ? (
+        <div className="mt-2 inline-flex rounded-full bg-[#EEF3FF] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#1F3B73]">
+          {service.prepaymentLabel}
+        </div>
+      ) : null}
+    </article>
   );
 
   if (isSuccess) {
     return (
-      <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+      <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
         {serviceHeader}
 
-        <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-          <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
-            <div className="text-6xl mb-4">✅</div>
-            <h1 className="text-2xl font-bold text-[#1F3B73]">{successTitle}</h1>
-            <p className="mt-2 text-neutral-600">
+        <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-center shadow-[0_24px_70px_rgba(15,23,42,0.08)] lg:p-12">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#EEF3FF] text-3xl font-black text-[#1F3B73]">
+              OK
+            </div>
+            <h1 className="mt-6 text-3xl font-black tracking-tight text-[#10264B]">{successTitle}</h1>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-neutral-600 sm:text-base">
               {successText}
             </p>
-            <Link
-              href="/"
-              className="mt-6 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white hover:bg-[#e66e00]"
-            >
-              Вернуться на главную
-            </Link>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
+              >
+                Вернуться на главную
+              </Link>
+              <Link
+                href="/parts"
+                className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-6 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+              >
+                Открыть каталог
+              </Link>
+            </div>
           </div>
         </section>
 
-        <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-          <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
-            © {new Date().getFullYear()} {footerText}
-          </div>
-        </footer>
+        <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
       {serviceHeader}
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1F3B73] to-[#14294F] py-16">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
-        </div>
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">{heroTitle}</h1>
-          <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
-            {heroSubtitle}
-          </p>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="flex gap-4 rounded-2xl bg-white p-2 shadow-sm">
-          <Link 
-            href="/service?type=passenger" 
-            className="flex-1 rounded-xl bg-[#1F3B73] py-3 text-center font-medium text-white"
-          >
-            Легковые
-          </Link>
-          <Link 
-            href="/service?type=truck" 
-            className="flex-1 rounded-xl py-3 text-center font-medium text-neutral-600 hover:bg-neutral-100"
-          >
-            Грузовые
-          </Link>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <h2 className="text-2xl font-bold text-[#1F3B73]">
-          Легковые автомобили
-        </h2>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {services.passenger.map((work) => (
-            <div key={work.title} className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-lg">
-              <div className="text-4xl">{work.icon}</div>
-              <h3 className="mt-4 text-lg font-semibold text-[#1F3B73]">{work.title}</h3>
-              <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
-              <p className="mt-3 text-xs font-medium text-neutral-500">Длительность: {work.duration}</p>
-              <p className="mt-1 text-sm font-semibold text-[#1F3B73]">{work.price}</p>
-              {work.prepaymentLabel ? (
-                <p className="mt-1 text-xs font-medium text-[#1F3B73]">{work.prepaymentLabel}</p>
-              ) : null}
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              service · diagnostics · maintenance
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <h2 className="text-2xl font-bold text-[#1F3B73]">
-          Грузовые автомобили
-        </h2>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {services.truck.map((work) => (
-            <div key={work.title} className="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:shadow-lg">
-              <div className="text-4xl">{work.icon}</div>
-              <h3 className="mt-4 text-lg font-semibold text-[#1F3B73]">{work.title}</h3>
-              <p className="mt-2 text-sm text-neutral-600">{work.desc}</p>
-              <p className="mt-3 text-xs font-medium text-neutral-500">Длительность: {work.duration}</p>
-              <p className="mt-1 text-sm font-semibold text-[#1F3B73]">{work.price}</p>
-              {work.prepaymentLabel ? (
-                <p className="mt-1 text-xs font-medium text-[#1F3B73]">{work.prepaymentLabel}</p>
-              ) : null}
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{heroTitle}</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
+              {heroSubtitle}
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="#form"
+                className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#EEF3FF]"
+              >
+                Записаться на сервис
+              </Link>
+              <Link
+                href="/parts"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
+              >
+                Перейти в каталог
+              </Link>
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="form" className="bg-white py-16 scroll-mt-20">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2 className="text-center text-2xl font-bold text-[#1F3B73]">{formTitle}</h2>
-          <p className="mt-2 text-center text-neutral-600">
-            {formSubtitle}
-          </p>
-          
-          {error && (
-            <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-              {error}
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {serviceBenefits.map((benefit) => (
+                <div key={benefit} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/76">
+                  {benefit}
+                </div>
+              ))}
             </div>
-          )}
+          </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <div className="space-y-4">
+            <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">маршрут записи</div>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Как проходит запись</h2>
+              <div className="mt-5 space-y-3">
+                {processSteps.map((step, index) => (
+                  <div key={step} className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1F3B73] text-sm font-black text-white">
+                      {index + 1}
+                    </div>
+                    <p className="text-sm leading-6 text-neutral-600">{step}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium text-neutral-700">Вид работ *</label>
-                <select name="service_type" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none">
-                  <option value="">Выберите направление</option>
-                  <optgroup label="Легковые">
-                    {services.passenger.map((service) => (
-                      <option key={`passenger-${service.title}`} value={service.title}>
-                        {service.title} · {service.duration} · {service.price}
-                        {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Грузовые">
-                    {services.truck.map((service) => (
-                      <option key={`truck-${service.title}`} value={service.title}>
-                        {service.title} · {service.duration} · {service.price}
-                        {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-neutral-700">Тип авто *</label>
-                <select name="vehicle_type" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none">
-                  <option value="passenger">Легковой</option>
-                  <option value="truck">Грузовой</option>
-                </select>
-              </div>
+              <Link
+                href="#passenger-services"
+                className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">легковые</div>
+                <div className="mt-3 text-lg font-bold text-neutral-900">Открыть направления работ</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  Диагностика, ТО, автоэлектрика, ходовая часть и другие направления.
+                </p>
+              </Link>
+              <Link
+                href="#truck-services"
+                className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">грузовые</div>
+                <div className="mt-3 text-lg font-bold text-neutral-900">Сервис для коммерческого транспорта</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  Отдельные направления и работы для грузовых автомобилей и коммерческого парка.
+                </p>
+              </Link>
             </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Ваше имя *</label>
-              <input type="text" name="name" autoComplete="name" required className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Телефон *</label>
-              <input
-                type="tel"
-                name="phone"
-                required
-                autoComplete="tel"
-                inputMode="tel"
-                placeholder="+7 (___) ___-__-__"
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Марка и модель авто</label>
-              <input type="text" name="vehicle_make" placeholder="Например: Toyota Camry" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">VIN (если есть)</label>
-              <input type="text" name="vin" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Желаемая дата</label>
-              <input type="date" name="preferred_date" className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Причина обращения *</label>
-              <textarea name="description" required rows={3} className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" />
-            </div>
-
-            <div className="flex items-start gap-2">
-              <input type="checkbox" name="consent" id="consent" className="mt-1" required />
-              <label htmlFor="consent" className="text-xs text-neutral-600">
-                Согласен на обработку персональных данных в соответствии с политикой конфиденциальности
-              </label>
-            </div>
-
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="w-full rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e66e00] transition"
-            >
-              {isSubmitting ? "Отправка..." : "Отправить заявку"}
-            </button>
-          </form>
+          </div>
         </div>
       </section>
 
-      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
-          © {new Date().getFullYear()} {footerText}
+      <section id="passenger-services" className="mx-auto max-w-7xl scroll-mt-36 px-4 py-12 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">легковые автомобили</div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Направления работ</h2>
+          </div>
+          <Link
+            href="#form"
+            className="inline-flex items-center text-sm font-semibold text-[#1F3B73] transition-colors hover:text-[#14294F]"
+          >
+            Оставить заявку
+          </Link>
         </div>
-      </footer>
+        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {services.passenger.map(renderServiceCard)}
+        </div>
+      </section>
+
+      <section id="truck-services" className="bg-white py-12">
+        <div className="mx-auto max-w-7xl scroll-mt-36 px-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">коммерческий транспорт</div>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Грузовой сервис</h2>
+            </div>
+            <Link
+              href="#form"
+              className="inline-flex items-center text-sm font-semibold text-[#1F3B73] transition-colors hover:text-[#14294F]"
+            >
+              Оставить заявку
+            </Link>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {services.truck.map(renderServiceCard)}
+          </div>
+        </div>
+      </section>
+
+      <section id="form" className="mx-auto max-w-7xl scroll-mt-36 px-4 py-12 sm:px-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,0.85fr)]">
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">заявка на обслуживание</div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">{formTitle}</h2>
+            <p className="mt-3 text-sm leading-7 text-neutral-600 sm:text-base">
+              {formSubtitle}
+            </p>
+
+            {error ? (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+              >
+                {error}
+              </div>
+            ) : null}
+
+            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Вид работ *</label>
+                  <select
+                    name="service_type"
+                    required
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  >
+                    <option value="">Выберите направление</option>
+                    <optgroup label="Легковые">
+                      {services.passenger.map((service) => (
+                        <option key={`passenger-${service.title}`} value={service.title}>
+                          {service.title} · {service.duration} · {service.price}
+                          {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Грузовые">
+                      {services.truck.map((service) => (
+                        <option key={`truck-${service.title}`} value={service.title}>
+                          {service.title} · {service.duration} · {service.price}
+                          {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Тип авто *</label>
+                  <select
+                    name="vehicle_type"
+                    required
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  >
+                    <option value="passenger">Легковой</option>
+                    <option value="truck">Грузовой</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Имя</label>
+                  <input
+                    type="text"
+                    name="name"
+                    autoComplete="name"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Телефон *</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    required
+                    autoComplete="tel"
+                    inputMode="tel"
+                    placeholder="+7 (___) ___-__-__"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Предпочтительная дата</label>
+                  <input
+                    type="date"
+                    name="preferred_date"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Марка</label>
+                  <input
+                    type="text"
+                    name="vehicle_make"
+                    placeholder="Например: Toyota"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Модель</label>
+                  <input
+                    type="text"
+                    name="vehicle_model"
+                    placeholder="Например: Camry"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Год</label>
+                  <input
+                    type="number"
+                    name="vehicle_year"
+                    inputMode="numeric"
+                    min="1950"
+                    max="2100"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Двигатель</label>
+                  <input
+                    type="text"
+                    name="vehicle_engine"
+                    placeholder="Например: 2.0 TDI"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">Пробег</label>
+                  <input
+                    type="number"
+                    name="mileage"
+                    inputMode="numeric"
+                    min="0"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-neutral-700">VIN</label>
+                  <input
+                    type="text"
+                    name="vin"
+                    placeholder="17 символов"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-neutral-700">Причина обращения *</label>
+                <textarea
+                  name="description"
+                  required
+                  rows={4}
+                  placeholder="Опишите неисправность, симптомы или задачу для сервиса"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                <input type="checkbox" name="consent" id="service-consent" className="mt-1" required />
+                <label htmlFor="service-consent" className="text-xs leading-6 text-neutral-600">
+                  Согласен на обработку персональных данных в соответствии с политикой конфиденциальности.
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-[#FF7A00] py-4 text-sm font-semibold text-white shadow-lg shadow-[#FF7A00]/20 transition-colors hover:bg-[#E86F00] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Отправка..." : "Отправить заявку"}
+              </button>
+            </form>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-[2rem] bg-[linear-gradient(135deg,#10264B_0%,#1F3B73_100%)] p-6 text-white shadow-[0_28px_70px_rgba(16,38,75,0.18)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">что важно</div>
+              <div className="mt-4 space-y-3">
+                {[
+                  "Запись подтверждается менеджером, а не формируется автоматически.",
+                  "Можно сразу выбрать направление работ из каталога услуг.",
+                  "Если по услуге предусмотрена предоплата, она будет указана в карточке.",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/78">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">быстрые переходы</div>
+              <div className="mt-4 flex flex-col gap-3">
+                <Link
+                  href="/parts"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
+                >
+                  Открыть каталог запчастей
+                </Link>
+                <Link
+                  href="/parts/vin"
+                  className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  VIN-заявка
+                </Link>
+                <Link
+                  href="/contacts"
+                  className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  Контакты сервиса
+                </Link>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 
 function normalizePhone(value: string): string | null {
   const digits = value.replace(/\D/g, "");
@@ -51,7 +53,7 @@ export default function VinRequestPage() {
       }
     }
 
-    loadContent();
+    void loadContent();
     return () => {
       cancelled = true;
     };
@@ -66,6 +68,12 @@ export default function VinRequestPage() {
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
   const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
   const heroTitle = contentValue("vin_hero_title", "VIN-заявка");
   const heroSubtitle = contentValue(
@@ -106,7 +114,7 @@ export default function VinRequestPage() {
       vin,
       name: formData.get("name")?.toString().trim() || undefined,
       phone,
-      email: formData.get("email") || undefined,
+      email: formData.get("email")?.toString().trim() || undefined,
       message: formData.get("message")?.toString().trim() || undefined,
       consent_given: formData.get("consent") === "on",
       consent_version: "v1.0",
@@ -140,178 +148,231 @@ export default function VinRequestPage() {
   }
 
   const vinHeader = (
-    <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
-          <nav className="hidden items-center gap-8 md:flex">
-            <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navParts}</Link>
-            <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
-            <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-          </nav>
-        </div>
-        <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-          <Link href="/parts" className="shrink-0 font-medium text-[#1F3B73]">{navParts}</Link>
-          <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
-          <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-          <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-          <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-        </nav>
-      </div>
-    </header>
+    <PublicHeader
+      brandName={brandName}
+      activeKey="parts"
+      labels={{
+        parts: navParts,
+        service: navService,
+        contacts: navContacts,
+        about: navAbout,
+        favorites: navFavorites,
+        cart: navCart,
+        orders: navOrders,
+        dealer: navDealer,
+        callback: navCallback,
+      }}
+    />
   );
 
   if (isSuccess) {
     return (
-      <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+      <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
         {vinHeader}
 
-        <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-          <div className="rounded-3xl bg-white p-8 text-center shadow-xl">
-            <div className="text-6xl mb-4">✅</div>
-            <h1 className="text-2xl font-bold text-[#1F3B73]">{successTitle}</h1>
-            <p className="mt-2 text-neutral-600">
-              {successText}
-            </p>
-            <Link
-              href="/"
-              className="mt-6 inline-block rounded-2xl bg-[#FF7A00] px-8 py-3 font-medium text-white hover:bg-[#e66e00]"
-            >
-              Вернуться на главную
-            </Link>
+        <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+          <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:py-16">
+            <div className="rounded-[2.25rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)] sm:p-10">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+                vin request · submitted
+              </div>
+              <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{successTitle}</h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">{successText}</p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/parts"
+                  className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#10264B] transition hover:bg-white/90"
+                >
+                  Вернуться в каталог
+                </Link>
+                <Link
+                  href="/service"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                >
+                  Посмотреть сервис
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
 
-        <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-          <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
-            © {new Date().getFullYear()} {footerText}
-          </div>
-        </footer>
+        <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
       {vinHeader}
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1F3B73] to-[#14294F] py-16">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
-        </div>
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">{heroTitle}</h1>
-          <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
-            {heroSubtitle}
-          </p>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-        <div className="rounded-3xl bg-white p-8 shadow-xl">
-          {error && (
-            <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-              {error}
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              vin · compatibility · manager request
             </div>
-          )}
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="text-sm font-medium text-neutral-700">{vinFieldTitle}</label>
-              <input 
-                type="text" 
-                name="vin"
-                required
-                placeholder="Например: XTA210930Y1234567" 
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm focus:border-[#1F3B73] focus:outline-none"
-              />
-              <p className="mt-1 text-xs text-neutral-500">VIN обычно состоит из 17 символов</p>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{heroTitle}</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">{heroSubtitle}</p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/60">шаг 1</div>
+                <div className="mt-2 text-base font-semibold">Оставляете VIN и контакт</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/60">шаг 2</div>
+                <div className="mt-2 text-base font-semibold">Менеджер проверяет совместимость</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/60">шаг 3</div>
+                <div className="mt-2 text-base font-semibold">Получаете подбор и сроки поставки</div>
+              </div>
             </div>
+          </div>
 
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Ваше имя</label>
-              <input 
-                type="text" 
-                name="name"
-                autoComplete="name"
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
-              />
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">что полезно указать</div>
+            <div className="mt-4 space-y-3">
+              {[
+                "VIN в точном виде без пробелов и лишних символов.",
+                "Какую деталь ищете: фильтр, тормоза, подвеска, электрика и т.д.",
+                "Что важно: оригинал, аналог, срочная поставка, бюджетный вариант.",
+                "При необходимости менеджер уточнит марку, модель, год и двигатель.",
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                  {item}
+                </div>
+              ))}
             </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Телефон *</label>
-              <input 
-                type="tel" 
-                name="phone"
-                required
-                autoComplete="tel"
-                inputMode="tel"
-                placeholder="+7 (___) ___-__-__" 
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Email</label>
-              <input 
-                type="email" 
-                name="email"
-                autoComplete="email"
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none" 
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-neutral-700">Что нужно найти?</label>
-              <textarea 
-                name="message"
-                rows={4} 
-                placeholder="Опишите деталь, которую ищете, или укажите дополнительные пожелания"
-                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
-              />
-            </div>
-
-            <div className="flex items-start gap-2">
-              <input type="checkbox" name="consent" id="consent" className="mt-1" required />
-              <label htmlFor="consent" className="text-xs text-neutral-600">
-                Согласен на обработку персональных данных в соответствии с политикой конфиденциальности
-              </label>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
-              <button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="flex-1 rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e66e00] transition"
-              >
-                {isSubmitting ? "Отправка..." : submitLabel}
-              </button>
-              <Link 
-                href="/parts" 
-                className="flex-1 rounded-2xl border-2 border-neutral-200 py-4 text-center font-medium text-neutral-600 transition hover:bg-neutral-50"
-              >
-                Вернуться к поиску
-              </Link>
-            </div>
-          </form>
-
-          <div className="mt-8 rounded-2xl bg-[#1F3B73]/5 p-4">
-            <h3 className="font-medium text-[#1F3B73]">Как мы обрабатываем VIN-заявки?</h3>
-            <ul className="mt-2 space-y-2 text-sm text-neutral-600">
-              <li>• Менеджер получает заявку в рабочее время</li>
-              <li>• Проверяет совместимость по VIN в каталогах</li>
-              <li>• Связывается с вами для уточнения деталей</li>
-              <li>• Предлагает варианты и сроки поставки</li>
-            </ul>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
-          © {new Date().getFullYear()} {footerText}
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <section className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] sm:p-8">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">форма VIN-заявки</div>
+            <h2 className="mt-2 text-3xl font-bold text-[#10264B]">Отправить запрос на подбор</h2>
+
+            {error ? (
+              <div role="alert" aria-live="assertive" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{vinFieldTitle}</label>
+                <input
+                  type="text"
+                  name="vin"
+                  required
+                  placeholder="Например: XTA210930Y1234567"
+                  className="h-12 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 font-mono text-sm focus:border-[#1F3B73] focus:outline-none"
+                />
+                <p className="mt-2 text-xs text-neutral-500">VIN обычно состоит из 17 символов. Буквы I, O и Q не используются.</p>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Ваше имя</label>
+                  <input
+                    type="text"
+                    name="name"
+                    autoComplete="name"
+                    className="h-12 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-sm focus:border-[#1F3B73] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Телефон *</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    required
+                    autoComplete="tel"
+                    inputMode="tel"
+                    placeholder="+7 (___) ___-__-__"
+                    className="h-12 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-sm focus:border-[#1F3B73] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  className="h-12 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-sm focus:border-[#1F3B73] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Что нужно найти</label>
+                <textarea
+                  name="message"
+                  rows={5}
+                  placeholder="Опишите деталь, которую ищете, или дополнительные пожелания по подбору"
+                  className="w-full rounded-[1.5rem] border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                />
+              </div>
+
+              <label className="flex items-start gap-3 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm leading-6 text-neutral-600">
+                <input type="checkbox" name="consent" className="mt-1 size-4" required />
+                <span>Согласен на обработку персональных данных в соответствии с политикой конфиденциальности.</span>
+              </label>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex flex-1 items-center justify-center rounded-2xl bg-[#FF7A00] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#e66e00] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? 'Отправка...' : submitLabel}
+                </button>
+                <Link
+                  href="/parts"
+                  className="inline-flex flex-1 items-center justify-center rounded-2xl border border-neutral-200 px-5 py-3.5 text-sm font-semibold text-neutral-700 transition hover:border-[#1F3B73] hover:text-[#1F3B73]"
+                >
+                  Вернуться к поиску
+                </Link>
+              </div>
+            </form>
+          </section>
+
+          <aside className="space-y-6">
+            <section className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как обрабатываем заявки</div>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-neutral-600">
+                <p className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">Менеджер получает заявку в рабочее время и проверяет совместимость в каталогах.</p>
+                <p className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">После проверки связываемся с вами для уточнения наличия, бренда и сроков поставки.</p>
+                <p className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">Если нужны варианты, предложим оригинал и доступные аналоги.</p>
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#10264B_0%,#17315E_100%)] p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.10)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/65">быстрый путь</div>
+              <h3 className="mt-2 text-xl font-bold">Нужна консультация менеджера?</h3>
+              <p className="mt-3 text-sm leading-6 text-white/78">Если VIN под рукой нет, можно перейти в каталог или оставить обычную заявку на подбор по детали.</p>
+              <div className="mt-5 flex flex-col gap-3">
+                <Link
+                  href="/parts"
+                  className="inline-flex items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#10264B] transition hover:bg-white/90"
+                >
+                  Открыть каталог
+                </Link>
+                <Link
+                  href="/contacts#callback-form"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                >
+                  Заказать звонок
+                </Link>
+              </div>
+            </section>
+          </aside>
         </div>
-      </footer>
+      </section>
+
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

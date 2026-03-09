@@ -1,12 +1,12 @@
 # АКТ ПЕРЕДАЧИ ПРОЕКТА / PROJECT HANDOFF
 
 Название проекта: Все запчасти  
-Версия документа: v1.0  
+Версия документа: v1.1
 Дата передачи: 2026-03-09  
 Сдаёт: Сергей (CTO)  
 Принимает: не указано (требуется заполнение)  
 Основание: repo state + release evidence (2026-03-09)  
-Стек: RU Stack Lock v1.5  
+Стек: RU Stack Lock v1.1
 Статус: Draft
 
 ## 1) Что сдаётся
@@ -19,9 +19,10 @@
 - Не предоставлены фактические production домены, серверные адреса, регистратор DNS и список ответственных лиц.
 - Нет подтверждённой даты последнего production deploy.
 - Нет подписанных SLA/гарантийных условий в репозитории.
+- Для закрытия этих пунктов использовать шаблон: `docs/production-metadata-template-2026-03-09.md`.
 
 Профиль сложности: M  
-Release commit / tag: `4652c99` (latest repo commit на момент фиксации handoff)  
+Release commit / tag: working tree after hardening updates (uncommitted snapshot)
 Дата последнего production deploy: не предоставлено
 
 ## 2) Для клиента: как это работает
@@ -139,7 +140,7 @@ Rollback: `docs/release-rollback-runbook.md`
 ### 6.2 Миграции
 - Применение: `cd apps/api && make migrate`
 - Проверка состояния: `cd apps/api && make migrate-check`
-- Текущий head (по последнему release-check): `a1b2c3d4e5f6`
+- Текущий head (по последнему release-check): `f6e2c1a9b7d3`
 
 ### 6.3 Backup проверка
 - Проверка восстановления:
@@ -166,12 +167,12 @@ Rollback: `docs/release-rollback-runbook.md`
 - Инциденты на стороне внешних провайдеров (хостинг, DNS, почта), если не оговорено договором.
 
 ## 9) Release evidence
-- Release commit / tag: `4652c99` (commit), production tag не предоставлен.
+- Release commit / tag: working tree snapshot, production tag не предоставлен.
 - Дата deploy: не предоставлена.
 - Backup artifact: `backups/postgres/release_20260309_162046.dump`.
-- Smoke result: `✅ all checks passed` (read + write + admin checks, 2026-03-09 16:21–16:22).
-- Migration result: `alembic current -> a1b2c3d4e5f6 (head)`.
-- Restore check: `ok: restored tables=15`, `alembic_version=a1b2c3d4e5f6`.
+- Smoke result: `✅ all checks passed` (read + write, 2026-03-09 16:58–16:59).
+- Migration result: `alembic current -> f6e2c1a9b7d3 (head)`.
+- Restore check: `ok: restored tables=15`, `alembic_version=f6e2c1a9b7d3`.
 
 ## 10) Подписи
 Сдал: Сергей (CTO) _________________ Дата: _________  

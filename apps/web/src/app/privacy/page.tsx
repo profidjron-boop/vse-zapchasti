@@ -1,6 +1,7 @@
-import Link from "next/link";
-import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import type { Metadata } from "next";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 
 export const metadata: Metadata = {
   title: "Политика конфиденциальности | Все запчасти",
@@ -29,129 +30,176 @@ async function getPublicContentMap(): Promise<Record<string, string>> {
 
 export default async function PrivacyPage() {
   const contentMap = await getPublicContentMap();
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
   const lastUpdated = contentMap.privacy_last_updated?.trim() || "5 марта 2026 г.";
   const contentHtml = contentMap.privacy_content_html?.trim() || "";
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      {/* Header */}
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-            </nav>
-          </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-          </nav>
-        </div>
-      </header>
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
+      <PublicHeader
+        brandName={brandName}
+        labels={{
+          parts: navParts,
+          service: navService,
+          contacts: navContacts,
+          about: navAbout,
+          favorites: navFavorites,
+          cart: navCart,
+          orders: navOrders,
+          dealer: navDealer,
+          callback: navCallback,
+        }}
+      />
 
-      <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
-        <h1 className="text-2xl font-bold text-[#1F3B73] sm:text-3xl">Политика конфиденциальности</h1>
-        <p className="mt-2 text-sm text-neutral-500">Последнее обновление: {lastUpdated}</p>
-
-        {contentHtml ? (
-          <div className="mt-8 space-y-4 text-neutral-700" dangerouslySetInnerHTML={{ __html: contentHtml }} />
-        ) : (
-          <div className="mt-8 space-y-6 text-neutral-700">
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">1. Оператор персональных данных</h2>
-            <p className="mt-2">
-              Оператор: ИП Иванов Иван Иванович (ИНН 246500123456, ОГРНИП 321246800123456), сайт: vsezapchasti.ru.
-              Политика действует в соответствии с Федеральным законом от 27.07.2006 №152-ФЗ «О персональных данных».
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              legal · privacy · 152-фз
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Политика конфиденциальности</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
+              Как мы собираем, храним и защищаем персональные данные по заявкам на запчасти, VIN-подбор и сервисные работы.
             </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-3 text-sm font-medium text-white/80">
+                Последнее обновление: {lastUpdated}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-3 text-sm font-medium text-white/80">
+                Хранение и обработка данных в пределах РФ
+              </div>
+            </div>
           </div>
 
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">2. Какие данные мы обрабатываем</h2>
-            <ul className="mt-2 list-disc pl-5 space-y-1">
-              <li>Контактные данные: имя, телефон, email (если указан)</li>
-              <li>Данные заявки: VIN, сообщение, тип обращения, марка/модель/год, описание работ</li>
-              <li>Служебные данные: IP-адрес, User-Agent, дата и время отправки формы</li>
-              <li>Данные согласия: факт согласия, версия текста согласия, дата/время согласия</li>
-            </ul>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">3. Цели обработки</h2>
-            <ul className="mt-2 list-disc pl-5 space-y-1">
-              <li>Обработка заявок на подбор запчастей, VIN-подбор и обратный звонок</li>
-              <li>Запись и сопровождение заявки на сервисные работы</li>
-              <li>Связь с пользователем по статусу обращения</li>
-              <li>Ведение журнала согласий и событий для выполнения требований 152-ФЗ</li>
-            </ul>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">4. Правовые основания обработки</h2>
-            <ul className="mt-2 list-disc pl-5 space-y-1">
-              <li>Согласие субъекта персональных данных (ч. 1 ст. 6, ст. 9 152-ФЗ)</li>
-              <li>Необходимость обработки для заключения и исполнения договора по обращению пользователя (п. 5 ч. 1 ст. 6 152-ФЗ)</li>
-              <li>Исполнение обязанностей оператора, установленных законодательством РФ</li>
-            </ul>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">5. Хранение и безопасность</h2>
-            <p className="mt-2">
-              Персональные данные хранятся в информационных системах на территории Российской Федерации.
-              Срок хранения: до достижения целей обработки, но не более 36 месяцев с даты последнего обращения,
-              если иной срок не предусмотрен законом или договором. По истечении срока данные удаляются или обезличиваются.
-            </p>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">6. Передача третьим лицам</h2>
-            <p className="mt-2">
-              Передача персональных данных третьим лицам осуществляется только при наличии законных оснований:
-              исполнение требований законодательства РФ, участие подрядчика в обработке по поручению оператора,
-              либо по отдельному согласию пользователя.
-            </p>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">7. Права субъекта персональных данных</h2>
-            <ul className="mt-2 list-disc pl-5 space-y-1">
-              <li>Получать сведения об обработке своих персональных данных</li>
-              <li>Требовать уточнения, блокирования или уничтожения данных</li>
-              <li>Отозвать согласие на обработку персональных данных</li>
-              <li>Обжаловать действия оператора в уполномоченный орган или в суд</li>
-            </ul>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">8. Отзыв согласия и обращения</h2>
-            <p className="mt-2">
-              Для отзыва согласия или реализации прав субъекта направьте запрос на privacy@vsezapchasti.ru.
-              В запросе укажите ФИО, контактный номер и описание требования. Срок ответа — до 30 календарных дней.
-            </p>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-[#1F3B73]">9. Контактная информация оператора</h2>
-            <p className="mt-2">
-              По вопросам обработки персональных данных:
-              <br />Email: privacy@vsezapchasti.ru
-              <br />Тел.: +7 (391) 258-95-00
-              <br />Адрес: 660000, г. Красноярск, ул. Ленина, 1
-            </p>
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">что важно знать</div>
+            <div className="mt-4 space-y-3">
+              {[
+                "Мы собираем только данные, необходимые для обработки заявки и обратной связи.",
+                "Факт согласия фиксируется вместе с версией политики и техническими метаданными.",
+                "Персональные данные не используются для сторонних маркетинговых целей без отдельного основания.",
+                "Запрос на удаление, уточнение или отзыв согласия можно направить на privacy@vsezapchasti.ru.",
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        )}
       </section>
 
-      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+      <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+        <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+          {contentHtml ? (
+            <div
+              className="prose prose-neutral max-w-none text-neutral-700 prose-headings:font-bold prose-headings:text-[#10264B] prose-h2:text-2xl prose-p:leading-7 prose-li:leading-7"
+              dangerouslySetInnerHTML={{ __html: contentHtml }}
+            />
+          ) : (
+            <div className="space-y-8 text-neutral-700">
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">1. Оператор персональных данных</h2>
+                <p className="mt-3 leading-7">
+                  Оператор: ИП Иванов Иван Иванович (ИНН 246500123456, ОГРНИП 321246800123456), сайт: vsezapchasti.ru.
+                  Политика действует в соответствии с Федеральным законом от 27.07.2006 №152-ФЗ «О персональных данных».
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">2. Какие данные мы обрабатываем</h2>
+                <ul className="mt-4 space-y-2 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
+                  <li>Контактные данные: имя, телефон, email (если указан).</li>
+                  <li>Данные заявки: VIN, сообщение, тип обращения, марка/модель/год, описание работ.</li>
+                  <li>Служебные данные: IP-адрес, User-Agent, дата и время отправки формы.</li>
+                  <li>Данные согласия: факт согласия, версия текста согласия, дата/время согласия.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">3. Цели обработки</h2>
+                <ul className="mt-4 space-y-2 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
+                  <li>Обработка заявок на подбор запчастей, VIN-подбор и обратный звонок.</li>
+                  <li>Запись и сопровождение заявки на сервисные работы.</li>
+                  <li>Связь с пользователем по статусу обращения.</li>
+                  <li>Ведение журнала согласий и событий для выполнения требований 152-ФЗ.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">4. Правовые основания обработки</h2>
+                <ul className="mt-4 space-y-2 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
+                  <li>Согласие субъекта персональных данных (ч. 1 ст. 6, ст. 9 152-ФЗ).</li>
+                  <li>Необходимость обработки для заключения и исполнения договора по обращению пользователя (п. 5 ч. 1 ст. 6 152-ФЗ).</li>
+                  <li>Исполнение обязанностей оператора, установленных законодательством РФ.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">5. Хранение и безопасность</h2>
+                <p className="mt-3 leading-7">
+                  Персональные данные хранятся в информационных системах на территории Российской Федерации. Срок хранения: до
+                  достижения целей обработки, но не более 36 месяцев с даты последнего обращения, если иной срок не
+                  предусмотрен законом или договором. По истечении срока данные удаляются или обезличиваются.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">6. Передача третьим лицам</h2>
+                <p className="mt-3 leading-7">
+                  Передача персональных данных третьим лицам осуществляется только при наличии законных оснований: исполнение
+                  требований законодательства РФ, участие подрядчика в обработке по поручению оператора, либо по отдельному
+                  согласию пользователя.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">7. Права субъекта персональных данных</h2>
+                <ul className="mt-4 space-y-2 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
+                  <li>Получать сведения об обработке своих персональных данных.</li>
+                  <li>Требовать уточнения, блокирования или уничтожения данных.</li>
+                  <li>Отозвать согласие на обработку персональных данных.</li>
+                  <li>Обжаловать действия оператора в уполномоченный орган или в суд.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">8. Отзыв согласия и обращения</h2>
+                <p className="mt-3 leading-7">
+                  Для отзыва согласия или реализации прав субъекта направьте запрос на privacy@vsezapchasti.ru. В запросе
+                  укажите ФИО, контактный номер и описание требования. Срок ответа — до 30 календарных дней.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold text-[#10264B]">9. Контактная информация оператора</h2>
+                <div className="mt-4 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
+                  <p>Email: privacy@vsezapchasti.ru</p>
+                  <p>Тел.: +7 (391) 258-95-00</p>
+                  <p>Адрес: 660000, г. Красноярск, ул. Ленина, 1</p>
+                </div>
+              </section>
+            </div>
+          )}
         </div>
-      </footer>
+      </section>
+
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

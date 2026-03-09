@@ -2,7 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { AddToCartButton } from "@/components/add-to-cart-button";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { PublicHeader } from "@/components/public-header";
+import { ProductImageFallback } from "@/components/product-image-fallback";
 import ProductLeadForm from "./product-lead-form";
 import FavoriteToggleButton from "./favorite-toggle-button";
 
@@ -37,7 +40,7 @@ async function getProductBySku(sku: string): Promise<{ product: Product | null; 
     const apiBaseUrl = getServerApiBaseUrl();
     const response = await fetch(
       withApiBase(apiBaseUrl, `/api/public/products/by-sku/${encodeURIComponent(sku)}`),
-      { cache: "no-store" }
+      { cache: "no-store" },
     );
 
     if (response.status === 404) {
@@ -98,6 +101,18 @@ function getStringListAttribute(attributes: Record<string, unknown> | undefined,
     }
   }
   return [];
+}
+
+function isPriceOnRequest(attributes: Record<string, unknown> | undefined, price: number | null): boolean {
+  if (price === null) return true;
+  return attributes?.price_on_request === true;
+}
+
+function formatPriceLabel(attributes: Record<string, unknown> | undefined, price: number | null): string {
+  if (typeof price === "number" && !isPriceOnRequest(attributes, price)) {
+    return `${price.toLocaleString("ru-RU")} ₽`;
+  }
+  return "Цена по запросу";
 }
 
 export async function generateMetadata({
@@ -167,18 +182,24 @@ export default async function ProductBySkuPage({
   }
   if (!product && hasError) {
     return (
-      <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
+      <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
         <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
-          <div className="rounded-3xl border border-neutral-200 bg-white p-8 text-center">
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-center shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
             <h1 className="text-xl font-semibold text-[#1F3B73]">Товар временно недоступен</h1>
             <p className="mt-2 text-sm text-neutral-600">
               Не удалось загрузить карточку товара. Повторите попытку чуть позже.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Link href="/parts" className="rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]">
+              <Link
+                href="/parts"
+                className="rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#14294F]"
+              >
                 Вернуться в каталог
               </Link>
-              <Link href="/parts/vin" className="rounded-2xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+              <Link
+                href="/parts/vin"
+                className="rounded-2xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+              >
                 Оставить VIN-заявку
               </Link>
             </div>
@@ -196,159 +217,224 @@ export default async function ProductBySkuPage({
     || getStringAttribute(currentProduct.attributes, "sale_badge");
   const analogs = getStringListAttribute(currentProduct.attributes, ["analogs", "crosses", "cross_codes"]);
   const compatibilities = currentProduct.compatibilities ?? [];
+  const requestMode = isPriceOnRequest(currentProduct.attributes, currentProduct.price);
+  const effectivePrice = requestMode ? null : currentProduct.price;
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
-            </nav>
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
+      <PublicHeader activeKey="parts" />
+
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+            <Link href="/" className="transition-colors hover:text-[#1F3B73]">
+              Главная
+            </Link>
+            <span>/</span>
+            <Link href="/parts" className="transition-colors hover:text-[#1F3B73]">
+              Каталог
+            </Link>
+            <span>/</span>
+            <span className="text-neutral-700">{currentProduct.sku}</span>
           </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-[#1F3B73]">Запчасти</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Избранное</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Корзина</Link>
-            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Мои заказы</Link>
-          </nav>
+
+          <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,26rem)]">
+            <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] lg:p-8">
+              <div className="grid gap-6 xl:grid-cols-[minmax(21rem,26rem)_minmax(0,1fr)]">
+                <div className="overflow-hidden rounded-[1.75rem] border border-neutral-200 bg-neutral-100">
+                  {mainImageUrl ? (
+                    <Image
+                      src={mainImageUrl}
+                      alt={currentProduct.name}
+                      className="h-full min-h-[20rem] w-full object-cover"
+                      width={720}
+                      height={720}
+                    />
+                  ) : (
+                    <div className="min-h-[20rem]">
+                      <ProductImageFallback
+                        sku={currentProduct.sku}
+                        name={currentProduct.name}
+                        brand={currentProduct.brand}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="inline-flex rounded-full border border-[#1F3B73]/12 bg-[#EEF3FF] px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#1F3B73]">
+                    карточка товара
+                  </div>
+                  <h1 className="mt-5 text-3xl font-black tracking-tight text-[#10264B] sm:text-4xl">
+                    {currentProduct.name}
+                  </h1>
+                  {discountLabel ? (
+                    <span className="mt-4 inline-flex rounded-full bg-[#FF7A00]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+                      {discountLabel}
+                    </span>
+                  ) : null}
+
+                  <dl className="mt-6 grid grid-cols-1 gap-3 text-sm text-neutral-700 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <dt className="text-neutral-500">Артикул</dt>
+                      <dd className="mt-1 break-all font-semibold text-neutral-900">{currentProduct.sku}</dd>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <dt className="text-neutral-500">OEM</dt>
+                      <dd className="mt-1 break-all font-semibold text-neutral-900">{currentProduct.oem || "—"}</dd>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <dt className="text-neutral-500">Бренд</dt>
+                      <dd className="mt-1 font-semibold text-neutral-900">{currentProduct.brand || "—"}</dd>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <dt className="text-neutral-500">Наличие</dt>
+                      <dd className={`mt-1 font-semibold ${currentProduct.stock_quantity > 0 ? "text-emerald-700" : "text-amber-700"}`}>
+                        {currentProduct.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-6 rounded-[1.75rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-5">
+                    {typeof oldPrice === "number"
+                    && typeof currentProduct.price === "number"
+                    && !requestMode
+                    && oldPrice > currentProduct.price ? (
+                      <div className="text-sm text-neutral-400 line-through">
+                        {oldPrice.toLocaleString("ru-RU")} ₽
+                      </div>
+                    ) : null}
+                    <div className="text-4xl font-black tracking-tight text-[#1F3B73]">
+                      {formatPriceLabel(currentProduct.attributes, currentProduct.price)}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-neutral-600">
+                      {requestMode
+                        ? "Менеджер уточнит стоимость и срок поставки после заявки."
+                        : "Актуальная цена из каталога. Для уточнения доступности можно оставить запрос."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-6 text-white shadow-[0_28px_70px_rgba(31,59,115,0.18)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FFB166]">быстрые действия</div>
+                <div className="mt-4 space-y-3">
+                  <AddToCartButton
+                    productId={currentProduct.id}
+                    sku={currentProduct.sku}
+                    name={currentProduct.name}
+                    price={effectivePrice}
+                    buttonLabel="Добавить в корзину"
+                    buttonClassName="inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#EEF3FF]"
+                    noticeClassName="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/88"
+                  />
+                  <Link
+                    href={`/parts/p/${encodeURIComponent(currentProduct.sku)}#product-lead-form`}
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
+                  >
+                    Запросить товар
+                  </Link>
+                  <Link
+                    href="/parts/vin"
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
+                  >
+                    Оставить VIN-заявку
+                  </Link>
+                  <Link
+                    href="/contacts"
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
+                  >
+                    Связаться с менеджером
+                  </Link>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">дополнительно</div>
+                <div className="mt-4 flex flex-col gap-3">
+                  <FavoriteToggleButton
+                    productId={currentProduct.id}
+                    sku={currentProduct.sku}
+                    name={currentProduct.name}
+                    price={effectivePrice}
+                    imageUrl={mainImageUrl}
+                  />
+                  <Link
+                    href="/cart"
+                    className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
+                  >
+                    Перейти в корзину
+                  </Link>
+                  <Link
+                    href="/parts"
+                    className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                  >
+                    Вернуться в каталог
+                  </Link>
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
-      </header>
+      </section>
 
-      <section className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        <Link href="/parts" className="text-sm font-medium text-[#1F3B73] hover:underline">
-          ← Вернуться в каталог
-        </Link>
-
-        <div className="mt-4 rounded-3xl border border-neutral-200 bg-white p-6 shadow-lg">
-          <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-            <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
-              {mainImageUrl ? (
-                <Image
-                  src={mainImageUrl}
-                  alt={currentProduct.name}
-                  className="h-full w-full object-cover"
-                  width={560}
-                  height={560}
-                />
-              ) : (
-                <div className="flex min-h-[260px] items-center justify-center text-sm text-neutral-400">
-                  Изображение отсутствует
-                </div>
-              )}
-            </div>
-
-            <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-[#1F3B73]">{currentProduct.name}</h1>
-              {discountLabel ? (
-                <span className="mt-2 inline-block rounded-full bg-[#FF7A00]/10 px-3 py-1 text-xs font-medium text-[#FF7A00]">
-                  {discountLabel}
-                </span>
-              ) : null}
-
-              <dl className="mt-4 grid grid-cols-1 gap-3 text-sm text-neutral-700 sm:grid-cols-2">
-                <div className="rounded-xl bg-neutral-50 p-3">
-                  <dt className="text-neutral-500">Артикул</dt>
-                  <dd className="break-all font-medium">{currentProduct.sku}</dd>
-                </div>
-                <div className="rounded-xl bg-neutral-50 p-3">
-                  <dt className="text-neutral-500">OEM</dt>
-                  <dd className="break-all">{currentProduct.oem || "—"}</dd>
-                </div>
-                <div className="rounded-xl bg-neutral-50 p-3">
-                  <dt className="text-neutral-500">Бренд</dt>
-                  <dd>{currentProduct.brand || "—"}</dd>
-                </div>
-                <div className="rounded-xl bg-neutral-50 p-3">
-                  <dt className="text-neutral-500">Наличие</dt>
-                  <dd className={currentProduct.stock_quantity > 0 ? "font-medium text-green-700" : "font-medium text-amber-700"}>
-                    {currentProduct.stock_quantity > 0 ? "в наличии" : "под заказ"}
-                  </dd>
-                </div>
-              </dl>
-
-              <div className="mt-6">
-                {typeof oldPrice === "number" && typeof currentProduct.price === "number" && oldPrice > currentProduct.price ? (
-                  <div className="text-sm text-neutral-500 line-through">
-                    {oldPrice.toLocaleString("ru-RU")} ₽
-                  </div>
-                ) : null}
-                <div className="text-3xl font-bold text-[#FF7A00]">
-                  {currentProduct.price ? `${currentProduct.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
-                </div>
-              </div>
-            </div>
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">описание</div>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">О товаре</h2>
+            <p className="mt-4 text-sm leading-7 text-neutral-600">
+              {currentProduct.description || "Описание пока не заполнено. Для уточнения характеристик и совместимости свяжитесь с менеджером."}
+            </p>
           </div>
 
-          <div className="mt-6 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-700">
-            <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Описание</div>
-            <div>{currentProduct.description || "Описание появится позже. Для уточнения свяжитесь с менеджером."}</div>
-          </div>
-
-          {compatibilities.length > 0 ? (
-            <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-700">
-              <div className="mb-2 text-xs uppercase tracking-wide text-neutral-500">Совместимость</div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {compatibilities.map((compatibility, index) => (
-                  <div key={`${compatibility.make}-${compatibility.model}-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    <div className="font-medium text-neutral-900">
-                      {compatibility.make} {compatibility.model}
+          <div className="space-y-6">
+            {compatibilities.length > 0 ? (
+              <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">совместимость</div>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Подходящие автомобили</h2>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  {compatibilities.map((compatibility, index) => (
+                    <div key={`${compatibility.make}-${compatibility.model}-${index}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="font-semibold text-neutral-900">
+                        {compatibility.make} {compatibility.model}
+                      </div>
+                      <div className="mt-1 text-sm text-neutral-600">
+                        {compatibility.year_from ? `с ${compatibility.year_from}` : ""}
+                        {compatibility.year_to ? ` по ${compatibility.year_to}` : ""}
+                        {compatibility.engine ? ` · ${compatibility.engine}` : ""}
+                      </div>
                     </div>
-                    <div className="text-xs text-neutral-500">
-                      {compatibility.year_from ? `с ${compatibility.year_from}` : ""}
-                      {compatibility.year_to ? ` по ${compatibility.year_to}` : ""}
-                      {compatibility.engine ? ` · ${compatibility.engine}` : ""}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {analogs.length > 0 ? (
-            <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-700">
-              <div className="mb-2 text-xs uppercase tracking-wide text-neutral-500">Аналоги / кроссы</div>
-              <div className="flex flex-wrap gap-2">
-                {analogs.map((analog) => (
-                  <span key={analog} className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
-                    {analog}
-                  </span>
-                ))}
+            {analogs.length > 0 ? (
+              <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">аналоги</div>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Аналоги и кроссы</h2>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {analogs.map((analog) => (
+                    <span key={analog} className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-700">
+                      {analog}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null}
-
-          <ProductLeadForm productId={currentProduct.id} productSku={currentProduct.sku} productName={currentProduct.name} />
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/parts/vin"
-              className="rounded-2xl bg-[#FF7A00] px-5 py-2 text-sm font-medium text-white hover:bg-[#e66e00]"
-            >
-              Оставить VIN-заявку
-            </Link>
-            <FavoriteToggleButton
-              productId={currentProduct.id}
-              sku={currentProduct.sku}
-              name={currentProduct.name}
-              price={currentProduct.price}
-              imageUrl={mainImageUrl}
-            />
-            <Link
-              href="/contacts"
-              className="rounded-2xl border border-neutral-200 px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              Связаться с менеджером
-            </Link>
+            ) : null}
           </div>
+        </div>
+
+        <div className="mt-6">
+          <ProductLeadForm
+            productId={currentProduct.id}
+            productSku={currentProduct.sku}
+            productName={currentProduct.name}
+            productPrice={effectivePrice}
+          />
         </div>
       </section>
     </main>

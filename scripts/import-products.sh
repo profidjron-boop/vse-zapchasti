@@ -265,26 +265,32 @@ if [[ ! -f "$IMPORT_FILE_PATH" ]]; then
   exit 1
 fi
 
+if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" && ! "$IMPORT_DEFAULT_CATEGORY_ID" =~ ^[0-9]+$ ]]; then
+  echo "❌ IMPORT_DEFAULT_CATEGORY_ID must be a non-negative integer" >&2
+  exit 1
+fi
+
 token="$(resolve_admin_token)"
 if [[ -z "$token" ]]; then
   echo "❌ ADMIN_TOKEN is not set and cannot resolve token via IMPORT_ADMIN_EMAIL/IMPORT_ADMIN_PASSWORD" >&2
   exit 1
 fi
 
-params=("trigger_mode=$mode")
+params=("--data-urlencode" "trigger_mode=$mode")
 if [[ "$IMPORT_SKIP_INVALID" == "1" ]]; then
-  params+=("skip_invalid=true")
+  params+=("--data-urlencode" "skip_invalid=true")
 fi
 if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" ]]; then
-  params+=("default_category_id=$IMPORT_DEFAULT_CATEGORY_ID")
+  params+=("--data-urlencode" "default_category_id=$IMPORT_DEFAULT_CATEGORY_ID")
 fi
 
-query="$(IFS='&'; echo "${params[*]}")"
-endpoint="$API_BASE_URL/api/admin/products/import?$query"
+endpoint="$API_BASE_URL/api/admin/products/import"
 
 tmp="$(mktemp)"
 code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+  --get \
   -X POST "$endpoint" \
+  "${params[@]}" \
   -H "Authorization: Bearer $token" \
   -F "file=@$IMPORT_FILE_PATH")"
 

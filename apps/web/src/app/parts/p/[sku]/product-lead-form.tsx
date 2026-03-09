@@ -142,7 +142,7 @@ export default function ProductLeadForm({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+    <div id="product-lead-form" className="mt-6 scroll-mt-32 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
       <h2 className="text-sm font-semibold text-[#1F3B73]">Уточнить/Заказать</h2>
       <p className="mt-1 text-xs text-neutral-600">
         Оставьте телефон, и менеджер уточнит наличие и условия заказа.

@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 
 type OrderHistoryItem = {
   id: number;
@@ -63,6 +64,12 @@ function getSourceLabel(value: string): string {
   return value;
 }
 
+function formatLineTotal(unitPrice: number | null, quantity: number, lineTotal: number | null): string {
+  if (lineTotal !== null) return `${Math.round(lineTotal).toLocaleString("ru-RU")} ₽`;
+  if (unitPrice !== null) return `${Math.round(unitPrice * quantity).toLocaleString("ru-RU")} ₽`;
+  return "Цена по запросу";
+}
+
 export default function AccountOrdersPage() {
   const [phone, setPhone] = useState("");
   const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -107,9 +114,14 @@ export default function AccountOrdersPage() {
 
   const brandName = contentValue("site_brand_name", "Все запчасти");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
   const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
   const navCart = contentValue("site_nav_cart_label", "Корзина");
   const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
   const pageTitle = contentValue("orders_page_title", "Мои заказы");
   const pageSubtitle = contentValue(
     "orders_page_subtitle",
@@ -117,6 +129,7 @@ export default function AccountOrdersPage() {
   );
   const showOrdersLabel = contentValue("orders_show_button_label", "Показать заказы");
   const emptyOrdersText = contentValue("orders_empty_text", "По этому номеру пока нет заказов.");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,37 +168,66 @@ export default function AccountOrdersPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
-              <Link href="/cart" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
-              <Link href="/account/orders" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navOrders}</Link>
-            </nav>
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
+      <PublicHeader
+        brandName={brandName}
+        activeKey="orders"
+        labels={{
+          parts: navParts,
+          service: navService,
+          contacts: navContacts,
+          about: navAbout,
+          favorites: navFavorites,
+          cart: navCart,
+          orders: navOrders,
+          dealer: navDealer,
+          callback: navCallback,
+        }}
+      />
+
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              orders · status tracking · history
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{pageTitle}</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">{pageSubtitle}</p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/60">поиск по номеру</div>
+                <div className="mt-2 text-base font-semibold">Без регистрации, по телефону из заказа</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/60">что покажем</div>
+                <div className="mt-2 text-base font-semibold">Статусы, состав заказа, способ оплаты и доставки</div>
+              </div>
+            </div>
           </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navCart}</Link>
-            <Link href="/account/orders" className="shrink-0 font-medium text-[#1F3B73]">{navOrders}</Link>
-          </nav>
+
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как работает поиск</div>
+            <div className="mt-4 space-y-3">
+              {[
+                "Укажите тот же телефон, который использовали при оформлении заявки.",
+                "Мы покажем все заказы, привязанные к этому номеру, с текущими статусами.",
+                "Если по номеру ничего не найдено, можно связаться с менеджером через контакты или повторно оформить заявку.",
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </header>
+      </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <h1 className="text-3xl font-bold text-[#1F3B73]">{pageTitle}</h1>
-        <p className="mt-2 text-sm text-neutral-600">
-          {pageSubtitle}
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6 rounded-2xl border border-neutral-200 bg-white p-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+        <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">поиск заказа</div>
+          <form onSubmit={handleSubmit} className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-700">Телефон</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Телефон</label>
               <input
                 type="tel"
                 value={phone}
@@ -193,56 +235,87 @@ export default function AccountOrdersPage() {
                 autoComplete="tel"
                 inputMode="tel"
                 placeholder="+7 (___) ___-__-__"
-                className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                className="h-12 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 text-sm focus:border-[#1F3B73] focus:outline-none"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="h-11 w-full rounded-xl bg-[#1F3B73] px-4 text-sm font-medium text-white hover:bg-[#14294F] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#1F3B73] px-5 text-sm font-semibold text-white transition hover:bg-[#17315E] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Загрузка..." : showOrdersLabel}
             </button>
-          </div>
-        </form>
+          </form>
 
-        {error ? (
-          <div role="alert" aria-live="assertive" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-        ) : null}
+          {error ? (
+            <div role="alert" aria-live="assertive" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </div>
 
         {searched && !loading && orders.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600">
-            {emptyOrdersText}
+          <div className="mt-6 rounded-[2rem] border border-neutral-200 bg-white p-10 text-center shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <div className="mx-auto max-w-2xl">
+              <h2 className="text-2xl font-bold text-[#10264B]">{emptyOrdersText}</h2>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                Проверьте номер телефона или обратитесь в магазин, если заказ оформлялся через менеджера на другой контакт.
+              </p>
+            </div>
           </div>
         ) : null}
 
         {orders.length > 0 ? (
-          <div className="mt-6 space-y-3">
+          <div className="mt-6 space-y-4">
             {orders.map((order) => (
-              <article key={order.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <article
+                key={order.id}
+                className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] sm:p-6"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm text-neutral-500">Заказ #{order.id}</p>
-                    <p className="text-xs text-neutral-500">
-                      Создан: {new Date(order.created_at).toLocaleString("ru-RU")}
-                    </p>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">заказ #{order.id}</div>
+                    <h2 className="mt-2 text-2xl font-bold text-[#10264B]">{getSourceLabel(order.source)}</h2>
+                    <p className="mt-2 text-sm text-neutral-500">Создан: {new Date(order.created_at).toLocaleString("ru-RU")}</p>
+                    <p className="mt-1 text-sm text-neutral-500">Обновлён: {new Date(order.updated_at).toLocaleString("ru-RU")}</p>
                   </div>
-                  <span className="rounded-full bg-[#1F3B73]/10 px-3 py-1 text-xs font-medium text-[#1F3B73]">
+                  <span className="inline-flex rounded-full bg-[#1F3B73]/10 px-4 py-2 text-sm font-semibold text-[#1F3B73]">
                     {getStatusLabel(order.status)}
                   </span>
                 </div>
 
-                <div className="mt-3 grid gap-2 text-sm text-neutral-700 sm:grid-cols-2">
-                  <p>Источник: {getSourceLabel(order.source)}</p>
-                  <p>Доставка: {getDeliveryLabel(order.delivery_method)}</p>
-                  <p>Оплата: {getPaymentLabel(order.payment_method)}</p>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">доставка</div>
+                    <div className="mt-2 font-semibold text-[#10264B]">{getDeliveryLabel(order.delivery_method)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">оплата</div>
+                    <div className="mt-2 font-semibold text-[#10264B]">{getPaymentLabel(order.payment_method)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">позиций</div>
+                    <div className="mt-2 font-semibold text-[#10264B]">{order.items.length}</div>
+                  </div>
                 </div>
 
-                <div className="mt-3 space-y-1 text-sm text-neutral-700">
+                <div className="mt-5 space-y-3">
                   {order.items.map((item, index) => (
-                    <p key={`${order.id}-${index}`}>
-                      {item.product_name} x{item.quantity}
-                    </p>
+                    <div
+                      key={`${order.id}-${index}`}
+                      className="rounded-[1.5rem] border border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            {item.product_sku ? `sku · ${item.product_sku}` : "товар"}
+                          </div>
+                          <div className="mt-2 text-base font-semibold text-[#10264B]">{item.product_name}</div>
+                        </div>
+                        <div className="text-sm font-semibold text-neutral-700">{formatLineTotal(item.unit_price, item.quantity, item.line_total)}</div>
+                      </div>
+                      <div className="mt-3 text-sm text-neutral-600">Количество: {item.quantity}</div>
+                    </div>
                   ))}
                 </div>
               </article>
@@ -250,6 +323,8 @@ export default function AccountOrdersPage() {
           </div>
         ) : null}
       </section>
+
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

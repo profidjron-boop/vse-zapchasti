@@ -68,12 +68,12 @@ Service catalog:
 - Release readiness: `bash scripts/release-check.sh`
 
 ## Current QA Status (2026-03-09)
-- API tests: `67 passed` (`cd apps/api && make test`)
+- API tests: `70 passed` (`cd apps/api && make test`)
 - Coverage snapshot (`pytest-cov`):
   - `main.py`: `84%`
-  - `routers/admin.py`: `64%`
+  - `routers/admin.py`: `65%`
   - `routers/public.py`: `80%`
-  - total: `70%`
+  - total: `70.27%`
 - `bash scripts/release-check.sh --skip-write-smoke`: `RELEASE CHECK GREEN`
 - Full release-check (admin + write smoke):
   - `SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
@@ -83,9 +83,10 @@ Service catalog:
   - result: `all checks passed`
   - `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit.sh`
   - result: `all checks passed` (including admin protected routes)
-- Latest full release run (2026-03-09 16:20–16:22, Asia/Krasnoyarsk):
-  - `SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
-  - result: `RELEASE CHECK GREEN`
+- Latest release run (2026-03-09 16:57–16:59, Asia/Krasnoyarsk):
+  - `bash scripts/release-check.sh`
+  - result: `RELEASE CHECK GREEN` (read/write smoke passed)
+  - note: admin smoke checks were skipped in this run because `ADMIN_TOKEN`/`SMOKE_ADMIN_*` were not provided
 
 Release note:
 - `scripts/smoke.sh`: в bootstrap smoke-admin добавлен `DATABASE_URL` при генерации hash (исправлен падал full release-check path).
@@ -103,6 +104,8 @@ Release note:
 - Фактическая фиксация текущего состояния:
   - `docs/project-state.md`
   - `docs/audit-closure-2026-03-09.md`
+  - `docs/tz-gap-report-2026-03-09.md`
+  - `docs/tz-implementation-matrix-2026-03-09.md`
 
 ## AI Checklist Applicability
 - Источник: `docs/master-prompts/AI_Project_Checklist_v2.docx`

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 import {
   CartItem,
   clearCart,
@@ -24,6 +26,11 @@ function normalizePhone(value: string): string | null {
   return `+${normalized}`;
 }
 
+function getLineAmount(item: CartItem): string {
+  if (item.price === null) return "Цена по запросу";
+  return `${Math.round(item.price * item.quantity).toLocaleString("ru-RU")} ₽`;
+}
+
 export default function CartPage() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +39,7 @@ export default function CartPage() {
   const [error, setError] = useState("");
   const [orderId, setOrderId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash_on_delivery" | "invoice">("cash_on_delivery");
+  const [selectedInvoiceFileName, setSelectedInvoiceFileName] = useState("");
   const [contentMap, setContentMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -69,6 +77,7 @@ export default function CartPage() {
   }, []);
 
   const totals = useMemo(() => getCartTotals(items), [items]);
+  const isEmptyState = !loading && items.length === 0;
 
   const contentValue = (key: string, fallback: string): string => {
     const value = contentMap[key];
@@ -79,17 +88,22 @@ export default function CartPage() {
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
   const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
   const navCart = contentValue("site_nav_cart_label", "Корзина");
   const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
   const pageTitle = contentValue("cart_page_title", "Корзина");
   const emptyCartText = contentValue("cart_empty_text", "Ваша корзина пуста");
   const goToCatalogLabel = contentValue("cart_go_to_catalog_label", "Перейти в каталог");
   const checkoutTitle = contentValue("cart_checkout_title", "Оформление заказа");
   const itemsTitle = contentValue("cart_items_title", "Товары");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
 
   function handleChangeQuantity(productId: number, nextQuantity: number) {
-    setItems(updateCartItemQuantity(productId, nextQuantity));
+    const safeQuantity = Number.isFinite(nextQuantity) && nextQuantity > 0 ? nextQuantity : 1;
+    setItems(updateCartItemQuantity(productId, safeQuantity));
   }
 
   function handleRemoveItem(productId: number) {
@@ -116,6 +130,7 @@ export default function CartPage() {
       | "cash_on_delivery"
       | "invoice";
     const legalEntityInn = formData.get("legal_entity_inn")?.toString().trim() || "";
+    const invoiceRequisitesFile = formData.get("invoice_requisites_file");
 
     if (!customerPhone) {
       setError("Проверьте телефон. Нужен формат РФ: +7XXXXXXXXXX.");
@@ -129,6 +144,45 @@ export default function CartPage() {
 
     setSubmitting(true);
     try {
+      let invoiceRequisitesFileUrl: string | undefined;
+      let invoiceRequisitesFileName: string | undefined;
+      const invoiceFile =
+        invoiceRequisitesFile instanceof File && invoiceRequisitesFile.size > 0 ? invoiceRequisitesFile : null;
+
+      if (selectedPaymentMethod === "invoice" && invoiceFile) {
+        const extension = invoiceFile.name.split(".").pop()?.toLowerCase() || "";
+        if (!["pdf", "png", "jpg", "jpeg"].includes(extension)) {
+          setError("Для реквизитов допустимы только PDF, PNG или JPG.");
+          setSubmitting(false);
+          return;
+        }
+        if (invoiceFile.size > 10 * 1024 * 1024) {
+          setError("Размер файла реквизитов не должен превышать 10 МБ.");
+          setSubmitting(false);
+          return;
+        }
+
+        const uploadFormData = new FormData();
+        uploadFormData.set("file", invoiceFile);
+
+        const apiBaseUrl = getClientApiBaseUrl();
+        const uploadResult = await fetchJsonWithTimeout<{
+          url: string;
+          filename: string;
+          size_bytes: number;
+          content_type: string;
+        }>(
+          withApiBase(apiBaseUrl, "/api/public/orders/requisites-upload"),
+          {
+            method: "POST",
+            body: uploadFormData,
+          },
+          12000
+        );
+        invoiceRequisitesFileUrl = uploadResult.url;
+        invoiceRequisitesFileName = uploadResult.filename;
+      }
+
       const payload = {
         source: "checkout",
         customer_name: formData.get("customer_name")?.toString().trim() || undefined,
@@ -139,6 +193,8 @@ export default function CartPage() {
         payment_method: formData.get("payment_method")?.toString() || undefined,
         legal_entity_name: formData.get("legal_entity_name")?.toString().trim() || undefined,
         legal_entity_inn: legalEntityInn || undefined,
+        invoice_requisites_file_url: invoiceRequisitesFileUrl,
+        invoice_requisites_file_name: invoiceRequisitesFileName,
         consent_given: consentGiven,
         consent_version: "v1.0",
         items: items.map((item) => ({
@@ -166,6 +222,7 @@ export default function CartPage() {
       clearCart();
       setItems([]);
       setPaymentMethod("cash_on_delivery");
+      setSelectedInvoiceFileName("");
       event.currentTarget.reset();
     } catch (submitError) {
       if (submitError instanceof ApiRequestError) {
@@ -179,221 +236,365 @@ export default function CartPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">{brandName}</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-              <Link href="/favorites" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
-              <Link href="/cart" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">{navCart}</Link>
-              <Link href="/account/orders" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
-            </nav>
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
+      <PublicHeader
+        brandName={brandName}
+        activeKey="cart"
+        labels={{
+          parts: navParts,
+          service: navService,
+          contacts: navContacts,
+          about: navAbout,
+          favorites: navFavorites,
+          cart: navCart,
+          orders: navOrders,
+          dealer: navDealer,
+          callback: navCallback,
+        }}
+      />
+
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              checkout · guest order · retail
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{pageTitle}</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
+              {isEmptyState
+                ? "Добавьте товары в корзину, чтобы оформить заказ без регистрации и отправить заявку менеджеру."
+                : "Проверьте состав заказа, укажите способ получения и отправьте заявку менеджеру на подтверждение."}
+            </p>
+            {isEmptyState ? (
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">первый шаг</div>
+                  <div className="mt-2 text-base font-semibold">Откройте каталог и добавьте нужные позиции</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">второй шаг</div>
+                  <div className="mt-2 text-base font-semibold">Оформите заказ или отправьте заявку на подбор</div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">позиций</div>
+                  <div className="mt-2 text-2xl font-bold">{totals.count}</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">товаров</div>
+                  <div className="mt-2 text-2xl font-bold">{items.length}</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">сумма</div>
+                  <div className="mt-2 text-2xl font-bold">
+                    {totals.amount !== null ? `${Math.round(totals.amount).toLocaleString("ru-RU")} ₽` : "по запросу"}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navParts}</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navService}</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navContacts}</Link>
-            <Link href="/favorites" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navFavorites}</Link>
-            <Link href="/cart" className="shrink-0 font-medium text-[#1F3B73]">{navCart}</Link>
-            <Link href="/account/orders" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">{navOrders}</Link>
-          </nav>
+
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              {isEmptyState ? "как начать" : "что дальше"}
+            </div>
+            <div className="mt-4 space-y-3">
+              {(isEmptyState
+                ? [
+                    "Подберите товары по артикулу, OEM или названию в каталоге.",
+                    "Если нужной позиции нет, отправьте VIN-заявку или запрос на подбор.",
+                    "После добавления товаров сможете оформить заказ без регистрации.",
+                  ]
+                : [
+                    "Проверяем наличие и окончательную стоимость по каждой позиции.",
+                    "Подтверждаем самовывоз, курьерскую доставку или работу по счёту.",
+                    "Менеджер связывается для финального согласования заказа.",
+                  ]).map((item) => (
+                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+              <Link
+                href="/parts"
+                className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 px-4 py-3 text-sm font-semibold text-neutral-700 transition hover:border-[#1F3B73] hover:text-[#1F3B73]"
+              >
+                {goToCatalogLabel}
+              </Link>
+              <Link
+                href="/account/orders"
+                className="inline-flex items-center justify-center rounded-2xl bg-[#FF7A00] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#e66e00]"
+              >
+                {isEmptyState ? "Открыть мои заказы" : "Проверить историю заказов"}
+              </Link>
+            </div>
+          </div>
         </div>
-      </header>
+      </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <h1 className="text-3xl font-bold text-[#1F3B73]">{pageTitle}</h1>
-
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
         {loading ? (
-          <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-500">Загрузка...</div>
-        ) : items.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-8 text-center">
-            <p className="text-neutral-600">{emptyCartText}</p>
-            <Link
-              href="/parts"
-              className="mt-4 inline-block rounded-2xl bg-[#1F3B73] px-4 py-2 text-sm font-medium text-white hover:bg-[#14294F]"
-            >
-              {goToCatalogLabel}
-            </Link>
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-500 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            Загрузка корзины...
           </div>
-        ) : (
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-              <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">{itemsTitle}</h2>
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <article key={item.productId} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="font-medium text-neutral-900">{item.name}</p>
-                        <p className="mt-1 break-all text-xs text-neutral-500">{item.sku}</p>
-                        <p className="mt-1 text-sm text-[#1F3B73]">
-                          {item.price !== null ? `${Math.round(item.price).toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(item.productId)}
-                        className="text-sm text-red-600 hover:underline"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <label className="text-xs text-neutral-500">Количество</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={999}
-                        value={item.quantity}
-                        onChange={(event) => handleChangeQuantity(item.productId, Number(event.target.value))}
-                        className="w-24 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-sm"
-                      />
-                    </div>
-                  </article>
-                ))}
+        ) : items.length === 0 ? (
+          <div className="rounded-[2rem] border border-neutral-200 bg-white p-10 text-center shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <div className="mx-auto max-w-2xl">
+              <h2 className="text-2xl font-bold text-[#10264B]">{emptyCartText}</h2>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                Начните с каталога или VIN-подбора. Когда добавите товары, здесь появится полный checkout с доставкой,
+                оплатой и заявкой менеджеру.
+              </p>
+              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                <Link
+                  href="/parts"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#17315E]"
+                >
+                  {goToCatalogLabel}
+                </Link>
+                <Link
+                  href="/parts/vin"
+                  className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  Оставить VIN-заявку
+                </Link>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-              <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">{checkoutTitle}</h2>
-              <div className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm">
-                <p>Позиций: <span className="font-medium">{totals.count}</span></p>
-                <p className="mt-1">
-                  Сумма:{" "}
-                  <span className="font-medium">
-                    {totals.amount !== null ? `${Math.round(totals.amount).toLocaleString("ru-RU")} ₽` : "по запросу"}
-                  </span>
-                </p>
-              </div>
-
-              {error && (
-                <div role="alert" aria-live="assertive" className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-              )}
-              {success && (
-                <div role="status" aria-live="polite" className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-                  {success}
-                  {orderId ? <span className="mt-1 block text-xs">Номер заказа: #{orderId}</span> : null}
-                  <Link href="/account/orders" className="mt-1 block text-xs font-medium text-green-800 hover:underline">
-                    Перейти в мои заказы
-                  </Link>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmitOrder} className="space-y-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-700">Имя (опционально)</label>
-                  <input
-                    type="text"
-                    name="customer_name"
-                    autoComplete="name"
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-700">Телефон *</label>
-                  <input
-                    type="tel"
-                    name="customer_phone"
-                    required
-                    autoComplete="tel"
-                    inputMode="tel"
-                    placeholder="+7 (___) ___-__-__"
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-700">Email (опционально)</label>
-                  <input
-                    type="email"
-                    name="customer_email"
-                    autoComplete="email"
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          </div>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.85fr)]">
+            <div className="space-y-6">
+              <section className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] sm:p-6">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-neutral-700">Доставка</label>
-                    <select
-                      name="delivery_method"
-                      className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                    >
-                      <option value="pickup">Самовывоз</option>
-                      <option value="courier">Курьер</option>
-                    </select>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">состав заказа</div>
+                    <h2 className="mt-2 text-2xl font-bold text-[#10264B]">{itemsTitle}</h2>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-neutral-700">Оплата</label>
-                    <select
-                      name="payment_method"
-                      value={paymentMethod}
-                      onChange={(event) =>
-                        setPaymentMethod(event.target.value === "invoice" ? "invoice" : "cash_on_delivery")
-                      }
-                      className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                    >
-                      <option value="cash_on_delivery">При получении</option>
-                      <option value="invoice">По счёту</option>
-                    </select>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
+                    {items.length} поз. · {totals.count} шт.
                   </div>
                 </div>
 
-                {paymentMethod === "invoice" ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-neutral-700">Организация</label>
-                      <input
-                        type="text"
-                        name="legal_entity_name"
-                        placeholder='ООО "Пример"'
-                        className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-neutral-700">ИНН *</label>
-                      <input
-                        type="text"
-                        name="legal_entity_inn"
-                        required
-                        placeholder="10 или 12 цифр"
-                        className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                      />
-                    </div>
+                <div className="mt-6 space-y-4">
+                  {items.map((item) => (
+                    <article
+                      key={item.productId}
+                      className="rounded-[1.75rem] border border-neutral-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">sku · {item.sku}</div>
+                          <h3 className="mt-2 text-lg font-semibold text-[#10264B]">{item.name}</h3>
+                          <div className="mt-3 flex flex-wrap gap-2 text-sm text-neutral-600">
+                            <span className="rounded-full bg-neutral-100 px-3 py-1">{item.price !== null ? `${Math.round(item.price).toLocaleString("ru-RU")} ₽/шт.` : "Цена по запросу"}</span>
+                            <span className="rounded-full bg-neutral-100 px-3 py-1">Итого: {getLineAmount(item)}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.productId)}
+                          className="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Количество</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={999}
+                          value={item.quantity}
+                          onChange={(event) => handleChangeQuantity(item.productId, Number(event.target.value))}
+                          className="h-11 w-28 rounded-2xl border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 focus:border-[#1F3B73] focus:outline-none"
+                        />
+                        <Link
+                          href={`/parts/p/${encodeURIComponent(item.sku)}`}
+                          className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 px-4 py-2.5 text-sm font-semibold text-neutral-700 transition hover:border-[#1F3B73] hover:text-[#1F3B73]"
+                        >
+                          Открыть карточку
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <aside className="space-y-6 lg:sticky lg:top-28 lg:self-start">
+              <section className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] sm:p-6">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">summary</div>
+                <h2 className="mt-2 text-2xl font-bold text-[#10264B]">{checkoutTitle}</h2>
+                <div className="mt-5 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Позиции</span>
+                    <span className="font-semibold text-[#10264B]">{items.length}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span>Количество</span>
+                    <span className="font-semibold text-[#10264B]">{totals.count}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-neutral-200 pt-3">
+                    <span>Сумма</span>
+                    <span className="text-base font-bold text-[#10264B]">
+                      {totals.amount !== null ? `${Math.round(totals.amount).toLocaleString("ru-RU")} ₽` : "по запросу"}
+                    </span>
+                  </div>
+                </div>
+
+                {error ? (
+                  <div role="alert" aria-live="assertive" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {error}
                   </div>
                 ) : null}
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-700">Комментарий</label>
-                  <textarea
-                    name="comment"
-                    rows={3}
-                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
-                  />
-                </div>
+                {success ? (
+                  <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                    {success}
+                    {orderId ? <span className="mt-1 block text-xs">Номер заказа: #{orderId}</span> : null}
+                    <Link href="/account/orders" className="mt-2 inline-block text-xs font-semibold text-green-800 hover:underline">
+                      Перейти в мои заказы
+                    </Link>
+                  </div>
+                ) : null}
 
-                <label className="flex items-start gap-2 text-xs text-neutral-600">
-                  <input type="checkbox" name="consent" className="mt-0.5" required />
-                  <span>Согласен на обработку персональных данных (152-ФЗ)</span>
-                </label>
+                <form onSubmit={handleSubmitOrder} className="mt-5 space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Имя</label>
+                    <input
+                      type="text"
+                      name="customer_name"
+                      autoComplete="name"
+                      className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full rounded-xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {submitting ? "Оформление..." : "Оформить заказ"}
-                </button>
-              </form>
-            </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Телефон *</label>
+                    <input
+                      type="tel"
+                      name="customer_phone"
+                      required
+                      autoComplete="tel"
+                      inputMode="tel"
+                      placeholder="+7 (___) ___-__-__"
+                      className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Email</label>
+                    <input
+                      type="email"
+                      name="customer_email"
+                      autoComplete="email"
+                      className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Доставка</label>
+                      <select
+                        name="delivery_method"
+                        className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                      >
+                        <option value="pickup">Самовывоз</option>
+                        <option value="courier">Курьер</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Оплата</label>
+                      <select
+                        name="payment_method"
+                        value={paymentMethod}
+                        onChange={(event) =>
+                          setPaymentMethod(event.target.value === "invoice" ? "invoice" : "cash_on_delivery")
+                        }
+                        className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                      >
+                        <option value="cash_on_delivery">При получении</option>
+                        <option value="invoice">По счёту</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {paymentMethod === "invoice" ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Организация</label>
+                        <input
+                          type="text"
+                          name="legal_entity_name"
+                          placeholder='ООО "Пример"'
+                          className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">ИНН *</label>
+                        <input
+                          type="text"
+                          name="legal_entity_inn"
+                          required
+                          placeholder="10 или 12 цифр"
+                          className="h-11 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                          Реквизиты файлом
+                        </label>
+                        <input
+                          type="file"
+                          name="invoice_requisites_file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          onChange={(event) => setSelectedInvoiceFileName(event.target.files?.[0]?.name || "")}
+                          className="block w-full rounded-[1.5rem] border border-neutral-200 bg-neutral-50 px-3 py-3 text-sm file:mr-4 file:rounded-2xl file:border-0 file:bg-[#1F3B73] file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:bg-[#17315E]"
+                        />
+                        <p className="mt-2 text-xs leading-5 text-neutral-500">
+                          Необязательно. Можно приложить карточку организации или PDF с реквизитами. Допустимы PDF, PNG и JPG до 10 МБ.
+                        </p>
+                        {selectedInvoiceFileName ? (
+                          <p className="mt-2 text-xs font-medium text-[#10264B]">Выбран файл: {selectedInvoiceFileName}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Комментарий</label>
+                    <textarea
+                      name="comment"
+                      rows={4}
+                      className="w-full rounded-[1.5rem] border border-neutral-200 bg-neutral-50 px-3 py-3 text-sm focus:border-[#1F3B73] focus:outline-none"
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-3 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm leading-6 text-neutral-600">
+                    <input type="checkbox" name="consent" className="mt-1 size-4" required />
+                    <span>Согласен на обработку персональных данных в соответствии с 152-ФЗ и политикой конфиденциальности.</span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex w-full items-center justify-center rounded-2xl bg-[#FF7A00] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#e66e00] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitting ? "Оформление..." : "Оформить заказ"}
+                  </button>
+                </form>
+              </section>
+            </aside>
           </div>
         )}
       </section>
+
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

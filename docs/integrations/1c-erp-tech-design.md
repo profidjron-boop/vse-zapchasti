@@ -35,6 +35,7 @@ Common pipeline for all modes:
   - `oem`,
   - `category_id | category_slug | category_name`,
   - `price`,
+  - `price_on_request` (optional bool marker),
   - `stock_quantity`,
   - `is_active`,
   - `description`.
@@ -44,10 +45,14 @@ Common pipeline for all modes:
 - Category resolution priority:
   1. `category_id`,
   2. `category_slug`,
-  3. `category_name` (fallback create/update by slugified name).
+  3. `category_name`,
+  4. `default_category_id` from import query params.
 - Numeric fields:
   - `price` >= 0,
   - `stock_quantity` >= 0 (normalize to int).
+- Price mode:
+  - if `price_on_request=true` (or `price` contains marker like `по запросу` / `on_request`) -> store `price=NULL`,
+  - otherwise parse `price` as decimal.
 - Empty optional fields stored as `NULL`.
 
 ## 5. Conflict Resolution

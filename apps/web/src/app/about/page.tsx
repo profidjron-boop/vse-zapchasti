@@ -1,6 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
-import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import type { Metadata } from "next";
+import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { PublicFooter } from "@/components/public-footer";
+import { PublicHeader } from "@/components/public-header";
 
 export const metadata: Metadata = {
   title: "О компании | Все запчасти",
@@ -29,95 +32,175 @@ async function getPublicContentMap(): Promise<Record<string, string>> {
 
 export default async function AboutPage() {
   const contentMap = await getPublicContentMap();
+  const contentValue = (key: string, fallback: string): string => {
+    const value = contentMap[key];
+    return value && value.trim() ? value : fallback;
+  };
 
   const heroTitle = contentMap.about_hero_title?.trim() || "О компании «Все запчасти»";
   const heroSubtitle =
-    contentMap.about_hero_subtitle?.trim() ||
-    "Поставляем запчасти и обслуживаем коммерческий транспорт в Красноярске";
+    contentMap.about_hero_subtitle?.trim()
+    || "Поставляем запчасти и обслуживаем коммерческий транспорт в Красноярске";
 
   const storyTitle = contentMap.about_story_title?.trim() || "Наша история";
   const storyHtml =
-    contentMap.about_story_text?.trim() ||
-    "<p>«Все запчасти» — команда, которая объединяет поставку автозапчастей и сервис в одном контуре. Мы работаем с коммерческим транспортом, помогаем подобрать детали по артикулу, OEM и VIN, и сопровождаем клиента до закрытия заявки.</p>";
+    contentMap.about_story_text?.trim()
+    || "<p>«Все запчасти» — команда, которая объединяет поставку автозапчастей и сервис в одном контуре. Мы работаем с коммерческим транспортом, помогаем подобрать детали по артикулу, OEM и VIN, и сопровождаем клиента до закрытия заявки.</p>";
 
   const valuesTitle = contentMap.about_values_title?.trim() || "Наши принципы";
   const valuesHtml =
-    contentMap.about_values_text?.trim() ||
-    "<ul><li>Прозрачная коммуникация и понятные статусы заявок.</li><li>Приоритет безопасности и соответствия 152-ФЗ.</li><li>Self-hosted архитектура без внешних runtime CDN.</li><li>Операционная дисциплина: проверяемость, логирование, воспроизводимость.</li></ul>";
+    contentMap.about_values_text?.trim()
+    || "<ul><li>Прозрачная коммуникация и понятные статусы заявок.</li><li>Приоритет безопасности и соответствия 152-ФЗ.</li><li>Self-hosted архитектура без внешних runtime CDN.</li><li>Операционная дисциплина: проверяемость, логирование, воспроизводимость.</li></ul>";
+
+  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const navParts = contentValue("site_nav_parts_label", "Запчасти");
+  const navService = contentValue("site_nav_service_label", "Автосервис");
+  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
+  const navAbout = contentValue("site_nav_about_label", "О компании");
+  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
+  const navCart = contentValue("site_nav_cart_label", "Корзина");
+  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
+  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
+  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
+  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+
+  const companyFacts = [
+    "Каталог запчастей и сервисная запись работают в одном контуре.",
+    "Подбор ведётся по SKU, OEM и VIN-заявке менеджеру.",
+    "Все публичные ассеты self-hosted, без внешних runtime CDN.",
+  ];
 
   return (
-    <main className="min-h-dvh bg-[#F5F7FA] text-neutral-900">
-      <header className="border-b border-white/20 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/" className="text-2xl font-bold text-[#1F3B73]">Все запчасти</Link>
-            <nav className="hidden items-center gap-8 md:flex">
-              <Link href="/parts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-              <Link href="/service" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-              <Link href="/contacts" className="text-sm font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-              <Link href="/about" className="text-sm font-medium text-[#1F3B73] border-b-2 border-[#1F3B73] pb-1">О компании</Link>
-            </nav>
+    <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
+      <PublicHeader
+        brandName={brandName}
+        activeKey="about"
+        labels={{
+          parts: navParts,
+          service: navService,
+          contacts: navContacts,
+          about: navAbout,
+          favorites: navFavorites,
+          cart: navCart,
+          orders: navOrders,
+          dealer: navDealer,
+          callback: navCallback,
+        }}
+      />
+
+      <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] lg:py-14">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_30px_80px_rgba(31,59,115,0.18)]">
+            <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+              about · company · operations
+            </div>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{heroTitle}</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
+              {heroSubtitle}
+            </p>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {companyFacts.map((fact) => (
+                <div key={fact} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/76">
+                  {fact}
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/parts"
+                className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#EEF3FF]"
+              >
+                Перейти в каталог
+              </Link>
+              <Link
+                href="/contacts"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
+              >
+                Связаться с нами
+              </Link>
+            </div>
           </div>
-          <nav className="mt-3 flex items-center gap-4 overflow-x-auto pb-1 text-sm md:hidden">
-            <Link href="/parts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Запчасти</Link>
-            <Link href="/service" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Автосервис</Link>
-            <Link href="/contacts" className="shrink-0 font-medium text-neutral-700 hover:text-[#1F3B73]">Контакты</Link>
-            <Link href="/about" className="shrink-0 font-medium text-[#1F3B73]">О компании</Link>
-          </nav>
-        </div>
-      </header>
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1F3B73] to-[#14294F] py-16">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white blur-3xl" />
-        </div>
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">{heroTitle}</h1>
-          <p className="mt-4 max-w-3xl text-base text-white/80 sm:text-lg">{heroSubtitle}</p>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="grid gap-8 lg:grid-cols-2">
-          <article className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-xl">
-            <h2 className="text-2xl font-bold text-[#1F3B73]">{storyTitle}</h2>
-            <div className="prose prose-neutral mt-4 max-w-none text-neutral-700" dangerouslySetInnerHTML={{ __html: storyHtml }} />
-          </article>
-
-          <article className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-xl">
-            <h2 className="text-2xl font-bold text-[#1F3B73]">{valuesTitle}</h2>
-            <div className="prose prose-neutral mt-4 max-w-none text-neutral-700" dangerouslySetInnerHTML={{ __html: valuesHtml }} />
-          </article>
-        </div>
-
-        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-8 shadow-xl">
-          <h3 className="text-xl font-semibold text-[#1F3B73]">Работаем для бизнеса и частных клиентов</h3>
-          <p className="mt-3 max-w-3xl text-neutral-600">
-            Каталог строится вокруг реальных задач: быстро найти, проверить совместимость, оформить запрос и получить
-            понятный ответ менеджера. Для сервиса запись ведётся через заявку с подтверждением.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/parts"
-              className="rounded-2xl bg-[#FF7A00] px-5 py-3 text-sm font-medium text-white shadow-lg shadow-[#FF7A00]/20"
-            >
-              Перейти в каталог
-            </Link>
-            <Link
-              href="/contacts"
-              className="rounded-2xl border border-[#1F3B73]/20 bg-white px-5 py-3 text-sm font-medium text-[#1F3B73]"
-            >
-              Связаться с нами
-            </Link>
+          <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+            <div className="relative h-full min-h-[22rem]">
+              <Image
+                src="/images/service-workshop.jpg"
+                alt="Рабочая зона компании Все запчасти"
+                fill
+                className="object-cover"
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-neutral-200 bg-neutral-50 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-neutral-600 sm:px-6">
-          © {new Date().getFullYear()} Все запчасти · Красноярск · NO CDN
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <article className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">история</div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">{storyTitle}</h2>
+            <div
+              className="prose prose-neutral mt-5 max-w-none text-neutral-700 prose-p:leading-7 prose-li:leading-7"
+              dangerouslySetInnerHTML={{ __html: storyHtml }}
+            />
+          </article>
+
+          <article className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">подход</div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">{valuesTitle}</h2>
+            <div
+              className="prose prose-neutral mt-5 max-w-none text-neutral-700 prose-p:leading-7 prose-li:leading-7"
+              dangerouslySetInnerHTML={{ __html: valuesHtml }}
+            />
+          </article>
         </div>
-      </footer>
+      </section>
+
+      <section className="bg-white py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">кому подходим</div>
+                <h3 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">
+                  Работаем для бизнеса и частных клиентов
+                </h3>
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-600 sm:text-base">
+                  Каталог строится вокруг реальных сценариев: быстро найти, проверить совместимость, оформить запрос и получить понятный ответ менеджера.
+                  Для сервиса запись ведётся через заявку с подтверждением, без пустых и неработающих элементов.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {[
+                  "Каталог и сервис не разорваны на разные продукты.",
+                  "Контуры заказа, VIN и сервиса остаются связанными.",
+                  "Публичные страницы остаются удобными и на desktop, и на mobile.",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm leading-6 text-neutral-600">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/parts"
+                className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
+              >
+                Открыть каталог
+              </Link>
+              <Link
+                href="/service"
+                className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-6 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
+              >
+                Перейти в сервис
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
     </main>
   );
 }

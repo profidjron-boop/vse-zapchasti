@@ -16,7 +16,11 @@ function buildCsp(): string {
   const isProd = process.env.NODE_ENV === 'production';
 
   const connectSrc = ["'self'"];
-  if (apiOrigin) connectSrc.push(apiOrigin);
+  if (apiOrigin) {
+    connectSrc.push(apiOrigin);
+  } else if (!isProd) {
+    connectSrc.push('http://localhost:8000', 'http://127.0.0.1:8000');
+  }
   if (!isProd) connectSrc.push('ws:', 'wss:');
 
   const scriptSrc = ["'self'", "'unsafe-inline'"];

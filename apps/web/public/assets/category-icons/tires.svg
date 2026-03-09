@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <style>
+      .s{fill:none;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .a{fill:#ff8a00;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .f{fill:#eaf2ff;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <circle class="f" cx="50" cy="68" r="28"/>
+  <circle class="s" cx="50" cy="68" r="10"/>
+  <path class="s" d="M50 40v8M50 88v8M22 68h8M70 68h8M30 48l6 6M64 82l6 6M30 88l6-6M64 54l6-6"/>
+  <path class="a" d="M86 34l16 16-10 10-16-16z"/>
+  <path class="s" d="M78 42l8 8"/>
+
+</svg>

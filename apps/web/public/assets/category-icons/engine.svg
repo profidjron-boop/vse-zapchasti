@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <style>
+      .s{fill:none;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .a{fill:#ff8a00;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .f{fill:#eaf2ff;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect class="f" x="26" y="44" width="60" height="48" rx="10"/>
+  <rect class="f" x="42" y="30" width="28" height="16" rx="6"/>
+  <path class="s" d="M86 60h12v16H86"/>
+  <path class="s" d="M30 60h-10v16h10"/>
+  <path class="s" d="M52 68h18"/>
+  <path class="a" d="M92 44h10v10H92z"/>
+  <path class="s" d="M62 92v12"/>
+  <path class="s" d="M40 92v10"/>
+
+</svg>

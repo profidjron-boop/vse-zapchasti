@@ -18,6 +18,7 @@ export default function NewProductPage() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [priceOnRequest, setPriceOnRequest] = useState(false);
 
   useEffect(() => {
     async function loadCategories() {
@@ -55,6 +56,10 @@ export default function NewProductPage() {
     const formData = new FormData(event.currentTarget);
     const oldPriceRaw = formData.get("old_price");
     const oldPrice = oldPriceRaw ? parseFloat(String(oldPriceRaw)) : null;
+    const priceRaw = String(formData.get("price") || "").trim();
+    const parsedPrice = priceRaw ? parseFloat(priceRaw) : null;
+    const normalizedPrice =
+      parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
     const discountLabel = String(formData.get("discount_label") || "").trim();
     const analogsRaw = String(formData.get("analogs") || "").trim();
     const analogs = analogsRaw
@@ -81,7 +86,7 @@ export default function NewProductPage() {
         : [];
 
     const attributes: Record<string, unknown> = {};
-    if (oldPrice !== null && Number.isFinite(oldPrice) && oldPrice > 0) {
+    if (!priceOnRequest && oldPrice !== null && Number.isFinite(oldPrice) && oldPrice > 0) {
       attributes.old_price = oldPrice;
     }
     if (discountLabel) {
@@ -89,6 +94,9 @@ export default function NewProductPage() {
     }
     if (analogs.length > 0) {
       attributes.analogs = analogs;
+    }
+    if (priceOnRequest) {
+      attributes.price_on_request = true;
     }
 
     const data = {
@@ -98,7 +106,7 @@ export default function NewProductPage() {
       brand: formData.get("brand") || undefined,
       name: formData.get("name"),
       description: formData.get("description") || undefined,
-      price: formData.get("price") ? parseFloat(formData.get("price") as string) : null,
+      price: priceOnRequest ? null : normalizedPrice,
       stock_quantity: parseInt(formData.get("stock_quantity") as string) || 0,
       is_active: formData.get("is_active") === "on",
       attributes,
@@ -253,6 +261,17 @@ export default function NewProductPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+              <input
+                type="checkbox"
+                checked={priceOnRequest}
+                onChange={(event) => setPriceOnRequest(event.target.checked)}
+                className="rounded border-neutral-300 text-[#1F3B73] focus:ring-[#1F3B73]"
+              />
+              Цена по запросу
+            </label>
+          </div>
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Цена
@@ -261,7 +280,10 @@ export default function NewProductPage() {
               type="number"
               name="price"
               step="0.01"
-              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+              min="0"
+              disabled={priceOnRequest}
+              placeholder={priceOnRequest ? "Будет отображаться «Цена по запросу»" : undefined}
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
             />
           </div>
           <div>
@@ -273,7 +295,8 @@ export default function NewProductPage() {
               name="old_price"
               step="0.01"
               min="0"
-              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
+              disabled={priceOnRequest}
+              className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
             />
           </div>
         </div>

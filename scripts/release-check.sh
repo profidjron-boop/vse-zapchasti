@@ -72,6 +72,15 @@ backup_file="$BACKUP_DIR/release_${stamp}.dump"
 log "release-check: verify-all"
 bash ./scripts/verify-all.sh
 
+log "release-check: dependency audit (api)"
+(
+  cd apps/api
+  UV_CACHE_DIR=./.uv-cache ./.venv/bin/uv run --with pip-audit pip-audit --strict
+)
+
+log "release-check: dependency audit (web)"
+pnpm --dir apps/web audit --prod --audit-level high
+
 log "release-check: backup"
 bash docs/backup.sh --output "$backup_file"
 

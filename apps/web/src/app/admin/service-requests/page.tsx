@@ -12,11 +12,12 @@ type ServiceRequest = {
   status: string;
   vehicle_type: string;
   service_type: string;
-  name: string;
+  name: string | null;
   phone: string;
   email: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
+  vehicle_engine: string | null;
   vehicle_year: number | null;
   vin: string | null;
   mileage: number | null;
@@ -293,6 +294,7 @@ export default function AdminServiceRequestsPage() {
       "ID",
       "Статус",
       "Тип авто",
+      "Двигатель",
       "Услуга",
       "Имя",
       "Телефон",
@@ -305,6 +307,7 @@ export default function AdminServiceRequestsPage() {
       String(request.id),
       getStatusLabel(request.status),
       request.vehicle_type === "truck" ? "Грузовой" : "Легковой",
+      request.vehicle_engine || "",
       request.service_type || "",
       request.name || "",
       request.phone || "",
@@ -545,7 +548,8 @@ export default function AdminServiceRequestsPage() {
                 <div className="grid grid-cols-1 gap-1 text-sm text-neutral-700">
                   <p>Услуга: {request.service_type}</p>
                   <p>Телефон: {request.phone}</p>
-                  <p>Имя: {request.name}</p>
+                  <p>Имя: {request.name || "—"}</p>
+                  <p>Двигатель: {request.vehicle_engine || "—"}</p>
                   <p>Согласие: {request.consent_given ? "Да" : "Нет"}</p>
                   <p className="text-xs text-neutral-500">{new Date(request.created_at).toLocaleString("ru-RU")}</p>
                 </div>
@@ -558,7 +562,7 @@ export default function AdminServiceRequestsPage() {
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1040px]">
+            <table className="w-full min-w-[1120px]">
               <thead className="border-b border-neutral-200 bg-neutral-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
@@ -571,6 +575,7 @@ export default function AdminServiceRequestsPage() {
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Тип авто</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Двигатель</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Услуга</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
@@ -603,6 +608,7 @@ export default function AdminServiceRequestsPage() {
                         {request.vehicle_type === "truck" ? "Грузовой" : "Легковой"}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.vehicle_engine || "—"}</td>
                     <td className="px-4 py-3 text-sm">{request.service_type}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
@@ -610,7 +616,7 @@ export default function AdminServiceRequestsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{request.phone}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.name}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.name || "—"}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{request.consent_given ? "Да" : "Нет"}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
                       {new Date(request.created_at).toLocaleString("ru-RU")}

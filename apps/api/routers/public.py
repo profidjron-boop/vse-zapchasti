@@ -1,9 +1,11 @@
 from collections import defaultdict, deque
 from datetime import UTC, datetime
+import logging
 import os
+from pathlib import Path
 from threading import Lock
 import time
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, func, or_, select
@@ -30,6 +32,7 @@ from models import (
 from schemas import (
     CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
     OrderCreate,
+    OrderRequisitesUploadResponse,
     OrderPublicResponse,
     OrderResponse,
     ServiceCatalogItemResponse,
@@ -41,6 +44,21 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/api/public", tags=["public"])
+logger = logging.getLogger("api.public")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_UPLOAD_DIR = REPO_ROOT / "apps" / "web" / "public" / "uploads"
+raw_upload_dir = os.getenv("UPLOAD_DIR")
+UPLOAD_DIR = Path(raw_upload_dir).expanduser() if raw_upload_dir else DEFAULT_UPLOAD_DIR
+if not UPLOAD_DIR.is_absolute():
+    UPLOAD_DIR = (REPO_ROOT / UPLOAD_DIR).resolve()
+ORDER_REQUISITES_UPLOAD_DIR = UPLOAD_DIR / "order-requisites"
+ORDER_REQUISITES_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ORDER_REQUISITES_ALLOWED_EXTENSIONS = {
+    ".pdf": {"application/pdf"},
+    ".png": {"image/png"},
+    ".jpg": {"image/jpeg", "image/jpg"},
+    ".jpeg": {"image/jpeg", "image/jpg"},
+}
 
 
 def _utcnow() -> datetime:
@@ -58,11 +76,18 @@ def _env_positive_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+ORDER_REQUISITES_MAX_BYTES = _env_positive_int("PUBLIC_ORDER_REQUISITES_MAX_BYTES", 10 * 1024 * 1024)
+
+
 FORM_RATE_LIMIT_WINDOW_SECONDS = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS", 60)
 DEFAULT_FORM_RATE_LIMIT_PER_MINUTE = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", 20)
 FORM_RATE_LIMITS_PER_SCOPE = {
     "leads": _env_positive_int("PUBLIC_LEADS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
     "orders": _env_positive_int("PUBLIC_ORDERS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
+    "order_requisites_upload": _env_positive_int(
+        "PUBLIC_ORDER_REQUISITES_UPLOAD_RATE_LIMIT_PER_MINUTE",
+        max(5, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE // 2),
+    ),
     "service_requests": _env_positive_int(
         "PUBLIC_SERVICE_REQUESTS_RATE_LIMIT_PER_MINUTE",
         DEFAULT_FORM_RATE_LIMIT_PER_MINUTE,
@@ -92,6 +117,27 @@ def _extract_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def _normalize_client_filename(filename: Optional[str]) -> str:
+    raw_name = Path(filename or "requisites").name.strip()
+    return raw_name[:255] or "requisites"
+
+
+def _validate_order_requisites_signature(extension: str, content: bytes) -> None:
+    if extension == ".pdf" and not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="Некорректный PDF-файл")
+    if extension == ".png" and not content.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise HTTPException(status_code=400, detail="Некорректный PNG-файл")
+    if extension in {".jpg", ".jpeg"} and not content.startswith(b"\xff\xd8\xff"):
+        raise HTTPException(status_code=400, detail="Некорректный JPG-файл")
+
+
+def _resolve_invoice_requisites_path(file_url: str) -> Path:
+    relative_path = file_url.removeprefix("/uploads/").strip("/")
+    if not relative_path.startswith("order-requisites/"):
+        raise HTTPException(status_code=400, detail="Недопустимый путь к файлу реквизитов")
+    return UPLOAD_DIR / relative_path
+
+
 async def _enforce_form_rate_limit(request: Request, scope: str) -> None:
     ip_address = _extract_client_ip(request)
     limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE)
@@ -111,9 +157,16 @@ async def _enforce_form_rate_limit(request: Request, scope: str) -> None:
             return
         except HTTPException:
             raise
-        except Exception:
+        except Exception as exc:
             # Fallback for local/dev when Redis is temporarily unavailable.
-            pass
+            logger.warning(
+                "rate-limit redis unavailable; using in-memory fallback",
+                extra={
+                    "scope": scope,
+                    "ip_address": ip_address,
+                    "error_type": exc.__class__.__name__,
+                },
+            )
 
     ip_address = request.client.host if request.client else "unknown"
     bucket_key = f"{scope}:{ip_address}"
@@ -225,6 +278,19 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
     if not isinstance(name, str) or not name.strip():
         return None
 
+    created_at_raw = raw_product.get("created_at")
+    updated_at_raw = raw_product.get("updated_at")
+    created_at = created_at_raw if isinstance(created_at_raw, str) and created_at_raw.strip() else None
+    updated_at = updated_at_raw if isinstance(updated_at_raw, str) and updated_at_raw.strip() else None
+    fallback_timestamp = datetime.now(UTC).replace(tzinfo=None).isoformat()
+    if created_at is None and updated_at is None:
+        created_at = fallback_timestamp
+        updated_at = fallback_timestamp
+    elif created_at is None:
+        created_at = updated_at
+    elif updated_at is None:
+        updated_at = created_at
+
     normalized = {
         "id": _to_int(product_id, 0),
         "category_id": _to_int(category_id, 0),
@@ -239,6 +305,8 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
         "attributes": raw_product.get("attributes") if isinstance(raw_product.get("attributes"), dict) else {},
         "images": _normalize_snapshot_images(raw_product.get("images")),
         "compatibilities": _normalize_snapshot_compatibilities(raw_product.get("compatibilities")),
+        "created_at": created_at,
+        "updated_at": updated_at,
     }
 
     if normalized["id"] <= 0 or normalized["category_id"] <= 0:
@@ -270,6 +338,77 @@ async def _load_latest_products_snapshot(db: AsyncSession) -> Optional[list[dict
     return products
 
 
+def _normalize_optional_filter(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    return normalized or None
+
+
+def _product_matches_vehicle(
+    product: dict[str, Any],
+    *,
+    vehicle_make: Optional[str],
+    vehicle_model: Optional[str],
+    vehicle_year: Optional[int],
+    vehicle_engine: Optional[str],
+) -> bool:
+    compatibilities = product.get("compatibilities")
+    if not isinstance(compatibilities, list) or len(compatibilities) == 0:
+        return False
+
+    for compatibility in compatibilities:
+        if not isinstance(compatibility, dict):
+            continue
+
+        make = str(compatibility.get("make") or "").strip().lower()
+        model = str(compatibility.get("model") or "").strip().lower()
+        engine = str(compatibility.get("engine") or "").strip().lower()
+        year_from = _to_int(compatibility.get("year_from"), 0)
+        year_to = _to_int(compatibility.get("year_to"), 0)
+
+        if vehicle_make and make != vehicle_make:
+            continue
+        if vehicle_model and model != vehicle_model:
+            continue
+        if vehicle_engine and vehicle_engine not in engine:
+            continue
+        if vehicle_year is not None:
+            if year_from > 0 and vehicle_year < year_from:
+                continue
+            if year_to > 0 and vehicle_year > year_to:
+                continue
+        return True
+
+    return False
+
+
+def _apply_snapshot_search(products: list[dict[str, Any]], search: str) -> list[dict[str, Any]]:
+    search_text = " ".join(search.strip().lower().split())
+    if not search_text:
+        return sorted(products, key=lambda product: _to_int(product.get("id"), 0))
+
+    tokens = [token for token in search_text.split(" ") if token]
+    scored: list[tuple[tuple[int, int, int], dict[str, Any]]] = []
+    for product in products:
+        search_blob = " ".join(
+            (
+                str(product.get("name") or "").lower(),
+                str(product.get("sku") or "").lower(),
+                str(product.get("oem") or "").lower(),
+                str(product.get("brand") or "").lower(),
+            )
+        )
+        token_hits = sum(1 for token in tokens if token in search_blob)
+        if token_hits == 0 and search_text not in search_blob:
+            continue
+        exact_sku = int(str(product.get("sku") or "").lower() == search_text)
+        scored.append(((exact_sku, token_hits, _to_int(product.get("id"), 0)), product))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [item[1] for item in scored]
+
+
 def _apply_snapshot_filters(
     products: list[dict[str, Any]],
     *,
@@ -299,67 +438,23 @@ def _apply_snapshot_filters(
         filtered = [product for product in filtered if _to_int(product.get("stock_quantity"), 0) > 0]
 
     if vehicle_make or vehicle_model or vehicle_year is not None or vehicle_engine:
-        vehicle_make_normalized = vehicle_make.strip().lower() if vehicle_make else None
-        vehicle_model_normalized = vehicle_model.strip().lower() if vehicle_model else None
-        vehicle_engine_normalized = vehicle_engine.strip().lower() if vehicle_engine else None
-
-        def _matches_vehicle(product: dict[str, Any]) -> bool:
-            compatibilities = product.get("compatibilities")
-            if not isinstance(compatibilities, list) or len(compatibilities) == 0:
-                return False
-
-            for compatibility in compatibilities:
-                if not isinstance(compatibility, dict):
-                    continue
-
-                make = str(compatibility.get("make") or "").strip().lower()
-                model = str(compatibility.get("model") or "").strip().lower()
-                engine = str(compatibility.get("engine") or "").strip().lower()
-                year_from = _to_int(compatibility.get("year_from"), 0)
-                year_to = _to_int(compatibility.get("year_to"), 0)
-
-                if vehicle_make_normalized and make != vehicle_make_normalized:
-                    continue
-                if vehicle_model_normalized and model != vehicle_model_normalized:
-                    continue
-                if vehicle_engine_normalized and vehicle_engine_normalized not in engine:
-                    continue
-                if vehicle_year is not None:
-                    if year_from > 0 and vehicle_year < year_from:
-                        continue
-                    if year_to > 0 and vehicle_year > year_to:
-                        continue
-
-                return True
-
-            return False
-
-        filtered = [product for product in filtered if _matches_vehicle(product)]
+        vehicle_make_normalized = _normalize_optional_filter(vehicle_make)
+        vehicle_model_normalized = _normalize_optional_filter(vehicle_model)
+        vehicle_engine_normalized = _normalize_optional_filter(vehicle_engine)
+        filtered = [
+            product
+            for product in filtered
+            if _product_matches_vehicle(
+                product,
+                vehicle_make=vehicle_make_normalized,
+                vehicle_model=vehicle_model_normalized,
+                vehicle_year=vehicle_year,
+                vehicle_engine=vehicle_engine_normalized,
+            )
+        ]
 
     if search:
-        search_text = " ".join(search.strip().lower().split())
-        if search_text:
-            tokens = [token for token in search_text.split(" ") if token]
-            scored: list[tuple[tuple[int, int, int], dict[str, Any]]] = []
-            for product in filtered:
-                search_blob = " ".join(
-                    (
-                        str(product.get("name") or "").lower(),
-                        str(product.get("sku") or "").lower(),
-                        str(product.get("oem") or "").lower(),
-                        str(product.get("brand") or "").lower(),
-                    )
-                )
-                token_hits = sum(1 for token in tokens if token in search_blob)
-                if token_hits == 0 and search_text not in search_blob:
-                    continue
-                exact_sku = int(str(product.get("sku") or "").lower() == search_text)
-                scored.append(((exact_sku, token_hits, _to_int(product.get("id"), 0)), product))
-
-            scored.sort(key=lambda item: item[0], reverse=True)
-            filtered = [item[1] for item in scored]
-        else:
-            filtered.sort(key=lambda product: _to_int(product.get("id"), 0))
+        filtered = _apply_snapshot_search(filtered, search)
     else:
         filtered.sort(key=lambda product: _to_int(product.get("id"), 0))
 
@@ -589,15 +684,60 @@ async def create_lead(
 
 
 # ---------- Orders ----------
-@router.post("/orders", response_model=OrderResponse, status_code=201)
-async def create_order(
-    order_data: OrderCreate,
+@router.post("/orders/requisites-upload", response_model=OrderRequisitesUploadResponse, status_code=201)
+async def upload_order_requisites_file(
     request: Request,
+    file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new order (guest checkout or one-click order)."""
-    await _enforce_form_rate_limit(request, "orders")
+    await _enforce_form_rate_limit(request, "order_requisites_upload")
 
+    original_filename = _normalize_client_filename(getattr(file, "filename", None))
+    extension = Path(original_filename).suffix.lower()
+    if extension not in ORDER_REQUISITES_ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Допустимы только PDF, PNG или JPG")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Файл пуст")
+    if len(content) > ORDER_REQUISITES_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Размер файла не должен превышать 10 МБ")
+
+    content_type = ((getattr(file, "content_type", "") or "").strip().lower())
+    allowed_content_types = ORDER_REQUISITES_ALLOWED_EXTENSIONS[extension]
+    if content_type and content_type not in allowed_content_types:
+        raise HTTPException(status_code=400, detail="Недопустимый тип файла")
+
+    _validate_order_requisites_signature(extension, content)
+
+    stored_filename = f"{uuid.uuid4().hex}{extension}"
+    stored_path = ORDER_REQUISITES_UPLOAD_DIR / stored_filename
+    stored_path.write_bytes(content)
+    file_url = f"/uploads/order-requisites/{stored_filename}"
+
+    audit = AuditLog(
+        action="upload_public_order_requisites",
+        entity_type="order_requisites_file",
+        new_values={
+            "filename": original_filename,
+            "stored_filename": stored_filename,
+            "url": file_url,
+            "size_bytes": len(content),
+        },
+        ip_address=_extract_client_ip(request),
+    )
+    db.add(audit)
+    await db.commit()
+
+    return OrderRequisitesUploadResponse(
+        url=file_url,
+        filename=original_filename,
+        size_bytes=len(content),
+        content_type=content_type or next(iter(allowed_content_types)),
+    )
+
+
+def _validate_order_payload(order_data: OrderCreate) -> None:
     if not order_data.consent_given:
         raise HTTPException(status_code=400, detail="Consent is required")
 
@@ -607,6 +747,11 @@ async def create_order(
     if order_data.payment_method == "invoice" and not order_data.legal_entity_inn:
         raise HTTPException(status_code=400, detail="Legal entity INN is required for invoice payment")
 
+    if bool(order_data.invoice_requisites_file_url) != bool(order_data.invoice_requisites_file_name):
+        raise HTTPException(status_code=400, detail="Invoice requisites file metadata is incomplete")
+
+
+def _prepare_order_payload(order_data: OrderCreate) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     order_payload = order_data.model_dump()
     items_payload = order_payload.pop("items", [])
     order_payload["consent_version"] = order_data.consent_version or "v1.0"
@@ -615,6 +760,60 @@ async def create_order(
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
     order_payload["consent_at"] = _utcnow()
+
+    if order_data.payment_method != "invoice":
+        order_payload["invoice_requisites_file_url"] = None
+        order_payload["invoice_requisites_file_name"] = None
+    elif order_data.invoice_requisites_file_url:
+        file_path = _resolve_invoice_requisites_path(order_data.invoice_requisites_file_url)
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Файл реквизитов не найден или недоступен")
+
+    return order_payload, items_payload
+
+
+async def _resolve_order_item_product_id(raw_item: dict[str, Any], db: AsyncSession) -> Optional[int]:
+    product_id_raw = raw_item.get("product_id")
+    if product_id_raw is None:
+        return None
+
+    try:
+        candidate_id = int(product_id_raw)
+    except (TypeError, ValueError):
+        return None
+
+    exists_result = await db.execute(select(Product.id).where(Product.id == candidate_id))
+    return candidate_id if exists_result.scalar_one_or_none() is not None else None
+
+
+def _build_order_item(order_id: int, raw_item: dict[str, Any], product_id: Optional[int]) -> OrderItem:
+    quantity = max(int(raw_item.get("quantity") or 1), 1)
+    unit_price = _to_float(raw_item.get("unit_price"))
+    line_total = _to_float(raw_item.get("line_total"))
+    if line_total is None and unit_price is not None:
+        line_total = round(unit_price * quantity, 2)
+
+    return OrderItem(
+        order_id=order_id,
+        product_id=product_id,
+        product_sku=raw_item.get("product_sku"),
+        product_name=raw_item.get("product_name"),
+        quantity=quantity,
+        unit_price=unit_price,
+        line_total=line_total,
+    )
+
+
+@router.post("/orders", response_model=OrderResponse, status_code=201)
+async def create_order(
+    order_data: OrderCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new order (guest checkout or one-click order)."""
+    await _enforce_form_rate_limit(request, "orders")
+    _validate_order_payload(order_data)
+    order_payload, items_payload = _prepare_order_payload(order_data)
 
     db_order = Order(
         **order_payload,
@@ -627,33 +826,8 @@ async def create_order(
     await db.flush()
 
     for raw_item in items_payload:
-        product_id_raw = raw_item.get("product_id")
-        product_id: Optional[int] = None
-        if product_id_raw is not None:
-            try:
-                candidate_id = int(product_id_raw)
-                exists_result = await db.execute(select(Product.id).where(Product.id == candidate_id))
-                if exists_result.scalar_one_or_none() is not None:
-                    product_id = candidate_id
-            except (TypeError, ValueError):
-                product_id = None
-
-        quantity = max(int(raw_item.get("quantity") or 1), 1)
-        unit_price = _to_float(raw_item.get("unit_price"))
-        line_total = _to_float(raw_item.get("line_total"))
-        if line_total is None and unit_price is not None:
-            line_total = round(unit_price * quantity, 2)
-
-        order_item = OrderItem(
-            order_id=db_order.id,
-            product_id=product_id,
-            product_sku=raw_item.get("product_sku"),
-            product_name=raw_item.get("product_name"),
-            quantity=quantity,
-            unit_price=unit_price,
-            line_total=line_total,
-        )
-        db.add(order_item)
+        product_id = await _resolve_order_item_product_id(raw_item, db)
+        db.add(_build_order_item(db_order.id, raw_item, product_id))
 
     audit = AuditLog(
         action="create_public_order",
@@ -665,6 +839,8 @@ async def create_order(
             "customer_phone": db_order.customer_phone,
             "delivery_method": db_order.delivery_method,
             "payment_method": db_order.payment_method,
+            "invoice_requisites_file_url": db_order.invoice_requisites_file_url,
+            "invoice_requisites_file_name": db_order.invoice_requisites_file_name,
             "items_count": len(items_payload),
             "consent_given": db_order.consent_given,
             "consent_version": db_order.consent_version,

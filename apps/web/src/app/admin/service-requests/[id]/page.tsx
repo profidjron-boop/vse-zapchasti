@@ -12,11 +12,12 @@ type ServiceRequest = {
   status: "new" | "in_progress" | "closed";
   vehicle_type: "passenger" | "truck";
   service_type: string;
-  name: string;
+  name: string | null;
   phone: string;
   email: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
+  vehicle_engine: string | null;
   vehicle_year: number | null;
   vin: string | null;
   mileage: number | null;
@@ -163,13 +164,14 @@ export default function ServiceRequestDetailsPage() {
           <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Данные заявки</h2>
           <dl className="space-y-3 text-sm">
             <div><dt className="text-neutral-500">UUID</dt><dd className="break-all font-mono text-xs sm:text-sm">{request.uuid}</dd></div>
-            <div><dt className="text-neutral-500">Имя</dt><dd>{request.name}</dd></div>
+            <div><dt className="text-neutral-500">Имя</dt><dd>{request.name || "—"}</dd></div>
             <div><dt className="text-neutral-500">Телефон</dt><dd>{request.phone}</dd></div>
             <div><dt className="text-neutral-500">Email</dt><dd>{request.email || "—"}</dd></div>
             <div><dt className="text-neutral-500">Тип техники</dt><dd>{request.vehicle_type === "truck" ? "Грузовая" : "Легковая"}</dd></div>
             <div><dt className="text-neutral-500">Тип услуги</dt><dd>{request.service_type}</dd></div>
             <div><dt className="text-neutral-500">Описание</dt><dd className="whitespace-pre-wrap">{request.description}</dd></div>
             <div><dt className="text-neutral-500">Автомобиль</dt><dd>{[request.vehicle_make, request.vehicle_model, request.vehicle_year].filter(Boolean).join(" ") || "—"}</dd></div>
+            <div><dt className="text-neutral-500">Двигатель</dt><dd>{request.vehicle_engine || "—"}</dd></div>
             <div><dt className="text-neutral-500">VIN</dt><dd>{request.vin || "—"}</dd></div>
             <div><dt className="text-neutral-500">Пробег</dt><dd>{request.mileage || "—"}</dd></div>
             <div><dt className="text-neutral-500">Желаемая дата</dt><dd>{request.preferred_date ? new Date(request.preferred_date).toLocaleDateString("ru-RU") : "—"}</dd></div>
