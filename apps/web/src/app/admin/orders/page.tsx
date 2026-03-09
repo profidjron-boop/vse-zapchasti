@@ -51,6 +51,7 @@ export default function AdminOrdersPage() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [pageInput, setPageInput] = useState("1");
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -134,6 +135,22 @@ export default function AdminOrdersPage() {
     setAppliedSearch("");
     setPage(1);
     setHasNextPage(false);
+  }
+
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
+  function handlePageJump(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = Number.parseInt(pageInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageInput(String(page));
+      return;
+    }
+    const nextPage = Math.max(1, parsed);
+    setPage(nextPage);
+    setPageInput(String(nextPage));
   }
 
   if (loading) {
@@ -319,6 +336,23 @@ export default function AdminOrdersPage() {
               >
                 Вперёд
               </button>
+              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
+                <label htmlFor="orders-page-jump" className="text-xs text-neutral-500">Стр.</label>
+                <input
+                  id="orders-page-jump"
+                  type="number"
+                  min={1}
+                  value={pageInput}
+                  onChange={(event) => setPageInput(event.target.value)}
+                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                >
+                  Перейти
+                </button>
+              </form>
             </div>
           </div>
         </div>
