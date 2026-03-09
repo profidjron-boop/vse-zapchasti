@@ -297,6 +297,49 @@ async def test_import_products_rejects_invalid_trigger_mode(monkeypatch):
     assert "trigger_mode must be one of" in str(exc.value.detail)
 
 
+@pytest.mark.asyncio
+async def test_import_products_from_source_requires_configured_source_url(monkeypatch):
+    db = FakeAsyncSession()
+    current_user = SimpleNamespace(id=1, role="admin", is_active=True)
+    monkeypatch.delenv("IMPORT_SOURCE_URL", raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin.admin_import_products_from_source(
+            default_category_id=1,
+            skip_invalid=False,
+            trigger_mode="event",
+            db=db,
+            current_user=current_user,
+        )
+
+    assert exc.value.status_code == 400
+    assert "IMPORT_SOURCE_URL is not configured." in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_import_products_from_source_uses_downloaded_payload(monkeypatch):
+    db = FakeAsyncSession()
+    current_user = SimpleNamespace(id=1, role="admin", is_active=True)
+    monkeypatch.setenv("IMPORT_SOURCE_URL", "https://erp.example/export.csv")
+
+    async def _fake_download_import_source_payload(**_kwargs):
+        return "export.csv", b"sku,name\n"
+
+    monkeypatch.setattr(admin, "_download_import_source_payload", _fake_download_import_source_payload)
+
+    result = await admin.admin_import_products_from_source(
+        default_category_id=1,
+        skip_invalid=False,
+        trigger_mode="event",
+        db=db,
+        current_user=current_user,
+    )
+
+    assert result["trigger_mode"] == "event"
+    assert result["total"] == 0
+    assert result["failed"] == 0
+
+
 def test_admin_csrf_validation_accepts_matching_cookie_and_header():
     request = _make_request_with_headers(
         "/api/admin/leads",

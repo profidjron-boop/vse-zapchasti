@@ -7,6 +7,7 @@ import re
 import secrets
 import shutil
 from typing import Any, List, Optional
+from urllib.parse import urlparse
 import uuid
 import zipfile
 
@@ -16,6 +17,7 @@ from defusedxml.common import DefusedXmlException
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import httpx
 import jwt
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy import delete, or_, select
@@ -244,6 +246,9 @@ PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
 PRODUCT_IMPORT_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_MAX_BYTES", 8 * 1024 * 1024)
 PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES", 2 * 1024 * 1024)
 IMPORT_TRIGGER_MODES = {"manual", "hourly", "daily", "event"}
+IMPORT_SOURCE_ALLOWED_SCHEMES = {"https", "http"}
+IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS = _env_positive_int("IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS", 5)
+IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS = _env_positive_int("IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS", 30)
 FALLBACK_CATEGORY_NAME = "Прочие запчасти"
 INFERRED_CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
     (
@@ -462,6 +467,84 @@ def _normalize_import_trigger_mode(value: Any) -> str:
         allowed = ", ".join(sorted(IMPORT_TRIGGER_MODES))
         raise HTTPException(status_code=400, detail=f"trigger_mode must be one of: {allowed}")
     return normalized
+
+
+def _csv_env(name: str) -> list[str]:
+    raw = os.getenv(name, "")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _is_allowed_source_host(host: str, allowed_hosts: set[str]) -> bool:
+    normalized_host = host.lower()
+    for allowed in allowed_hosts:
+        if normalized_host == allowed or normalized_host.endswith(f".{allowed}"):
+            return True
+    return False
+
+
+def _build_import_source_filename(source_url: str) -> str:
+    path_name = Path(urlparse(source_url).path).name.strip()
+    if path_name and Path(path_name).suffix.lower() in PRODUCT_IMPORT_ALLOWED_EXTENSIONS:
+        return path_name
+
+    lower_url = source_url.lower()
+    extension = ".xlsx" if ".xlsx" in lower_url else ".csv"
+    return f"source-import{extension}"
+
+
+async def _download_import_source_payload(
+    *,
+    source_url: str,
+    source_auth_header: str,
+    source_username: str,
+    source_password: str,
+) -> tuple[str, bytes]:
+    parsed = urlparse(source_url)
+    scheme = parsed.scheme.lower()
+    host = (parsed.hostname or "").strip().lower()
+
+    if scheme not in IMPORT_SOURCE_ALLOWED_SCHEMES:
+        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL must use http/https scheme.")
+    if not host:
+        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL must include a host.")
+
+    allowed_hosts = {item.lower() for item in _csv_env("IMPORT_SOURCE_ALLOWED_HOSTS")}
+    if allowed_hosts and not _is_allowed_source_host(host, allowed_hosts):
+        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL host is not allowlisted.")
+
+    auth: tuple[str, str] | None = None
+    if source_username or source_password:
+        auth = (source_username, source_password)
+
+    headers: dict[str, str] = {}
+    if source_auth_header:
+        headers["Authorization"] = source_auth_header
+
+    try:
+        timeout = httpx.Timeout(
+            timeout=IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS,
+            connect=IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS,
+        )
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            response = await client.get(source_url, headers=headers, auth=auth)
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Failed to fetch import source payload.") from exc
+
+    content = response.content
+    if not content:
+        raise HTTPException(status_code=400, detail="Import source payload is empty.")
+
+    return _build_import_source_filename(source_url), content
+
+
+class _BufferedUploadFile:
+    def __init__(self, filename: str, content: bytes):
+        self.filename = filename
+        self._content = content
+
+    async def read(self) -> bytes:
+        return self._content
 
 
 def _infer_category_name(row: dict[str, str]) -> Optional[str]:
@@ -2063,6 +2146,41 @@ async def admin_import_products(
         await db.rollback()
         await _mark_import_run_failed(db, run_id, collected_errors, str(exc))
         raise HTTPException(status_code=500, detail="Import failed. Please check file format and data.") from exc
+
+
+@router.post("/products/import-from-source")
+async def admin_import_products_from_source(
+    default_category_id: Optional[int] = Query(None, ge=1),
+    skip_invalid: bool = Query(False, description="Skip invalid rows and import valid rows only"),
+    trigger_mode: str = Query(
+        "event",
+        description="manual/hourly/daily/event mode marker for import run audit",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    source_url = (os.getenv("IMPORT_SOURCE_URL") or "").strip()
+    if not source_url:
+        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL is not configured.")
+
+    source_auth_header = (os.getenv("IMPORT_SOURCE_AUTH_HEADER") or "").strip()
+    source_username = (os.getenv("IMPORT_SOURCE_USERNAME") or "").strip()
+    source_password = (os.getenv("IMPORT_SOURCE_PASSWORD") or "").strip()
+
+    file_name, content = await _download_import_source_payload(
+        source_url=source_url,
+        source_auth_header=source_auth_header,
+        source_username=source_username,
+        source_password=source_password,
+    )
+    return await admin_import_products(
+        file=_BufferedUploadFile(file_name, content),
+        default_category_id=default_category_id,
+        skip_invalid=skip_invalid,
+        trigger_mode=trigger_mode,
+        db=db,
+        current_user=current_user,
+    )
 
 
 @router.get("/imports", response_model=List[dict])
