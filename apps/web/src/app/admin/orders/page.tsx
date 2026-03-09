@@ -20,6 +20,8 @@ type OrderRow = {
   items: Array<{ id: number }>;
 };
 
+const PAGE_SIZE = 25;
+
 function statusLabel(value: string): string {
   if (value === "new") return "Новый";
   if (value === "in_progress") return "В работе";
@@ -47,6 +49,8 @@ export default function AdminOrdersPage() {
   const [search, setSearch] = useState("");
   const [appliedStatus, setAppliedStatus] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -73,7 +77,10 @@ export default function AdminOrdersPage() {
     setError("");
 
     try {
-      const query = new URLSearchParams({ limit: "100" });
+      const query = new URLSearchParams({
+        skip: String((page - 1) * PAGE_SIZE),
+        limit: String(PAGE_SIZE + 1),
+      });
       if (appliedStatus) query.set("status", appliedStatus);
       if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
 
@@ -83,7 +90,11 @@ export default function AdminOrdersPage() {
         {},
         12000
       );
-      setOrders(Array.isArray(payload) ? payload : []);
+      const rows = Array.isArray(payload) ? payload : [];
+      const nextPageAvailable = rows.length > PAGE_SIZE;
+      const pageRows = nextPageAvailable ? rows.slice(0, PAGE_SIZE) : rows;
+      setOrders(pageRows);
+      setHasNextPage(nextPageAvailable);
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
@@ -99,7 +110,7 @@ export default function AdminOrdersPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [appliedSearch, appliedStatus, router]);
+  }, [appliedSearch, appliedStatus, page, router]);
 
   useEffect(() => {
     void fetchStatuses();
@@ -113,6 +124,7 @@ export default function AdminOrdersPage() {
     event.preventDefault();
     setAppliedStatus(status);
     setAppliedSearch(search);
+    setPage(1);
   }
 
   function handleResetFilters() {
@@ -120,6 +132,8 @@ export default function AdminOrdersPage() {
     setSearch("");
     setAppliedStatus("");
     setAppliedSearch("");
+    setPage(1);
+    setHasNextPage(false);
   }
 
   if (loading) {
@@ -198,13 +212,22 @@ export default function AdminOrdersPage() {
 
       {orders.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">
-          <p>Заказов пока нет</p>
-          <p className="mt-2 text-sm">Заказы появятся после оформления на сайте</p>
+          {appliedStatus || appliedSearch ? (
+            <>
+              <p>По выбранным фильтрам заказы не найдены</p>
+              <p className="mt-2 text-sm">Попробуйте сбросить фильтры или изменить параметры поиска</p>
+            </>
+          ) : (
+            <>
+              <p>Заказов пока нет</p>
+              <p className="mt-2 text-sm">Заказы появятся после оформления на сайте</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
-            Найдено заказов: {orders.length}
+            Показано заказов: {orders.length} · Страница {page}
           </div>
 
           <div className="divide-y divide-neutral-200 md:hidden">
@@ -272,6 +295,31 @@ export default function AdminOrdersPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
+            <div className="text-neutral-500">
+              Поиск работает по всем заказам, не только по текущей странице.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1 || refreshing}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <span className="min-w-[5rem] text-center text-neutral-600">Стр. {page}</span>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!hasNextPage || refreshing}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Вперёд
+              </button>
+            </div>
           </div>
         </div>
       )}
