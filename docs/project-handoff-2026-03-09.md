@@ -22,7 +22,7 @@
 - Для закрытия этих пунктов использовать шаблон: `docs/production-metadata-template-2026-03-09.md`.
 
 Профиль сложности: M  
-Release commit / tag: working tree after hardening updates (uncommitted snapshot)
+Release commit / tag: `d086646` (`feat: finalize v1.1 hardening, QA gates, and handoff docs`)
 Дата последнего production deploy: не предоставлено
 
 ## 2) Для клиента: как это работает
@@ -114,7 +114,7 @@ Rollback: `docs/release-rollback-runbook.md`
 - Restore-check:
   - `bash docs/restore-check.sh --input <path-to-backup.dump>`
 - Последний подтверждённый backup artifact:
-  - `backups/postgres/release_20260309_162046.dump`
+  - `backups/postgres/release_20260309_172501.dump`
 
 ### 5.3 Мониторинг и алерты
 - Health endpoints: `/health`, `/api/health`, `/api/ready`.
@@ -144,14 +144,14 @@ Rollback: `docs/release-rollback-runbook.md`
 
 ### 6.3 Backup проверка
 - Проверка восстановления:
-  - `bash docs/restore-check.sh --input backups/postgres/release_20260309_162046.dump`
+  - `bash docs/restore-check.sh --input backups/postgres/release_20260309_172501.dump`
 
 ## 7) Известные ограничения и технический долг
 | Область | Описание | Приоритет | Рекомендуемые действия |
 |---|---|---|---|
 | Handoff metadata | Отсутствуют production адреса/домены/владельцы доступов | High | заполнить разделы 3.1–3.3 перед подписанием акта |
 | Release traceability | Нет зафиксированного production tag/deploy date | Medium | ввести tagging policy + deploy журнал |
-| Worktree hygiene | В рабочем дереве много несвязанных локальных изменений | Medium | стабилизировать ветку по scope-коммитам перед фактическим прод-деплоем |
+| Operations ownership | Не назначены SLA/контакт эскалации в артефактах передачи | Medium | закрепить owners + escalation matrix в итоговом акте |
 
 ## 8) Гарантии и поддержка после сдачи
 ### 8.1 Гарантийный период
@@ -167,10 +167,10 @@ Rollback: `docs/release-rollback-runbook.md`
 - Инциденты на стороне внешних провайдеров (хостинг, DNS, почта), если не оговорено договором.
 
 ## 9) Release evidence
-- Release commit / tag: working tree snapshot, production tag не предоставлен.
+- Release commit / tag: `d086646`, production tag не предоставлен.
 - Дата deploy: не предоставлена.
-- Backup artifact: `backups/postgres/release_20260309_162046.dump`.
-- Smoke result: `✅ all checks passed` (read + write, 2026-03-09 16:58–16:59).
+- Backup artifact: `backups/postgres/release_20260309_172501.dump`.
+- Smoke result: `✅ all checks passed` (read + write + mandatory admin checks, 2026-03-09 17:25–17:26).
 - Migration result: `alembic current -> f6e2c1a9b7d3 (head)`.
 - Restore check: `ok: restored tables=15`, `alembic_version=f6e2c1a9b7d3`.
 

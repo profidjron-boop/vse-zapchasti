@@ -75,18 +75,18 @@ Service catalog:
   - `routers/public.py`: `80%`
   - total: `70.27%`
 - `bash scripts/release-check.sh --skip-write-smoke`: `RELEASE CHECK GREEN`
-- Full release-check (admin + write smoke):
-  - `SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
+- Full release-check (mandatory admin + write smoke):
+  - `RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
   - result: `RELEASE CHECK GREEN`
 - Runtime functional audit:
   - `bash scripts/runtime-audit.sh`
   - result: `all checks passed`
   - `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit.sh`
   - result: `all checks passed` (including admin protected routes)
-- Latest release run (2026-03-09 16:57–16:59, Asia/Krasnoyarsk):
-  - `bash scripts/release-check.sh`
-  - result: `RELEASE CHECK GREEN` (read/write smoke passed)
-  - note: admin smoke checks were skipped in this run because `ADMIN_TOKEN`/`SMOKE_ADMIN_*` were not provided
+- Latest release run (2026-03-09 17:25–17:26, Asia/Krasnoyarsk):
+  - `RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
+  - result: `RELEASE CHECK GREEN` (read/write smoke + admin protected checks)
+  - backup artifact: `backups/postgres/release_20260309_172501.dump`
 
 Release note:
 - `scripts/smoke.sh`: в bootstrap smoke-admin добавлен `DATABASE_URL` при генерации hash (исправлен падал full release-check path).
