@@ -31,6 +31,9 @@ make migrate-check # текущее состояние миграций (alembic
    - чтобы сделать admin-smoke обязательным gate, использовать:
      `RELEASE_REQUIRE_ADMIN_SMOKE=1 bash scripts/release-check.sh`
      (требует `ADMIN_TOKEN` или `SMOKE_ADMIN_EMAIL` + `SMOKE_ADMIN_PASSWORD`).
+   - чтобы сделать обязательной полноту handoff metadata перед финальной приёмкой, использовать:
+     `RELEASE_REQUIRE_HANDOFF_METADATA=1 bash scripts/release-check.sh`
+     (включает `docs/handoff.sh --strict` и падает при незаполненных production placeholders).
 1. `pnpm web:lint && pnpm web:typecheck && pnpm --dir apps/web run build`
 2. `pnpm --dir apps/web audit --prod --audit-level high`
 3. `cd apps/api && make lint && make test && make test-cov && make migrate-check`

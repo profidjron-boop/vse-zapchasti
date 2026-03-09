@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 BACKUP_DIR="${BACKUP_DIR:-backups/postgres}"
 RUN_WRITE_SMOKE=1
 RELEASE_REQUIRE_ADMIN_SMOKE="${RELEASE_REQUIRE_ADMIN_SMOKE:-0}"
+RELEASE_REQUIRE_HANDOFF_METADATA="${RELEASE_REQUIRE_HANDOFF_METADATA:-0}"
 
 usage() {
   cat <<'EOF'
@@ -29,6 +30,8 @@ Env:
                      release-check enables bootstrap automatically.
   RELEASE_REQUIRE_ADMIN_SMOKE
                      1 = fail early if neither ADMIN_TOKEN nor admin credentials are set
+  RELEASE_REQUIRE_HANDOFF_METADATA
+                     1 = fail early if handoff metadata placeholders are still present
 EOF
 }
 
@@ -58,6 +61,11 @@ if [[ "$RELEASE_REQUIRE_ADMIN_SMOKE" == "1" ]]; then
     echo "❌ RELEASE_REQUIRE_ADMIN_SMOKE=1 but ADMIN_TOKEN or SMOKE_ADMIN_EMAIL+SMOKE_ADMIN_PASSWORD not provided" >&2
     exit 1
   fi
+fi
+
+if [[ "$RELEASE_REQUIRE_HANDOFF_METADATA" == "1" ]]; then
+  log "release-check: handoff metadata strict check"
+  bash docs/handoff.sh --strict
 fi
 
 if [[ -z "${SMOKE_ADMIN_BOOTSTRAP:-}" && -z "${ADMIN_TOKEN:-}" && -n "${SMOKE_ADMIN_EMAIL:-}" && -n "${SMOKE_ADMIN_PASSWORD:-}" ]]; then
