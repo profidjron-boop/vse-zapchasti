@@ -40,6 +40,15 @@ type CategoryReportItem = {
   is_active: boolean;
 };
 
+type ReportSection = {
+  endpoint: string;
+  label: string;
+  mode: "paginated" | "array";
+};
+
+const API_PAGE_LIMIT = 100;
+const MAX_FETCH_PAGES = 200;
+
 function groupStatusCounts(items: Array<{ status: string }>): Array<{ status: string; count: number }> {
   const counters = new Map<string, number>();
   for (const item of items) {
@@ -65,6 +74,37 @@ function statusLabel(status: string): string {
   return status;
 }
 
+function withPagination(endpoint: string, skip: number, limit: number): string {
+  const [path, rawQuery = ""] = endpoint.split("?");
+  const params = new URLSearchParams(rawQuery);
+  params.set("skip", String(skip));
+  params.set("limit", String(limit));
+  return `${path}?${params.toString()}`;
+}
+
+async function fetchPaginatedRows<T>(apiBaseUrl: string, endpoint: string): Promise<T[]> {
+  const rows: T[] = [];
+
+  for (let pageIndex = 0; pageIndex < MAX_FETCH_PAGES; pageIndex += 1) {
+    const pagedEndpoint = withPagination(endpoint, pageIndex * API_PAGE_LIMIT, API_PAGE_LIMIT);
+    const payload = await fetchJsonWithTimeout<unknown>(
+      withApiBase(apiBaseUrl, pagedEndpoint),
+      {},
+      12000
+    );
+    if (!Array.isArray(payload)) {
+      throw new Error("Некорректный формат ответа");
+    }
+
+    rows.push(...(payload as T[]));
+    if (payload.length < API_PAGE_LIMIT) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
 export default function AdminReportsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -88,21 +128,25 @@ export default function AdminReportsPage() {
     try {
       const apiBaseUrl = getClientApiBaseUrl();
 
-      const endpoints = [
-        "/api/admin/leads?limit=100",
-        "/api/admin/vin-requests?limit=100",
-        "/api/admin/service-requests?limit=100",
-        "/api/admin/orders?limit=100",
-        "/api/admin/products?limit=100",
-        "/api/admin/categories",
+      const sections: ReportSection[] = [
+        { endpoint: "/api/admin/leads", label: "заявки", mode: "paginated" },
+        { endpoint: "/api/admin/vin-requests", label: "VIN-заявки", mode: "paginated" },
+        { endpoint: "/api/admin/service-requests", label: "сервис", mode: "paginated" },
+        { endpoint: "/api/admin/orders", label: "заказы", mode: "paginated" },
+        { endpoint: "/api/admin/products", label: "товары", mode: "paginated" },
+        { endpoint: "/api/admin/categories", label: "категории", mode: "array" },
       ];
 
       const failedSections: string[] = [];
 
-      const parseArray = async <T,>(endpoint: string, sectionLabel: string): Promise<T[]> => {
+      const parseSection = async <T,>(section: ReportSection): Promise<T[]> => {
         try {
+          if (section.mode === "paginated") {
+            return await fetchPaginatedRows<T>(apiBaseUrl, section.endpoint);
+          }
+
           const payload = await fetchJsonWithTimeout<T[]>(
-            withApiBase(apiBaseUrl, endpoint),
+            withApiBase(apiBaseUrl, section.endpoint),
             {},
             12000
           );
@@ -112,21 +156,21 @@ export default function AdminReportsPage() {
             throw sectionError;
           }
           if (sectionError instanceof ApiRequestError && sectionError.traceId) {
-            failedSections.push(`${sectionLabel} (Код: ${sectionError.traceId})`);
+            failedSections.push(`${section.label} (Код: ${sectionError.traceId})`);
           } else {
-            failedSections.push(sectionLabel);
+            failedSections.push(section.label);
           }
           return [];
         }
       };
 
       const [leadsData, vinData, serviceData, ordersData, productsData, categoriesData] = await Promise.all([
-        parseArray<LeadReportItem>(endpoints[0], "заявки"),
-        parseArray<VinReportItem>(endpoints[1], "VIN-заявки"),
-        parseArray<ServiceReportItem>(endpoints[2], "сервис"),
-        parseArray<OrderReportItem>(endpoints[3], "заказы"),
-        parseArray<ProductReportItem>(endpoints[4], "товары"),
-        parseArray<CategoryReportItem>(endpoints[5], "категории"),
+        parseSection<LeadReportItem>(sections[0]),
+        parseSection<VinReportItem>(sections[1]),
+        parseSection<ServiceReportItem>(sections[2]),
+        parseSection<OrderReportItem>(sections[3]),
+        parseSection<ProductReportItem>(sections[4]),
+        parseSection<CategoryReportItem>(sections[5]),
       ]);
 
       setLeads(leadsData);
