@@ -216,7 +216,7 @@ export default function ContentEditorPage() {
   const router = useRouter();
   const [content, setContent] = useState<ContentBlock[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingKey, setSavingKey] = useState('');
   const [savingAll, setSavingAll] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -283,7 +283,7 @@ export default function ContentEditorPage() {
   }, [fetchContent]);
 
   async function handleSave(key: string) {
-    setSaving(true);
+    setSavingKey(key);
     setError('');
     setSuccess('');
 
@@ -314,7 +314,7 @@ export default function ContentEditorPage() {
       if (isAuthError(err)) return;
       setError(formatError(err, `Ошибка сохранения блока "${key}"`));
     } finally {
-      setSaving(false);
+      setSavingKey('');
     }
   }
 
@@ -916,7 +916,7 @@ export default function ContentEditorPage() {
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => void handleDeleteBlock(block.key)}
-                    disabled={saving || uploading || deletingKey === block.key}
+                    disabled={Boolean(savingKey) || savingAll || uploading || deletingKey === block.key}
                     className="w-full rounded-2xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 sm:w-auto"
                   >
                     {deletingKey === block.key ? 'Удаление...' : 'Подтвердить'}
@@ -932,7 +932,7 @@ export default function ContentEditorPage() {
               ) : (
                 <button
                   onClick={() => setPendingDeleteKey(block.key)}
-                  disabled={saving || uploading}
+                  disabled={Boolean(savingKey) || savingAll || uploading}
                   className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 sm:w-auto"
                 >
                   Удалить
@@ -940,10 +940,10 @@ export default function ContentEditorPage() {
               )}
               <button
                 onClick={() => handleSave(block.key)}
-                disabled={saving || uploading}
+                disabled={Boolean(savingKey) || savingAll || uploading}
                 className="w-full rounded-2xl bg-[#FF7A00] px-6 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-50 transition sm:w-auto"
               >
-                {saving ? 'Сохранение...' : 'Сохранить'}
+                {savingKey === block.key ? 'Сохранение...' : 'Сохранить'}
               </button>
             </div>
           </div>
