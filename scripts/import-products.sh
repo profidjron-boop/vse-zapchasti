@@ -14,6 +14,8 @@ IMPORT_SOURCE_USERNAME="${IMPORT_SOURCE_USERNAME:-}"
 IMPORT_SOURCE_PASSWORD="${IMPORT_SOURCE_PASSWORD:-}"
 IMPORT_DEFAULT_CATEGORY_ID="${IMPORT_DEFAULT_CATEGORY_ID:-}"
 IMPORT_SKIP_INVALID="${IMPORT_SKIP_INVALID:-0}"
+IMPORT_CONNECT_TIMEOUT_SECONDS="${IMPORT_CONNECT_TIMEOUT_SECONDS:-5}"
+IMPORT_HTTP_TIMEOUT_SECONDS="${IMPORT_HTTP_TIMEOUT_SECONDS:-30}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 IMPORT_ADMIN_EMAIL="${IMPORT_ADMIN_EMAIL:-}"
 IMPORT_ADMIN_PASSWORD="${IMPORT_ADMIN_PASSWORD:-}"
@@ -44,6 +46,10 @@ Env for source sync:
   IMPORT_SOURCE_URL
   IMPORT_SOURCE_AUTH_HEADER
   IMPORT_SOURCE_USERNAME + IMPORT_SOURCE_PASSWORD
+
+Optional network timeout tuning:
+  IMPORT_CONNECT_TIMEOUT_SECONDS (default: 5)
+  IMPORT_HTTP_TIMEOUT_SECONDS (default: 30)
 
 Examples:
   IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --mode hourly
@@ -121,7 +127,10 @@ normalize_mode() {
 
 read_mode_from_public_content() {
   local payload
-  payload="$(curl -fsS "$API_BASE_URL/api/public/content" || true)"
+  payload="$(curl -fsS \
+    --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
+    "$API_BASE_URL/api/public/content" || true)"
   if [[ -z "$payload" ]]; then
     echo "manual"
     return
@@ -171,6 +180,8 @@ resolve_admin_token() {
   tmp="$(mktemp)"
   local code
   code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+    --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
     -X POST "$API_BASE_URL/api/admin/auth/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     --data-urlencode "username=$IMPORT_ADMIN_EMAIL" \
@@ -221,6 +232,7 @@ resolve_import_file() {
   TEMP_IMPORT_FILE="$(mktemp --suffix "$extension")"
 
   local curl_args=("-fL" "-sS" "-o" "$TEMP_IMPORT_FILE")
+  curl_args+=("--connect-timeout" "$IMPORT_CONNECT_TIMEOUT_SECONDS" "--max-time" "$IMPORT_HTTP_TIMEOUT_SECONDS")
   if [[ -n "$IMPORT_SOURCE_AUTH_HEADER" ]]; then
     curl_args+=("-H" "Authorization: $IMPORT_SOURCE_AUTH_HEADER")
   fi
@@ -269,6 +281,14 @@ if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" && ! "$IMPORT_DEFAULT_CATEGORY_ID" =~ ^[0
   echo "❌ IMPORT_DEFAULT_CATEGORY_ID must be a non-negative integer" >&2
   exit 1
 fi
+if [[ ! "$IMPORT_CONNECT_TIMEOUT_SECONDS" =~ ^[0-9]+$ || "$IMPORT_CONNECT_TIMEOUT_SECONDS" -le 0 ]]; then
+  echo "❌ IMPORT_CONNECT_TIMEOUT_SECONDS must be a positive integer" >&2
+  exit 1
+fi
+if [[ ! "$IMPORT_HTTP_TIMEOUT_SECONDS" =~ ^[0-9]+$ || "$IMPORT_HTTP_TIMEOUT_SECONDS" -le 0 ]]; then
+  echo "❌ IMPORT_HTTP_TIMEOUT_SECONDS must be a positive integer" >&2
+  exit 1
+fi
 
 token="$(resolve_admin_token)"
 if [[ -z "$token" ]]; then
@@ -286,6 +306,8 @@ fi
 
 tmp="$(mktemp)"
 code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+  --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
+  --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
   -X POST "$endpoint" \
   -H "Authorization: Bearer $token" \
   -F "file=@$IMPORT_FILE_PATH")"
