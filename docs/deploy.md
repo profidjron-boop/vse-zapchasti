@@ -139,6 +139,8 @@ Recommended prep on server:
 ## Режимы обновления импорта (manual/hourly/daily/event)
 - Для операционного запуска использовать `scripts/import-products.sh`.
 - Скрипт работает через существующий API импортов (`/api/admin/products/import`) и пишет `trigger_mode` в `import_runs` (`manual/hourly/daily/event`).
+- Для server-side source trigger доступен отдельный endpoint: `POST /api/admin/products/import-from-source`.
+  Он читает `IMPORT_SOURCE_*` из env API и запускает тот же import pipeline с указанным `trigger_mode`.
 - Источник режима:
   - `IMPORT_MODE=auto` (по умолчанию) читает `import_products_update_mode` из контента;
   - можно явно задать `IMPORT_MODE=hourly|daily|event|manual`.
@@ -152,10 +154,13 @@ Recommended prep on server:
 - Online sync env (для pull из 1C/ERP endpoint):
   - `IMPORT_SOURCE_URL` — URL файла CSV/XLSX,
   - `IMPORT_SOURCE_AUTH_HEADER` — optional `Authorization` значение,
-  - `IMPORT_SOURCE_USERNAME` + `IMPORT_SOURCE_PASSWORD` — optional basic auth.
+  - `IMPORT_SOURCE_USERNAME` + `IMPORT_SOURCE_PASSWORD` — optional basic auth,
+  - `IMPORT_SOURCE_ALLOWED_HOSTS` — optional allowlist хостов (через запятую),
+  - `IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS` / `IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS` — optional network timeouts.
 - Примеры:
   - Плановый запуск (cron/systemd timer): `IMPORT_MODE=hourly ... bash scripts/import-products.sh`
   - Внешний триггер: `IMPORT_MODE=event ... bash scripts/import-products.sh --event`
+  - Триггер из API (без ручного файла): `POST /api/admin/products/import-from-source?trigger_mode=event`
 
 ## Backups (обязательно перед релизом)
 - Регулярные бэкапы Postgres + проверка восстановления.
