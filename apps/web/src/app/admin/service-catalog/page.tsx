@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
@@ -43,10 +43,14 @@ function toDraft(item: ServiceCatalogItem): ServiceCatalogDraft {
   };
 }
 
+const PAGE_SIZE = 25;
+
 export default function AdminServiceCatalogPage() {
   const router = useRouter();
   const [items, setItems] = useState<ServiceCatalogItem[]>([]);
   const [drafts, setDrafts] = useState<Record<number, ServiceCatalogDraft>>({});
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -91,6 +95,30 @@ export default function AdminServiceCatalogPage() {
   useEffect(() => {
     void fetchCatalog();
   }, [fetchCatalog]);
+
+  const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) return items;
+    return items.filter((item) =>
+      `${item.name} ${item.vehicle_type}`.toLowerCase().includes(normalizedSearch)
+    );
+  }, [items, search]);
+
+  const totalPages = useMemo(() => {
+    if (filteredItems.length <= 0) return 1;
+    return Math.ceil(filteredItems.length / PAGE_SIZE);
+  }, [filteredItems.length]);
+
+  const pagedItems = useMemo(() => {
+    const offset = (page - 1) * PAGE_SIZE;
+    return filteredItems.slice(offset, offset + PAGE_SIZE);
+  }, [filteredItems, page]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   function updateDraft(id: number, key: keyof ServiceCatalogDraft, value: string | boolean) {
     setDrafts((current) => {
@@ -268,6 +296,20 @@ export default function AdminServiceCatalogPage() {
         <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>
       ) : null}
 
+      <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4">
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск услуги</label>
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Название или тип (легковые/грузовые)"
+          className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+        />
+      </div>
+
       <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-[#1F3B73]">Новая услуга</h2>
         <div className="grid gap-3 md:grid-cols-2">
@@ -335,14 +377,17 @@ export default function AdminServiceCatalogPage() {
         </button>
       </form>
 
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center text-neutral-500">
-          Услуг пока нет
+          {items.length === 0 ? "Услуг пока нет" : "По выбранному фильтру услуги не найдены"}
         </div>
       ) : (
         <div className="space-y-3">
+          <div className="text-sm text-neutral-500">
+            Показано: {pagedItems.length} из {filteredItems.length} · Страница {page} из {totalPages}
+          </div>
           <div className="space-y-3 md:hidden">
-            {items.map((item) => {
+            {pagedItems.map((item) => {
               const draft = drafts[item.id] ?? toDraft(item);
               return (
                 <div key={item.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
@@ -482,7 +527,7 @@ export default function AdminServiceCatalogPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
-              {items.map((item) => {
+              {pagedItems.map((item) => {
                 const draft = drafts[item.id] ?? toDraft(item);
                 return (
                   <tr key={item.id} className="align-top">
@@ -589,6 +634,30 @@ export default function AdminServiceCatalogPage() {
               })}
             </tbody>
             </table>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-1 pt-3 text-sm">
+            <div className="text-neutral-500">Поиск выполняется по всему справочнику услуг.</div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <span className="min-w-[7rem] text-center text-neutral-600">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              >
+                Вперёд
+              </button>
+            </div>
           </div>
         </div>
       )}
