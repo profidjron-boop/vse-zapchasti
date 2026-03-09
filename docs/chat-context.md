@@ -83,9 +83,28 @@ Service catalog:
   - result: `all checks passed`
   - `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit.sh`
   - result: `all checks passed` (including admin protected routes)
+- Latest full release run (2026-03-09 16:20–16:22, Asia/Krasnoyarsk):
+  - `SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
+  - result: `RELEASE CHECK GREEN`
 
 Release note:
 - `scripts/smoke.sh`: в bootstrap smoke-admin добавлен `DATABASE_URL` при генерации hash (исправлен падал full release-check path).
+
+## Prompt Flow (existing repo)
+- Фоновый baseline: `docs/master-prompts/RU_STACK_LOCK_v1_5.docx`
+- Рабочая цепочка:
+  1. `PROJECT_STATE_TEMPLATE_RU_v1.0` -> зафиксировать stage/source of truth/scope
+  2. `MASTER_PROMPT_ELITE_RU_STACKLOCK_PROD_v3_1` -> реализация малыми шагами по repo truth
+  3. `PROJECT_STATE_TEMPLATE_RU_v1.0` -> обновление после каждого крупного этапа
+  4. `PROMPT_PROJECT_HANDOFF_RU_v1.0` -> финальная передача
+- Фактическая фиксация текущего состояния:
+  - `docs/project-state.md`
+  - `docs/audit-closure-2026-03-09.md`
+
+## AI Checklist Applicability
+- Источник: `docs/master-prompts/AI_Project_Checklist_v2.docx`
+- Для текущего релиза AI-runtime отсутствует (нет LLM/RAG/tool-calling в production path), поэтому AI-specific проверки отмечены как `N/A`.
+- Артефакт оценки: `docs/ai-project-checklist-assessment-2026-03-09.md`
 
 ## Environment quick refs
 - Postgres (docker compose): host port `5433`
