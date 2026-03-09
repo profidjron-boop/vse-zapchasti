@@ -42,6 +42,7 @@ export default function VinRequestDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<VinRequest["status"]>("new");
   const [operatorComment, setOperatorComment] = useState("");
 
@@ -106,6 +107,7 @@ export default function VinRequestDetailsPage() {
 
     setSaving(true);
     setError("");
+    setSuccess("");
     try {
       const apiBaseUrl = getClientApiBaseUrl();
       const updated = await fetchJsonWithTimeout<VinRequest>(
@@ -125,6 +127,7 @@ export default function VinRequestDetailsPage() {
       setRequest(updated);
       setSelectedStatus(updated.status);
       setOperatorComment(updated.operator_comment || "");
+      setSuccess("Изменения сохранены");
     } catch (saveError) {
       if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
         router.push("/admin/login");
@@ -171,6 +174,11 @@ export default function VinRequestDetailsPage() {
       {error && (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          {success}
         </div>
       )}
 
