@@ -45,6 +45,7 @@ export default function AdminImportsPage() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isTriggeringSource, setIsTriggeringSource] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadResult, setUploadResult] = useState<ImportResponse | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -204,6 +205,44 @@ export default function AdminImportsPage() {
     }
   }
 
+  async function handleSourceTrigger() {
+    setUploadError("");
+    setUploadResult(null);
+
+    try {
+      setIsTriggeringSource(true);
+      const params = new URLSearchParams();
+      params.set("trigger_mode", updateMode);
+      if (defaultCategoryId.trim()) {
+        params.set("default_category_id", defaultCategoryId.trim());
+      }
+
+      const apiBaseUrl = getClientApiBaseUrl();
+      const endpoint = `/api/admin/products/import-from-source?${params.toString()}`;
+      const result = await fetchJsonWithTimeout<ImportResponse>(
+        withApiBase(apiBaseUrl, endpoint),
+        {
+          method: "POST",
+        },
+        12000
+      );
+      setUploadResult(result);
+      await fetchRuns();
+    } catch (err) {
+      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
+        router.push("/admin/login");
+        return;
+      }
+      if (err instanceof ApiRequestError) {
+        setUploadError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+      } else {
+        setUploadError("Ошибка запуска импорта из источника");
+      }
+    } finally {
+      setIsTriggeringSource(false);
+    }
+  }
+
   async function handleSaveUpdateMode() {
     setModeMessage("");
     setError("");
@@ -323,7 +362,7 @@ export default function AdminImportsPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto_auto] md:items-end">
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">Файл импорта</label>
             <input
@@ -350,6 +389,14 @@ export default function AdminImportsPage() {
             className="rounded-xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-50"
           >
             {isUploading ? "Загрузка..." : "Загрузить файл"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSourceTrigger()}
+            disabled={isTriggeringSource}
+            className="rounded-xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-50"
+          >
+            {isTriggeringSource ? "Запуск..." : "Запустить из источника"}
           </button>
         </div>
 
