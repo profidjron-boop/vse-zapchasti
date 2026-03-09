@@ -56,11 +56,11 @@ function extractTraceId(payload: unknown): string | null {
   return null;
 }
 
-export async function fetchJsonWithTimeout<T>(
+export async function fetchJsonWithTimeoutAndResponse<T>(
   input: RequestInfo | URL,
   init: RequestInit = {},
   timeoutMs = 10000
-): Promise<T> {
+): Promise<{ data: T; response: Response }> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   const signal = init.signal ?? controller.signal;
@@ -91,7 +91,7 @@ export async function fetchJsonWithTimeout<T>(
       throw new ApiRequestError(message, response.status, traceId);
     }
 
-    return payload as T;
+    return { data: payload as T, response };
   } catch (error) {
     if (error instanceof ApiRequestError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
@@ -101,4 +101,13 @@ export async function fetchJsonWithTimeout<T>(
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+export async function fetchJsonWithTimeout<T>(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 10000
+): Promise<T> {
+  const { data } = await fetchJsonWithTimeoutAndResponse<T>(input, init, timeoutMs);
+  return data;
 }

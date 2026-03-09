@@ -14,13 +14,13 @@ import zipfile
 import bcrypt
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import httpx
 import jwt
 from jwt.exceptions import InvalidTokenError
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -246,6 +246,7 @@ PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
 PRODUCT_IMPORT_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_MAX_BYTES", 8 * 1024 * 1024)
 PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES", 2 * 1024 * 1024)
 IMPORT_TRIGGER_MODES = {"manual", "hourly", "daily", "event"}
+PRODUCT_STOCK_FILTERS = {"all", "in_stock", "out_of_stock"}
 IMPORT_SOURCE_ALLOWED_SCHEMES = {"https", "http"}
 IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS = _env_positive_int("IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS", 5)
 IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS = _env_positive_int("IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS", 30)
@@ -466,6 +467,14 @@ def _normalize_import_trigger_mode(value: Any) -> str:
     if normalized not in IMPORT_TRIGGER_MODES:
         allowed = ", ".join(sorted(IMPORT_TRIGGER_MODES))
         raise HTTPException(status_code=400, detail=f"trigger_mode must be one of: {allowed}")
+    return normalized
+
+
+def _normalize_product_stock_filter(value: str | None) -> str:
+    normalized = (value or "all").strip().lower()
+    if normalized not in PRODUCT_STOCK_FILTERS:
+        allowed = ", ".join(sorted(PRODUCT_STOCK_FILTERS))
+        raise HTTPException(status_code=400, detail=f"stock must be one of: {allowed}")
     return normalized
 
 
@@ -1422,30 +1431,47 @@ async def admin_update_user(
 # ---------- Products ----------
 @router.get("/products", response_model=List[ProductResponse])
 async def admin_get_products(
+    response: Response,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     search: str | None = Query(None),
+    stock: str | None = Query(None, description="all|in_stock|out_of_stock"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_catalog_user)
 ):
     """Get all products (admin only)"""
+    normalized_stock = _normalize_product_stock_filter(stock)
     query = select(Product).options(
         selectinload(Product.images),
         selectinload(Product.compatibilities),
     )
+    count_query = select(func.count(Product.id))
 
     if search:
         term = f"%{search.strip()}%"
-        query = query.where(
-            or_(
-                Product.sku.ilike(term),
-                Product.oem.ilike(term),
-                Product.brand.ilike(term),
-                Product.name.ilike(term),
-            )
+        search_filter = or_(
+            Product.sku.ilike(term),
+            Product.oem.ilike(term),
+            Product.brand.ilike(term),
+            Product.name.ilike(term),
         )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
 
-    query = query.offset(skip).limit(limit).order_by(Product.id.desc())
+    if normalized_stock == "in_stock":
+        stock_filter = Product.stock_quantity > 0
+        query = query.where(stock_filter)
+        count_query = count_query.where(stock_filter)
+    elif normalized_stock == "out_of_stock":
+        stock_filter = Product.stock_quantity <= 0
+        query = query.where(stock_filter)
+        count_query = count_query.where(stock_filter)
+
+    total_result = await db.execute(count_query)
+    total_count = int(total_result.scalar() or 0)
+    response.headers["X-Total-Count"] = str(total_count)
+
+    query = query.order_by(Product.id.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { ApiRequestError, fetchJsonWithTimeoutAndResponse } from "@/lib/fetch-json";
 
 type Product = {
   id: number;
@@ -20,9 +20,13 @@ type Product = {
   updated_at: string;
 };
 
+const PAGE_SIZE = 50;
+
 export default function AdminProductsPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
@@ -38,18 +42,26 @@ export default function AdminProductsPage() {
 
     try {
       const apiBaseUrl = getClientApiBaseUrl();
-      const searchParams = new URLSearchParams({ limit: "100" });
+      const searchParams = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        skip: String((page - 1) * PAGE_SIZE),
+      });
       const normalizedSearch = search.trim();
       if (normalizedSearch) {
         searchParams.set("search", normalizedSearch);
       }
+      if (stockFilter !== "all") {
+        searchParams.set("stock", stockFilter);
+      }
 
-      const data = await fetchJsonWithTimeout<Product[]>(
+      const { data, response } = await fetchJsonWithTimeoutAndResponse<Product[]>(
         withApiBase(apiBaseUrl, `/api/admin/products?${searchParams.toString()}`),
         {},
         12000
       );
       setProducts(data);
+      const totalHeader = Number.parseInt(response.headers.get("x-total-count") || "", 10);
+      setTotalProducts(Number.isFinite(totalHeader) ? totalHeader : data.length);
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (fetchError) {
       if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
@@ -65,7 +77,11 @@ export default function AdminProductsPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [router, search]);
+  }, [router, search, stockFilter, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, stockFilter]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -73,24 +89,18 @@ export default function AdminProductsPage() {
     }, 300);
 
     return () => window.clearTimeout(timeout);
-  }, [fetchProducts, search]);
+  }, [fetchProducts]);
 
-  const filteredProducts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    return products.filter((product) => {
-      const stockMatches =
-        stockFilter === "all" ||
-        (stockFilter === "in_stock" && product.stock_quantity > 0) ||
-        (stockFilter === "out_of_stock" && product.stock_quantity <= 0);
+  const totalPages = useMemo(() => {
+    if (totalProducts <= 0) return 1;
+    return Math.ceil(totalProducts / PAGE_SIZE);
+  }, [totalProducts]);
 
-      if (!stockMatches) return false;
-      if (!normalizedSearch) return true;
-
-      return [product.sku, product.oem, product.brand, product.name]
-        .filter((value): value is string => Boolean(value))
-        .some((value) => value.toLowerCase().includes(normalizedSearch));
-    });
-  }, [products, search, stockFilter]);
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   if (loading) {
     return (
@@ -157,28 +167,28 @@ export default function AdminProductsPage() {
         </div>
       )}
 
-      {filteredProducts.length === 0 ? (
+      {products.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">
-          {products.length === 0 ? (
+          {totalProducts === 0 ? (
             <>
               <p>Товаров пока нет</p>
               <p className="mt-2 text-sm">Добавьте первый товар через кнопку выше</p>
             </>
           ) : (
             <>
-              <p>По текущему фильтру товары не найдены</p>
-              <p className="mt-2 text-sm">Измените параметры поиска или фильтр по наличию</p>
+              <p>На этой странице товаров нет</p>
+              <p className="mt-2 text-sm">Попробуйте перейти на предыдущую страницу или изменить фильтры</p>
             </>
           )}
         </div>
       ) : (
         <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
-            Найдено товаров: {filteredProducts.length}
+            Показано: {products.length} из {totalProducts} · Страница {page} из {totalPages}
           </div>
 
           <div className="divide-y divide-neutral-200 md:hidden">
-            {filteredProducts.map((product) => (
+            {products.map((product) => (
               <article key={product.id} className="space-y-3 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -234,7 +244,7 @@ export default function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {filteredProducts.map((product) => (
+                {products.map((product) => (
                   <tr key={product.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{product.sku}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{product.oem || "—"}</td>
@@ -272,6 +282,35 @@ export default function AdminProductsPage() {
               </tbody>
             </table>
           </div>
+
+          {totalProducts > 0 ? (
+            <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
+              <div className="text-neutral-500">
+                Поиск работает по всему каталогу, не только по текущей странице.
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page <= 1}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  Назад
+                </button>
+                <span className="min-w-[7rem] text-center text-neutral-600">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={page >= totalPages}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  Вперёд
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

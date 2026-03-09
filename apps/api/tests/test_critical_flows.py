@@ -827,6 +827,8 @@ def test_admin_parse_import_compatibilities_extracts_year_engine_and_dedupes():
 
 def test_admin_import_helpers_parse_trigger_stock_and_prices():
     assert admin._normalize_import_trigger_mode("hourly") == "hourly"
+    assert admin._normalize_product_stock_filter("in_stock") == "in_stock"
+    assert admin._normalize_product_stock_filter(None) == "all"
     assert admin._parse_stock_quantity("10-100") == 10
     assert admin._parse_stock_quantity(">100") == 100
     assert admin._parse_optional_float("1 234,50") == 1234.5
@@ -834,6 +836,8 @@ def test_admin_import_helpers_parse_trigger_stock_and_prices():
 
     with pytest.raises(HTTPException):
         admin._normalize_import_trigger_mode("weekly")
+    with pytest.raises(HTTPException):
+        admin._normalize_product_stock_filter("unknown")
 
 
 class _OrderSession(FakeAsyncSession):
