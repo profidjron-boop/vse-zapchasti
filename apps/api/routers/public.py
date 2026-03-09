@@ -933,6 +933,8 @@ async def create_service_request(
         raise HTTPException(status_code=400, detail="Consent is required")
 
     service_request_data = request_data.model_dump()
+    if service_request_data.get("requested_product_sku") or service_request_data.get("requested_product_name"):
+        service_request_data["install_with_part"] = True
     service_request_data["consent_version"] = request_data.consent_version or "v1.0"
     service_request_data["consent_text"] = (
         request_data.consent_text
@@ -962,6 +964,9 @@ async def create_service_request(
             "consent_at": db_request.consent_at.isoformat() if db_request.consent_at else None,
             "phone": db_request.phone,
             "status": db_request.status,
+            "install_with_part": db_request.install_with_part,
+            "requested_product_sku": db_request.requested_product_sku,
+            "requested_product_name": db_request.requested_product_name,
         },
         ip_address=db_request.ip_address,
     )
@@ -977,6 +982,10 @@ async def create_service_request(
             "vehicle_type": db_request.vehicle_type,
             "service_type": db_request.service_type,
             "phone": db_request.phone,
+            "install_with_part": db_request.install_with_part,
+            "requested_product_sku": db_request.requested_product_sku,
+            "requested_product_name": db_request.requested_product_name,
+            "estimated_bundle_total": db_request.estimated_bundle_total,
             "created_at": db_request.created_at.isoformat() if db_request.created_at else None,
         },
     )

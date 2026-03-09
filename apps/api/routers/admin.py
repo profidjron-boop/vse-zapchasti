@@ -2418,6 +2418,8 @@ async def admin_get_service_requests(
             or_(
                 ServiceRequest.phone.ilike(search_pattern),
                 ServiceRequest.name.ilike(search_pattern),
+                ServiceRequest.requested_product_sku.ilike(search_pattern),
+                ServiceRequest.requested_product_name.ilike(search_pattern),
             )
         )
 

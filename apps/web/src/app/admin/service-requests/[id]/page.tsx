@@ -22,6 +22,10 @@ type ServiceRequest = {
   vin: string | null;
   mileage: number | null;
   description: string;
+  install_with_part: boolean;
+  requested_product_sku: string | null;
+  requested_product_name: string | null;
+  estimated_bundle_total: number | null;
   operator_comment: string | null;
   preferred_date: string | null;
   consent_given: boolean;
@@ -169,6 +173,17 @@ export default function ServiceRequestDetailsPage() {
             <div><dt className="text-neutral-500">Email</dt><dd>{request.email || "—"}</dd></div>
             <div><dt className="text-neutral-500">Тип техники</dt><dd>{request.vehicle_type === "truck" ? "Грузовая" : "Легковая"}</dd></div>
             <div><dt className="text-neutral-500">Тип услуги</dt><dd>{request.service_type}</dd></div>
+            <div><dt className="text-neutral-500">Связка запчасть + установка</dt><dd>{request.install_with_part ? "Да" : "Нет"}</dd></div>
+            <div><dt className="text-neutral-500">SKU запчасти</dt><dd>{request.requested_product_sku || "—"}</dd></div>
+            <div><dt className="text-neutral-500">Название запчасти</dt><dd>{request.requested_product_name || "—"}</dd></div>
+            <div>
+              <dt className="text-neutral-500">Оценка комплекта</dt>
+              <dd>
+                {typeof request.estimated_bundle_total === "number"
+                  ? `${request.estimated_bundle_total.toLocaleString("ru-RU")} ₽`
+                  : "—"}
+              </dd>
+            </div>
             <div><dt className="text-neutral-500">Описание</dt><dd className="whitespace-pre-wrap">{request.description}</dd></div>
             <div><dt className="text-neutral-500">Автомобиль</dt><dd>{[request.vehicle_make, request.vehicle_model, request.vehicle_year].filter(Boolean).join(" ") || "—"}</dd></div>
             <div><dt className="text-neutral-500">Двигатель</dt><dd>{request.vehicle_engine || "—"}</dd></div>

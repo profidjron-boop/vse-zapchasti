@@ -455,6 +455,10 @@ class ServiceRequestBase(BaseModel):
     vin: Optional[str] = None
     mileage: Optional[int] = None
     description: str
+    install_with_part: bool = False
+    requested_product_sku: Optional[str] = None
+    requested_product_name: Optional[str] = None
+    estimated_bundle_total: Optional[float] = Field(default=None, ge=0)
     operator_comment: Optional[str] = None
     preferred_date: Optional[datetime] = None
     consent_given: bool = False
@@ -482,12 +486,20 @@ class ServiceRequestBase(BaseModel):
             raise ValueError("Field must not be empty")
         return normalized
 
-    @field_validator("name", "vehicle_make", "vehicle_model", "vehicle_engine", "vin")
+    @field_validator("name", "vehicle_make", "vehicle_model", "vehicle_engine", "vin", "requested_product_name")
     @classmethod
     def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return None
         normalized = value.strip()
+        return normalized or None
+
+    @field_validator("requested_product_sku")
+    @classmethod
+    def normalize_requested_product_sku(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
         return normalized or None
 
     @field_validator("operator_comment")

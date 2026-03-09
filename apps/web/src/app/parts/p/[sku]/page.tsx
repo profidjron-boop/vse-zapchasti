@@ -219,6 +219,15 @@ export default async function ProductBySkuPage({
   const compatibilities = currentProduct.compatibilities ?? [];
   const requestMode = isPriceOnRequest(currentProduct.attributes, currentProduct.price);
   const effectivePrice = requestMode ? null : currentProduct.price;
+  const installRequestParams = new URLSearchParams({
+    install_with_part: "1",
+    product_sku: currentProduct.sku,
+    product_name: currentProduct.name,
+  });
+  if (effectivePrice !== null) {
+    installRequestParams.set("bundle_total", String(effectivePrice));
+  }
+  const installRequestHref = `/service?${installRequestParams.toString()}#form`;
 
   return (
     <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
@@ -335,6 +344,12 @@ export default async function ProductBySkuPage({
                     className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
                   >
                     Запросить товар
+                  </Link>
+                  <Link
+                    href={installRequestHref}
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/16"
+                  >
+                    Запчасть + установка
                   </Link>
                   <Link
                     href="/parts/vin"

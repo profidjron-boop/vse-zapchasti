@@ -66,6 +66,40 @@ export default function ServicePage() {
   const [error, setError] = useState("");
   const [contentMap, setContentMap] = useState<Record<string, string>>({});
   const [services, setServices] = useState(fallbackServices);
+  const [installPrefill, setInstallPrefill] = useState<{
+    requestedProductSku: string;
+    requestedProductName: string;
+    requestedBundleTotal: number | null;
+    installWithPartFlow: boolean;
+  }>({
+    requestedProductSku: "",
+    requestedProductName: "",
+    requestedBundleTotal: null,
+    installWithPartFlow: false,
+  });
+
+  const requestedProductSku = installPrefill.requestedProductSku;
+  const requestedProductName = installPrefill.requestedProductName;
+  const requestedBundleTotalFromQuery = installPrefill.requestedBundleTotal;
+  const hasRequestedBundleTotal = typeof requestedBundleTotalFromQuery === "number";
+  const installWithPartFlow = installPrefill.installWithPartFlow;
+  const installServiceType = "Установка запчасти из каталога";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sku = (params.get("product_sku") || params.get("requested_product_sku") || "").trim().toUpperCase();
+    const name = (params.get("product_name") || params.get("requested_product_name") || "").trim();
+    const rawBundleTotal = (params.get("bundle_total") || "").trim().replace(",", ".");
+    const parsedBundleTotal = Number.parseFloat(rawBundleTotal);
+    const bundleTotal = Number.isFinite(parsedBundleTotal) && parsedBundleTotal >= 0 ? parsedBundleTotal : null;
+    const flow = Boolean(sku || name || params.get("install_with_part") === "1");
+    setInstallPrefill({
+      requestedProductSku: sku,
+      requestedProductName: name,
+      requestedBundleTotal: bundleTotal,
+      installWithPartFlow: flow,
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,6 +256,19 @@ export default function ServicePage() {
       const normalizedPhone = normalizePhone(rawPhone);
       const description = String(formData.get("description") || "").trim();
       const normalizedVin = normalizeVin(String(formData.get("vin") || ""));
+      const requestedProductSkuValue = String(formData.get("requested_product_sku") || "").trim().toUpperCase();
+      const requestedProductNameValue = String(formData.get("requested_product_name") || "").trim();
+      const estimatedBundleTotalRaw = String(formData.get("estimated_bundle_total") || "").trim().replace(",", ".");
+      let estimatedBundleTotal: number | undefined;
+      if (estimatedBundleTotalRaw) {
+        const parsed = Number.parseFloat(estimatedBundleTotalRaw);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error("Оценка комплекта должна быть числом не меньше 0");
+        }
+        estimatedBundleTotal = parsed;
+      }
+      const installWithPart = formData.get("install_with_part") === "on"
+        || Boolean(requestedProductSkuValue || requestedProductNameValue);
       if (!description) {
         throw new Error("Опишите проблему или задачу для сервиса");
       }
@@ -239,6 +286,10 @@ export default function ServicePage() {
         vin: normalizedVin || undefined,
         mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string, 10) : undefined,
         description,
+        install_with_part: installWithPart,
+        requested_product_sku: requestedProductSkuValue || undefined,
+        requested_product_name: requestedProductNameValue || undefined,
+        estimated_bundle_total: estimatedBundleTotal,
         preferred_date: formData.get("preferred_date") || undefined,
         consent_given: formData.get("consent") === "on",
         consent_version: "v1.0",
@@ -508,6 +559,7 @@ export default function ServicePage() {
                     className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
                   >
                     <option value="">Выберите направление</option>
+                    <option value={installServiceType}>{installServiceType}</option>
                     <optgroup label="Легковые">
                       {services.passenger.map((service) => (
                         <option key={`passenger-${service.title}`} value={service.title}>
@@ -538,6 +590,58 @@ export default function ServicePage() {
                   </select>
                 </div>
               </div>
+
+              {installWithPartFlow ? (
+                <div className="rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#1F3B73]">
+                    Связка: запчасть + установка
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-neutral-600">
+                    Заявка пришла из карточки товара. Менеджер рассчитает предварительную оценку работ и запчасти.
+                  </p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Артикул запчасти</label>
+                      <input
+                        type="text"
+                        name="requested_product_sku"
+                        readOnly
+                        value={requestedProductSku}
+                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-neutral-700 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Название запчасти</label>
+                      <input
+                        type="text"
+                        name="requested_product_name"
+                        readOnly
+                        value={requestedProductName}
+                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-neutral-700 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <div>
+                      <label className="text-sm font-medium text-neutral-700">Оценка комплекта (запчасть + работы), ₽</label>
+                      <input
+                        type="number"
+                        name="estimated_bundle_total"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        defaultValue={hasRequestedBundleTotal ? requestedBundleTotalFromQuery.toFixed(2) : ""}
+                        placeholder="Опционально"
+                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
+                      />
+                    </div>
+                    <label className="inline-flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+                      <input type="checkbox" name="install_with_part" defaultChecked className="h-4 w-4" />
+                      Включить в заявку
+                    </label>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

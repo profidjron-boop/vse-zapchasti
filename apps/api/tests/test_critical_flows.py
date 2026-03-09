@@ -159,6 +159,10 @@ async def test_public_create_service_request_success_and_audit():
         phone="8 999 111 22 33",
         vehicle_engine=" 2.0 TDI ",
         description="Стук в подвеске",
+        install_with_part=False,
+        requested_product_sku=" 06a905161b ",
+        requested_product_name=" Комплект ГРМ ",
+        estimated_bundle_total=24500.5,
         consent_given=True,
     )
 
@@ -168,6 +172,10 @@ async def test_public_create_service_request_success_and_audit():
     assert request_obj.phone == "+79991112233"
     assert request_obj.name is None
     assert request_obj.vehicle_engine == "2.0 TDI"
+    assert request_obj.install_with_part is True
+    assert request_obj.requested_product_sku == "06A905161B"
+    assert request_obj.requested_product_name == "Комплект ГРМ"
+    assert request_obj.estimated_bundle_total == 24500.5
     assert request_obj.consent_at is not None
     assert any(isinstance(item, AuditLog) and item.entity_type == "service_request" for item in db.added)
 
@@ -1480,6 +1488,8 @@ async def test_admin_get_service_requests_builds_status_and_search_filters():
     assert "service_requests.status" in sql_text
     assert "service_requests.phone" in sql_text
     assert "service_requests.name" in sql_text
+    assert "service_requests.requested_product_sku" in sql_text
+    assert "service_requests.requested_product_name" in sql_text
 
 
 @pytest.mark.asyncio

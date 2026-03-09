@@ -22,6 +22,10 @@ type ServiceRequest = {
   vin: string | null;
   mileage: number | null;
   description: string | null;
+  install_with_part: boolean;
+  requested_product_sku: string | null;
+  requested_product_name: string | null;
+  estimated_bundle_total: number | null;
   preferred_date: string | null;
   consent_given: boolean;
   created_at: string;
@@ -296,6 +300,10 @@ export default function AdminServiceRequestsPage() {
       "Тип авто",
       "Двигатель",
       "Услуга",
+      "Связка",
+      "SKU",
+      "Товар",
+      "Оценка комплекта",
       "Имя",
       "Телефон",
       "Email",
@@ -309,6 +317,12 @@ export default function AdminServiceRequestsPage() {
       request.vehicle_type === "truck" ? "Грузовой" : "Легковой",
       request.vehicle_engine || "",
       request.service_type || "",
+      request.install_with_part ? "Да" : "Нет",
+      request.requested_product_sku || "",
+      request.requested_product_name || "",
+      typeof request.estimated_bundle_total === "number"
+        ? request.estimated_bundle_total.toLocaleString("ru-RU")
+        : "",
       request.name || "",
       request.phone || "",
       request.email || "",
@@ -393,7 +407,7 @@ export default function AdminServiceRequestsPage() {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Имя или телефон"
+            placeholder="Имя, телефон, SKU или товар"
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
         </div>
@@ -547,6 +561,8 @@ export default function AdminServiceRequestsPage() {
 
                 <div className="grid grid-cols-1 gap-1 text-sm text-neutral-700">
                   <p>Услуга: {request.service_type}</p>
+                  <p>Связка: {request.install_with_part ? "Запчасть + установка" : "—"}</p>
+                  <p>SKU: {request.requested_product_sku || "—"}</p>
                   <p>Телефон: {request.phone}</p>
                   <p>Имя: {request.name || "—"}</p>
                   <p>Двигатель: {request.vehicle_engine || "—"}</p>
@@ -562,7 +578,7 @@ export default function AdminServiceRequestsPage() {
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1120px]">
+            <table className="w-full min-w-[1360px]">
               <thead className="border-b border-neutral-200 bg-neutral-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
@@ -577,6 +593,8 @@ export default function AdminServiceRequestsPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Тип авто</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Двигатель</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Услуга</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Связка</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">SKU</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Имя</th>
@@ -610,6 +628,14 @@ export default function AdminServiceRequestsPage() {
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">{request.vehicle_engine || "—"}</td>
                     <td className="px-4 py-3 text-sm">{request.service_type}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {request.install_with_part ? (
+                        <span className="rounded-full bg-[#EEF3FF] px-2 py-1 text-xs text-[#1F3B73]">Да</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">{request.requested_product_sku || "—"}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className={`rounded-full px-2 py-1 text-xs ${getStatusColor(request.status)}`}>
                         {getStatusLabel(request.status)}

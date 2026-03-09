@@ -32,7 +32,7 @@
 | 5) Статусы заказа `new → in_progress → ready → closed/canceled` | Implemented | `ORDER_STATUSES` + status update в `apps/api/routers/admin.py`; admin order UI | Переходы валидируются на API |
 | 6) Сервис-форма: contacts + авто-поля (включая engine, VIN, mileage) | Implemented | `apps/web/src/app/service/page.tsx`, `ServiceRequestBase` в `apps/api/schemas.py` | `name` опционально (по ТЗ) |
 | 7) Предоплата записи (возможность) | Implemented (Ops-Dependent) | `prepayment_required/prepayment_amount` в service catalog (models/schemas/admin UI/public display) | Платёжный контур 54-ФЗ не включён по умолчанию |
-| 8) Связка “Запчасть + установка” | Optional (Not Implemented) | Отдельного публичного flow не найдено (поиск по repo) | Пункт опциональный, требует отдельного решения |
+| 8) Связка “Запчасть + установка” | Implemented (Optional Scope) | карточка товара: CTA `Запчасть + установка` (`apps/web/src/app/parts/p/[sku]/page.tsx`) -> сервис-форма с prefill (`apps/web/src/app/service/page.tsx`) -> поля заявки в API/DB (`apps/api/schemas.py`, `apps/api/models.py`) | Опциональный flow включён, менеджер подтверждает итоговую оценку |
 | 9) Уведомления: Email/SMS/мессенджер | Implemented (Ops-Dependent) | `apps/api/notifications.py`, `NOTIFY_*` env, webhook allowlist | Нужны прод-провайдеры/секреты |
 | 10) Разделы админки из ТЗ | Implemented | меню/роли в `apps/web/src/app/admin/layout.tsx` | — |
 | 11) Baseline security + 152-ФЗ | Implemented | RBAC (`admin/layout.tsx`, admin auth/roles), rate-limit (`public.py` + Redis fallback), consent logging (models/routers), self-hosted asset checks (`web:no-remote-assets`) | — |

@@ -151,6 +151,10 @@ class ServiceRequest(Base):
     mileage = Column(Integer, nullable=True)
     
     description = Column(Text, nullable=True)
+    install_with_part = Column(Boolean, nullable=False, default=False)
+    requested_product_sku = Column(String(100), nullable=True, index=True)
+    requested_product_name = Column(String(500), nullable=True)
+    estimated_bundle_total = Column(Float, nullable=True)
     operator_comment = Column(Text, nullable=True)
     preferred_date = Column(DateTime, nullable=True)
     
