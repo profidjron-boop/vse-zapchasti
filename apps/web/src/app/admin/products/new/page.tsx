@@ -187,7 +187,7 @@ export default function NewProductPage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
           {error}
         </div>
       )}
