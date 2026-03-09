@@ -139,6 +139,7 @@ Recommended prep on server:
 ## Режимы обновления импорта (manual/hourly/daily/event)
 - Для операционного запуска использовать `scripts/import-products.sh`.
 - Скрипт работает через существующий API импортов (`/api/admin/products/import`) и пишет `trigger_mode` в `import_runs` (`manual/hourly/daily/event`).
+- Для server-side source trigger в скрипте поддержан флаг `--server-source` (вызов `POST /api/admin/products/import-from-source`).
 - Для server-side source trigger доступен отдельный endpoint: `POST /api/admin/products/import-from-source`.
   Он читает `IMPORT_SOURCE_*` из env API и запускает тот же import pipeline с указанным `trigger_mode`.
 - Источник режима:
@@ -160,6 +161,7 @@ Recommended prep on server:
 - Примеры:
   - Плановый запуск (cron/systemd timer): `IMPORT_MODE=hourly ... bash scripts/import-products.sh`
   - Внешний триггер: `IMPORT_MODE=event ... bash scripts/import-products.sh --event`
+  - Внешний триггер через API source env: `IMPORT_MODE=event ... bash scripts/import-products.sh --event --server-source`
   - Триггер из API (без ручного файла): `POST /api/admin/products/import-from-source?trigger_mode=event`
 
 ## Backups (обязательно перед релизом)
