@@ -64,6 +64,7 @@ export default function ServicePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [selectedServiceType, setSelectedServiceType] = useState("");
   const [contentMap, setContentMap] = useState<Record<string, string>>({});
   const [services, setServices] = useState(fallbackServices);
   const [installPrefill, setInstallPrefill] = useState<{
@@ -99,6 +100,9 @@ export default function ServicePage() {
       requestedBundleTotal: bundleTotal,
       installWithPartFlow: flow,
     });
+    if (flow) {
+      setSelectedServiceType(installServiceType);
+    }
   }, []);
 
   useEffect(() => {
@@ -556,6 +560,8 @@ export default function ServicePage() {
                   <select
                     name="service_type"
                     required
+                    value={selectedServiceType}
+                    onChange={(event) => setSelectedServiceType(event.target.value)}
                     className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
                   >
                     <option value="">Выберите направление</option>
