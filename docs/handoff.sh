@@ -2,18 +2,28 @@
 set -euo pipefail
 
 STRICT=0
-if [[ "${1:-}" == "--strict" ]]; then
-  STRICT=1
-  shift
-fi
+METADATA_ONLY=0
 
-if [[ $# -gt 0 ]]; then
-  echo "Unknown option: $1" >&2
-  echo "Usage: docs/handoff.sh [--strict]" >&2
-  exit 1
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --strict)
+      STRICT=1
+      shift
+      ;;
+    --metadata-only)
+      METADATA_ONLY=1
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      echo "Usage: docs/handoff.sh [--strict] [--metadata-only]" >&2
+      exit 1
+      ;;
+  esac
+done
 
-echo "=== Текущее состояние проекта ==="
+if [[ "$METADATA_ONLY" -eq 0 ]]; then
+  echo "=== Текущее состояние проекта ==="
 
 # Web (repo-defined scripts)
 (pnpm web:lint --version 2>/dev/null) || echo "web:lint не настроен"
@@ -35,11 +45,12 @@ else
   echo "apps/api не найден"
 fi
 
-echo "=== Структура ==="
-if command -v tree >/dev/null 2>&1; then
-  tree -L 2 -I "node_modules|venv|.venv|__pycache__|.git|.next|dist"
-else
-  ls -la
+  echo "=== Структура ==="
+  if command -v tree >/dev/null 2>&1; then
+    tree -L 2 -I "node_modules|venv|.venv|__pycache__|.git|.next|dist"
+  else
+    ls -la
+  fi
 fi
 
 echo "=== Handoff metadata check ==="

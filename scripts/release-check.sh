@@ -65,7 +65,7 @@ fi
 
 if [[ "$RELEASE_REQUIRE_HANDOFF_METADATA" == "1" ]]; then
   log "release-check: handoff metadata strict check"
-  bash docs/handoff.sh --strict
+  bash docs/handoff.sh --strict --metadata-only
 fi
 
 if [[ -z "${SMOKE_ADMIN_BOOTSTRAP:-}" && -z "${ADMIN_TOKEN:-}" && -n "${SMOKE_ADMIN_EMAIL:-}" && -n "${SMOKE_ADMIN_PASSWORD:-}" ]]; then
