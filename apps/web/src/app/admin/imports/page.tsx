@@ -59,6 +59,31 @@ export default function AdminImportsPage() {
     return `Запуск #${uploadResult.run_id}: создано ${uploadResult.created}, обновлено ${uploadResult.updated}, ошибок ${uploadResult.failed}`;
   }, [uploadResult]);
 
+  const modeHint = useMemo(() => {
+    switch (updateMode) {
+      case "hourly":
+        return {
+          text: "Для режима «раз в час» настройте cron/systemd timer и вызывайте скрипт с hourly.",
+          command: "IMPORT_MODE=hourly IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
+        };
+      case "daily":
+        return {
+          text: "Для режима «раз в сутки» запускайте тот же скрипт один раз в день через scheduler.",
+          command: "IMPORT_MODE=daily IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
+        };
+      case "event":
+        return {
+          text: "Для режима «по событию» внешний триггер должен явно передать флаг --event.",
+          command: "IMPORT_MODE=event IMPORT_SOURCE_URL=https://erp.example/export.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --event",
+        };
+      default:
+        return {
+          text: "В ручном режиме импорт запускается только из этой страницы или прямым вызовом скрипта.",
+          command: "IMPORT_MODE=manual IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
+        };
+    }
+  }, [updateMode]);
+
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "finished":
@@ -289,6 +314,12 @@ export default function AdminImportsPage() {
               {isSavingMode ? "Сохранение..." : "Сохранить режим"}
             </button>
             {modeMessage ? <p className="text-sm text-green-700">{modeMessage}</p> : null}
+          </div>
+          <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-sm text-neutral-700">{modeHint.text}</p>
+            <code className="mt-2 block overflow-x-auto rounded-lg bg-neutral-900/95 px-3 py-2 text-xs text-neutral-100">
+              {modeHint.command}
+            </code>
           </div>
         </div>
 
