@@ -218,7 +218,7 @@ export default function ContentEditorPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState('');
   const [savingAll, setSavingAll] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingKey, setUploadingKey] = useState('');
   const [creating, setCreating] = useState(false);
   const [creatingPresetRoute, setCreatingPresetRoute] = useState('');
   const [creatingAllPresets, setCreatingAllPresets] = useState(false);
@@ -319,7 +319,7 @@ export default function ContentEditorPage() {
   }
 
   async function handleImageUpload(key: string, file: File) {
-    setUploading(true);
+    setUploadingKey(key);
     setError('');
 
     try {
@@ -343,7 +343,7 @@ export default function ContentEditorPage() {
       if (isAuthError(err)) return;
       setError(formatError(err, 'Ошибка загрузки изображения'));
     } finally {
-      setUploading(false);
+      setUploadingKey('');
     }
   }
 
@@ -876,7 +876,7 @@ export default function ContentEditorPage() {
                       }}
                       className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-2xl file:border-0 file:bg-[#1F3B73] file:text-white hover:file:bg-[#14294F] sm:flex-1"
                     />
-                    {uploading && (
+                    {uploadingKey === block.key && (
                       <div className="flex items-center text-sm text-neutral-500">
                         Загрузка...
                       </div>
@@ -916,7 +916,7 @@ export default function ContentEditorPage() {
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => void handleDeleteBlock(block.key)}
-                    disabled={Boolean(savingKey) || savingAll || uploading || deletingKey === block.key}
+                    disabled={Boolean(savingKey) || savingAll || Boolean(uploadingKey) || deletingKey === block.key}
                     className="w-full rounded-2xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 sm:w-auto"
                   >
                     {deletingKey === block.key ? 'Удаление...' : 'Подтвердить'}
@@ -932,7 +932,7 @@ export default function ContentEditorPage() {
               ) : (
                 <button
                   onClick={() => setPendingDeleteKey(block.key)}
-                  disabled={Boolean(savingKey) || savingAll || uploading}
+                  disabled={Boolean(savingKey) || savingAll || Boolean(uploadingKey)}
                   className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 sm:w-auto"
                 >
                   Удалить
@@ -940,7 +940,7 @@ export default function ContentEditorPage() {
               )}
               <button
                 onClick={() => handleSave(block.key)}
-                disabled={Boolean(savingKey) || savingAll || uploading}
+                disabled={Boolean(savingKey) || savingAll || Boolean(uploadingKey)}
                 className="w-full rounded-2xl bg-[#FF7A00] px-6 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-50 transition sm:w-auto"
               >
                 {savingKey === block.key ? 'Сохранение...' : 'Сохранить'}
