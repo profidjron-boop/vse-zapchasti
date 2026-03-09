@@ -20,7 +20,8 @@ type Product = {
   updated_at: string;
 };
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
 export default function AdminProductsPage() {
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function AdminProductsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">("all");
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pageInput, setPageInput] = useState("1");
 
   const fetchProducts = useCallback(async (showRefreshing = false) => {
@@ -44,8 +46,8 @@ export default function AdminProductsPage() {
     try {
       const apiBaseUrl = getClientApiBaseUrl();
       const searchParams = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        skip: String((page - 1) * PAGE_SIZE),
+        limit: String(pageSize),
+        skip: String((page - 1) * pageSize),
       });
       const normalizedSearch = search.trim();
       if (normalizedSearch) {
@@ -78,11 +80,11 @@ export default function AdminProductsPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [router, search, stockFilter, page]);
+  }, [router, search, stockFilter, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, stockFilter]);
+  }, [search, stockFilter, pageSize]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -94,8 +96,8 @@ export default function AdminProductsPage() {
 
   const totalPages = useMemo(() => {
     if (totalProducts <= 0) return 1;
-    return Math.ceil(totalProducts / PAGE_SIZE);
-  }, [totalProducts]);
+    return Math.ceil(totalProducts / pageSize);
+  }, [totalProducts, pageSize]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -153,7 +155,7 @@ export default function AdminProductsPage() {
         <div className="mb-4 text-xs text-neutral-500">Обновлено: {lastUpdated}</div>
       )}
 
-      <div className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-3">
+      <div className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-4">
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
           <input
@@ -174,6 +176,20 @@ export default function AdminProductsPage() {
             <option value="all">Все</option>
             <option value="in_stock">В наличии</option>
             <option value="out_of_stock">Под заказ</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">На странице</label>
+          <select
+            value={String(pageSize)}
+            onChange={(event) => setPageSize(Number.parseInt(event.target.value, 10) || DEFAULT_PAGE_SIZE)}
+            className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+          >
+            {PAGE_SIZE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
         </div>
       </div>
