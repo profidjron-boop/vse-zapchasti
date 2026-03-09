@@ -303,10 +303,10 @@ export default function AdminProductEditPage() {
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div role="alert" aria-live="assertive" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
       {success ? (
-        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
           {success}
           {lastUpdated ? <span className="ml-2 text-xs text-green-800">({lastUpdated})</span> : null}
         </div>
