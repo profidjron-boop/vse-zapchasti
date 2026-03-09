@@ -92,6 +92,7 @@ export default function AdminProductEditPage() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [productNotFound, setProductNotFound] = useState(false);
   const [success, setSuccess] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [formState, setFormState] = useState<FormState>(emptyFormState);
@@ -102,11 +103,13 @@ export default function AdminProductEditPage() {
   const loadData = useCallback(async () => {
     if (!isValidProductId) {
       setError("Некорректный ID товара");
+      setProductNotFound(false);
       setLoading(false);
       return;
     }
 
     setError("");
+    setProductNotFound(false);
     try {
       const apiBaseUrl = getClientApiBaseUrl();
 
@@ -159,13 +162,15 @@ export default function AdminProductEditPage() {
         compat_year_to: compatibility?.year_to ? String(compatibility.year_to) : "",
         compat_engine: compatibility?.engine ?? "",
       });
+      setProductNotFound(false);
     } catch (loadError) {
       if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
         router.push("/admin/login");
         return;
       }
       if (loadError instanceof ApiRequestError && loadError.status === 404) {
-        setError("Товар не найден");
+        setProductNotFound(true);
+        setError("");
       } else if (loadError instanceof ApiRequestError) {
         setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
       } else {
@@ -273,6 +278,17 @@ export default function AdminProductEditPage() {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-[#1F3B73]">Загрузка...</div>
+      </div>
+    );
+  }
+
+  if (productNotFound) {
+    return (
+      <div className="rounded-2xl border border-neutral-200 bg-white p-6">
+        <p className="text-neutral-700">Товар не найден</p>
+        <Link href="/admin/products" className="mt-3 inline-block text-sm text-[#1F3B73] hover:underline">
+          ← Назад к товарам
+        </Link>
       </div>
     );
   }
