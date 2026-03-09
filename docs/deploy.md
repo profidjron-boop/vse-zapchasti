@@ -11,6 +11,23 @@
 - Nginx reverse proxy + TLS (Let’s Encrypt)
 - Postgres 15+
 
+## Production deploy templates in repo
+- `docker-compose.prod.yml` — production stack template (`web + api + postgres + redis`).
+- `.env.prod.example` — infra-level env template.
+- `apps/api/.env.prod.example` — API production env template.
+- `apps/web/.env.prod.example` — Web production env template.
+
+Recommended prep on server:
+1) copy templates and create real env files:
+   - `cp .env.prod.example .env.prod`
+   - `cp apps/api/.env.prod.example apps/api/.env.prod`
+   - `cp apps/web/.env.prod.example apps/web/.env.prod`
+2) fill secrets/hosts/domains before first start.
+3) validate compose config:
+   - `docker compose --env-file .env.prod -f docker-compose.prod.yml config`
+4) start stack:
+   - `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`
+
 ## Environments
 - `dev` (локально)
 - `prod` (VPS РФ)
