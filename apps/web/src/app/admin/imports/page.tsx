@@ -54,6 +54,7 @@ export default function AdminImportsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [pageInput, setPageInput] = useState("1");
   const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
   const [isSavingMode, setIsSavingMode] = useState(false);
   const [modeMessage, setModeMessage] = useState("");
@@ -162,6 +163,10 @@ export default function AdminImportsPage() {
   useEffect(() => {
     void fetchRuns();
   }, [fetchRuns]);
+
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
 
   async function refreshRunsAfterMutation() {
     if (page !== 1) {
@@ -321,6 +326,18 @@ export default function AdminImportsPage() {
     } finally {
       setIsSavingMode(false);
     }
+  }
+
+  function handlePageJump(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = Number.parseInt(pageInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageInput(String(page));
+      return;
+    }
+    const nextPage = Math.max(1, parsed);
+    setPage(nextPage);
+    setPageInput(String(nextPage));
   }
 
   return (
@@ -614,6 +631,23 @@ export default function AdminImportsPage() {
               >
                 Вперёд
               </button>
+              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
+                <label htmlFor="imports-page-jump" className="text-xs text-neutral-500">Стр.</label>
+                <input
+                  id="imports-page-jump"
+                  type="number"
+                  min={1}
+                  value={pageInput}
+                  onChange={(event) => setPageInput(event.target.value)}
+                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                >
+                  Перейти
+                </button>
+              </form>
             </div>
           </div>
         </div>
