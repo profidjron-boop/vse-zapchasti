@@ -100,7 +100,7 @@ export default function ImportRunDetailsPage() {
         <Link href="/admin/imports" className="inline-block text-[#1F3B73] hover:underline">
           ← Назад к импортам
         </Link>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>
+        <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>
       </div>
     );
   }
