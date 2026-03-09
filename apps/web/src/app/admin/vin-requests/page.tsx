@@ -463,14 +463,23 @@ export default function AdminVinRequestsPage() {
 
       {requests.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white py-12 text-center text-neutral-500">
-          <p>VIN-заявок пока нет</p>
-          <p className="mt-2 text-sm">Они появятся после отправки формы на странице /parts/vin</p>
+          {appliedFilters.status || appliedFilters.search.trim() ? (
+            <>
+              <p>По выбранным фильтрам VIN-заявок не найдено</p>
+              <p className="mt-2 text-sm">Попробуйте изменить параметры поиска или сбросить фильтры</p>
+            </>
+          ) : (
+            <>
+              <p>VIN-заявок пока нет</p>
+              <p className="mt-2 text-sm">Они появятся после отправки формы на странице /parts/vin</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-sm text-neutral-500">Найдено заявок: {requests.length}</div>
+              <div className="text-sm text-neutral-500">Показано на странице: {requests.length} · Страница {page}</div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm text-neutral-600">Выбрано: {selectedRequestIds.length}</div>
                 <select
