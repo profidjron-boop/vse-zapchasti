@@ -265,7 +265,7 @@ export default function LeadDetailPage() {
               </div>
               <div>
                 <dt className="text-sm text-neutral-500">UUID</dt>
-                <dd className="font-mono text-sm">{lead.uuid}</dd>
+                <dd className="break-all font-mono text-sm">{lead.uuid}</dd>
               </div>
             </dl>
           </div>
@@ -356,7 +356,7 @@ export default function LeadDetailPage() {
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
                 >
-                  {statuses.map(s => (
+                  {(statuses.length > 0 ? statuses : [lead.status]).map(s => (
                     <option key={s} value={s}>{getStatusLabel(s)}</option>
                   ))}
                 </select>
