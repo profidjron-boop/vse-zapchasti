@@ -51,6 +51,7 @@ export default function AdminServiceCatalogPage() {
   const [drafts, setDrafts] = useState<Record<number, ServiceCatalogDraft>>({});
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -119,6 +120,22 @@ export default function AdminServiceCatalogPage() {
       setPage(totalPages);
     }
   }, [page, totalPages]);
+
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
+  function handlePageJump(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = Number.parseInt(pageInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageInput(String(page));
+      return;
+    }
+    const nextPage = Math.max(1, Math.min(totalPages, parsed));
+    setPage(nextPage);
+    setPageInput(String(nextPage));
+  }
 
   function updateDraft(id: number, key: keyof ServiceCatalogDraft, value: string | boolean) {
     setDrafts((current) => {
@@ -657,6 +674,24 @@ export default function AdminServiceCatalogPage() {
               >
                 Вперёд
               </button>
+              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
+                <label htmlFor="service-catalog-page-jump" className="text-xs text-neutral-500">Стр.</label>
+                <input
+                  id="service-catalog-page-jump"
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={pageInput}
+                  onChange={(event) => setPageInput(event.target.value)}
+                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                >
+                  Перейти
+                </button>
+              </form>
             </div>
           </div>
         </div>
