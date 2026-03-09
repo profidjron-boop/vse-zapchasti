@@ -3,18 +3,21 @@ from datetime import UTC, datetime, timedelta
 import io
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 from typing import Any, List, Optional
 import uuid
 import zipfile
-from xml.etree import ElementTree as ET
 
 import bcrypt
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -84,6 +87,17 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 ADMIN_COOKIE_SECURE = _env_bool("ADMIN_COOKIE_SECURE", default=False)
 ADMIN_COOKIE_SAMESITE = os.getenv("ADMIN_COOKIE_SAMESITE", "lax").strip().lower()
 if ADMIN_COOKIE_SAMESITE not in {"lax", "strict", "none"}:
@@ -122,7 +136,7 @@ def _decode_access_token(token: str) -> dict[str, Any] | None:
             continue
         try:
             return jwt.decode(token, candidate_key, algorithms=[ALGORITHM])
-        except JWTError:
+        except InvalidTokenError:
             continue
     return None
 
@@ -132,6 +146,34 @@ def _validate_csrf(request: Request) -> None:
     csrf_header = (request.headers.get("x-csrf-token") or "").strip()
     if not csrf_cookie or not csrf_header or not secrets.compare_digest(csrf_cookie, csrf_header):
         raise HTTPException(status_code=403, detail="CSRF token is missing or invalid")
+
+
+def _collect_token_candidates(request: Request, bearer_token: str) -> list[tuple[str, str]]:
+    cookie_token = (request.cookies.get(ADMIN_SESSION_COOKIE_NAME) or "").strip()
+    legacy_cookie_token = (request.cookies.get(LEGACY_ADMIN_TOKEN_COOKIE_NAME) or "").strip()
+
+    token_candidates: list[tuple[str, str]] = []
+    if cookie_token:
+        token_candidates.append(("cookie", cookie_token))
+    if legacy_cookie_token and legacy_cookie_token != cookie_token:
+        token_candidates.append(("cookie", legacy_cookie_token))
+    if bearer_token and bearer_token not in {cookie_token, legacy_cookie_token}:
+        token_candidates.append(("bearer", bearer_token))
+    return token_candidates
+
+
+def _resolve_auth_payload(token_candidates: list[tuple[str, str]]) -> tuple[dict[str, Any] | None, str]:
+    for candidate_source, candidate_token in token_candidates:
+        payload = _decode_access_token(candidate_token)
+        if payload is not None:
+            return payload, candidate_source
+    return None, "none"
+
+
+async def _load_user_by_sub(db: AsyncSession, user_id: str) -> Optional[User]:
+    query = select(User).where(User.id == int(user_id))
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
 
 
 async def get_current_user(
@@ -144,25 +186,9 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    cookie_token = (request.cookies.get(ADMIN_SESSION_COOKIE_NAME) or "").strip()
-    legacy_cookie_token = (request.cookies.get(LEGACY_ADMIN_TOKEN_COOKIE_NAME) or "").strip()
     bearer_token = (token or "").strip()
-
-    token_candidates: list[tuple[str, str]] = []
-    if cookie_token:
-        token_candidates.append(("cookie", cookie_token))
-    if legacy_cookie_token and legacy_cookie_token != cookie_token:
-        token_candidates.append(("cookie", legacy_cookie_token))
-    if bearer_token and bearer_token not in {cookie_token, legacy_cookie_token}:
-        token_candidates.append(("bearer", bearer_token))
-
-    payload = None
-    auth_source = "none"
-    for candidate_source, candidate_token in token_candidates:
-        payload = _decode_access_token(candidate_token)
-        if payload is not None:
-            auth_source = candidate_source
-            break
+    token_candidates = _collect_token_candidates(request, bearer_token)
+    payload, auth_source = _resolve_auth_payload(token_candidates)
 
     if payload is None:
         raise credentials_exception
@@ -173,11 +199,8 @@ async def get_current_user(
     user_id: str | None = payload.get("sub")
     if user_id is None:
         raise credentials_exception
-    
-    query = select(User).where(User.id == int(user_id))
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-    
+
+    user = await _load_user_by_sub(db, user_id)
     if user is None:
         raise credentials_exception
     request.state.user_id = user.id
@@ -218,7 +241,138 @@ if not UPLOAD_DIR.is_absolute():
     UPLOAD_DIR = (REPO_ROOT / UPLOAD_DIR).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+PRODUCT_IMPORT_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_MAX_BYTES", 8 * 1024 * 1024)
+PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES", 2 * 1024 * 1024)
 IMPORT_TRIGGER_MODES = {"manual", "hourly", "daily", "event"}
+FALLBACK_CATEGORY_NAME = "Прочие запчасти"
+INFERRED_CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
+    (
+        "Масла и жидкости",
+        (
+            "масл",
+            "антифриз",
+            "охлаждающ",
+            "трансмиссион",
+            "atf",
+            "coolant",
+            "жидкост",
+            "смазк",
+            "lubric",
+            "dexron",
+            "acea",
+            "api sl",
+        ),
+    ),
+    (
+        "Фильтры",
+        (
+            "фильтр",
+            "filter",
+        ),
+    ),
+    (
+        "Тормозная система",
+        (
+            "тормоз",
+            "колодк",
+            "суппорт",
+            "диск торм",
+            "барабан",
+            "abs",
+        ),
+    ),
+    (
+        "Подвеска и рулевое",
+        (
+            "сайлентблок",
+            "амортиз",
+            "рычаг",
+            "шаров",
+            "стойк",
+            "рулев",
+            "наконечник",
+            "тяга",
+            "стабилизатор",
+            "ступиц",
+        ),
+    ),
+    (
+        "Двигатель и зажигание",
+        (
+            "двигател",
+            "грм",
+            "свеч",
+            "катушка",
+            "порш",
+            "клапан",
+            "прокладк",
+            "гбц",
+            "ремень",
+        ),
+    ),
+    (
+        "Трансмиссия",
+        (
+            "кпп",
+            "коробк",
+            "сцеплен",
+            "шрус",
+            "привод",
+            "кардан",
+            "редуктор",
+        ),
+    ),
+    (
+        "Электрика",
+        (
+            "генератор",
+            "стартер",
+            "аккумулятор",
+            "реле",
+            "предохран",
+            "датчик",
+            "электр",
+            "лампа",
+        ),
+    ),
+    (
+        "Кузов и оптика",
+        (
+            "бампер",
+            "крыло",
+            "капот",
+            "двер",
+            "зеркал",
+            "фара",
+            "фонарь",
+            "стекло",
+            "кузов",
+        ),
+    ),
+    (
+        "Охлаждение и отопление",
+        (
+            "радиатор",
+            "термостат",
+            "помпа",
+            "вентилятор",
+            "печк",
+            "кондицион",
+            "компрессор",
+            "испарител",
+        ),
+    ),
+    (
+        "Расходники и химия",
+        (
+            "очистител",
+            "герметик",
+            "дворник",
+            "щетк",
+            "химия",
+        ),
+    ),
+]
 LEAD_STATUSES = ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]
 LEAD_VALID_TRANSITIONS = {
     "new": {"in_progress", "contacted", "lost", "cancelled"},
@@ -247,8 +401,11 @@ PRODUCT_IMPORT_COLUMN_ALIASES = {
     "артикул": "sku",
     "article": "sku",
     "product_sku": "sku",
+    "вендор-код": "sku",
+    "вендор_код": "sku",
     "название": "name",
     "product_name": "name",
+    "номенклатура": "name",
     "категория": "category_id",
     "category": "category_id",
     "categoryid": "category_id",
@@ -258,12 +415,24 @@ PRODUCT_IMPORT_COLUMN_ALIASES = {
     "категория_название": "category_name",
     "бренд": "brand",
     "цена": "price",
+    "цена,_руб.": "price",
+    "базовая_цена,_руб.": "price",
+    "цена_по_запросу": "price_on_request",
+    "price_on_request": "price_on_request",
+    "price_request": "price_on_request",
+    "on_request": "price_on_request",
+    "по_запросу": "price_on_request",
     "остаток": "stock_quantity",
     "stock": "stock_quantity",
     "quantity": "stock_quantity",
+    "наличие": "stock_quantity",
+    "каталожный_номер": "oem",
+    "oeм_номер": "oem",
+    "оем_номер": "oem",
     "активен": "is_active",
     "active": "is_active",
     "описание": "description",
+    "применимость": "compatibility_raw",
 }
 
 
@@ -274,7 +443,12 @@ def _canonicalize_import_row(row: dict[str, Any]) -> dict[str, str]:
             continue
         normalized_key = _normalize_header(str(key))
         canonical_key = PRODUCT_IMPORT_COLUMN_ALIASES.get(normalized_key, normalized_key)
-        normalized[canonical_key] = str(value or "").strip()
+        normalized_value = str(value or "").strip()
+        existing_value = normalized.get(canonical_key, "")
+        # Keep the first non-empty value when several source columns map to one canonical field.
+        if existing_value and not normalized_value:
+            continue
+        normalized[canonical_key] = normalized_value
     return normalized
 
 
@@ -288,6 +462,161 @@ def _normalize_import_trigger_mode(value: Any) -> str:
         allowed = ", ".join(sorted(IMPORT_TRIGGER_MODES))
         raise HTTPException(status_code=400, detail=f"trigger_mode must be one of: {allowed}")
     return normalized
+
+
+def _infer_category_name(row: dict[str, str]) -> Optional[str]:
+    search_chunks = [
+        row.get("description", ""),
+        row.get("name", ""),
+        row.get("brand", ""),
+        row.get("sku", ""),
+        row.get("oem", ""),
+    ]
+    haystack = " ".join(chunk for chunk in search_chunks if chunk).strip().lower()
+    if not haystack:
+        return None
+
+    for category_name, markers in INFERRED_CATEGORY_RULES:
+        if any(marker in haystack for marker in markers):
+            return category_name
+    return None
+
+
+def _split_compatibility_segments(raw: str) -> list[str]:
+    normalized = raw.replace("\r", "\n")
+    return [
+        segment.strip(" ,;")
+        for segment in re.split(r"[;\n]+", normalized)
+        if segment.strip(" ,;")
+    ]
+
+
+def _extract_year_range(segment: str) -> tuple[str, Optional[int], Optional[int]]:
+    year_match = re.search(r"(19\d{2}|20\d{2})(?:\s*[-–/]\s*(19\d{2}|20\d{2}))?", segment)
+    if not year_match:
+        return segment, None, None
+
+    year_from = int(year_match.group(1))
+    year_to = int(year_match.group(2)) if year_match.group(2) else year_from
+    cleaned = f"{segment[:year_match.start()]} {segment[year_match.end():]}".strip(" ,;")
+    return cleaned, year_from, year_to
+
+
+def _extract_engine_candidate(segment: str) -> tuple[str, Optional[str]]:
+    bracket_matches = re.findall(r"\(([^)]+)\)", segment)
+    if not bracket_matches:
+        return segment, None
+
+    candidate_engine = bracket_matches[-1].strip()
+    if not any(char.isdigit() for char in candidate_engine):
+        return segment, None
+
+    cleaned = re.sub(r"\([^)]+\)", " ", segment).strip(" ,;")
+    return cleaned, candidate_engine
+
+
+def _extract_make_model(segment: str) -> tuple[Optional[str], Optional[str], list[str]]:
+    comma_parts = [part.strip() for part in segment.split(",") if part.strip()]
+    primary_part = comma_parts[0] if comma_parts else segment
+    primary_tokens = primary_part.split()
+    if len(primary_tokens) < 2:
+        return None, None, comma_parts
+
+    make = primary_tokens[0].strip()
+    model = " ".join(primary_tokens[1:]).strip(" ,;")
+    if not make or not model:
+        return None, None, comma_parts
+    return make, model, comma_parts
+
+
+def _parse_compatibility_segment(segment: str) -> Optional[dict[str, Any]]:
+    working_segment, year_from, year_to = _extract_year_range(segment)
+    working_segment, engine = _extract_engine_candidate(working_segment)
+
+    make, model, comma_parts = _extract_make_model(working_segment)
+    if not make or not model:
+        return None
+
+    if engine is None and len(comma_parts) > 1:
+        engine_candidate = ", ".join(comma_parts[1:]).strip()
+        if engine_candidate:
+            engine = engine_candidate
+
+    return {
+        "make": make,
+        "model": model,
+        "year_from": year_from,
+        "year_to": year_to,
+        "engine": engine,
+    }
+
+
+def _compatibility_dedupe_key(compatibility: dict[str, Any]) -> tuple[str, str, Optional[int], Optional[int], Optional[str]]:
+    engine = compatibility.get("engine")
+    return (
+        str(compatibility.get("make", "")).lower(),
+        str(compatibility.get("model", "")).lower(),
+        compatibility.get("year_from"),
+        compatibility.get("year_to"),
+        str(engine).lower() if isinstance(engine, str) and engine else None,
+    )
+
+
+def _parse_import_compatibilities(value: str) -> tuple[list[dict[str, Any]], Optional[str]]:
+    raw = value.strip()
+    if not raw:
+        return [], None
+
+    segments = _split_compatibility_segments(raw)
+    compatibilities: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, Optional[int], Optional[int], Optional[str]]] = set()
+
+    for segment in segments:
+        parsed = _parse_compatibility_segment(segment)
+        if not parsed:
+            continue
+
+        dedupe_key = _compatibility_dedupe_key(parsed)
+        if dedupe_key in seen:
+            continue
+
+        compatibilities.append(parsed)
+        seen.add(dedupe_key)
+
+    return compatibilities, raw
+
+
+async def _ensure_category_id(
+    category_name: str,
+    db: AsyncSession,
+    category_by_name: dict[str, int],
+    category_by_slug: dict[str, int],
+) -> int:
+    normalized_name = category_name.strip()
+    name_key = normalized_name.lower()
+    existing_id = category_by_name.get(name_key)
+    if existing_id:
+        return existing_id
+
+    slug_base = _slugify_category_part(normalized_name) or "catalog"
+    slug_candidate = slug_base
+    suffix = 2
+    while slug_candidate.lower() in category_by_slug:
+        slug_candidate = f"{slug_base}-{suffix}"
+        suffix += 1
+
+    new_category = Category(
+        name=normalized_name,
+        slug=slug_candidate,
+        is_active=True,
+    )
+    db.add(new_category)
+    await db.flush()
+
+    category_id = new_category.id
+    category_by_name[name_key] = category_id
+    category_by_slug[slug_candidate.lower()] = category_id
+    return category_id
 
 
 def _decode_csv_content(content: bytes) -> str:
@@ -314,6 +643,26 @@ def _extract_csv_rows(content: bytes) -> list[dict[str, str]]:
     return rows
 
 
+def _read_zip_entry_limited(archive: zipfile.ZipFile, entry_name: str) -> bytes:
+    info = archive.getinfo(entry_name)
+    if info.file_size > PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES:
+        raise HTTPException(status_code=400, detail=f"XLSX entry '{entry_name}' is too large.")
+    if info.compress_size > 0 and info.file_size / info.compress_size > 200:
+        raise HTTPException(status_code=400, detail=f"XLSX entry '{entry_name}' has unsafe compression ratio.")
+
+    content = archive.read(entry_name)
+    if len(content) > PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES:
+        raise HTTPException(status_code=400, detail=f"XLSX entry '{entry_name}' is too large.")
+    return content
+
+
+def _parse_xlsx_xml(xml_bytes: bytes, detail: str):
+    try:
+        return ET.fromstring(xml_bytes)
+    except (ET.ParseError, DefusedXmlException) as exc:
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+
 def _xlsx_column_to_index(cell_ref: str) -> int:
     column = "".join(char for char in cell_ref if char.isalpha()).upper()
     if not column:
@@ -325,36 +674,138 @@ def _xlsx_column_to_index(cell_ref: str) -> int:
     return index - 1
 
 
+def _extract_xlsx_shared_strings(
+    archive: zipfile.ZipFile,
+    namespace: dict[str, str],
+) -> list[str]:
+    try:
+        shared_root = _parse_xlsx_xml(
+            _read_zip_entry_limited(archive, "xl/sharedStrings.xml"),
+            "Invalid XLSX shared strings XML.",
+        )
+    except KeyError:
+        return []
+
+    shared_strings: list[str] = []
+    for item in shared_root.findall(".//x:si", namespace):
+        text_parts = [(node.text or "") for node in item.findall(".//x:t", namespace)]
+        shared_strings.append("".join(text_parts))
+    return shared_strings
+
+
+def _resolve_xlsx_worksheet_path(
+    archive: zipfile.ZipFile,
+    namespace: dict[str, str],
+    rel_namespace: dict[str, str],
+) -> str:
+    worksheet_path = "xl/worksheets/sheet1.xml"
+    try:
+        workbook = _parse_xlsx_xml(
+            _read_zip_entry_limited(archive, "xl/workbook.xml"),
+            "Invalid XLSX workbook XML.",
+        )
+        rels = _parse_xlsx_xml(
+            _read_zip_entry_limited(archive, "xl/_rels/workbook.xml.rels"),
+            "Invalid XLSX workbook relations XML.",
+        )
+    except KeyError:
+        return worksheet_path
+
+    first_sheet = workbook.find(".//x:sheets/x:sheet", namespace)
+    if first_sheet is None:
+        return worksheet_path
+
+    rel_id = first_sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+    if not rel_id:
+        return worksheet_path
+
+    rel_target = rels.find(f'.//r:Relationship[@Id="{rel_id}"]', rel_namespace)
+    if rel_target is None:
+        return worksheet_path
+
+    rel_target_path = rel_target.attrib.get("Target", "").lstrip("/")
+    rel_path_parts = Path(rel_target_path).parts
+    if not rel_target_path or ".." in rel_path_parts:
+        raise HTTPException(status_code=400, detail="Invalid XLSX worksheet target.")
+
+    worksheet_path = f"xl/{rel_target_path}"
+    if not worksheet_path.startswith("xl/worksheets/"):
+        raise HTTPException(status_code=400, detail="Unsupported XLSX worksheet target.")
+    return worksheet_path
+
+
+def _extract_xlsx_shared_string_cell(cell: Any, namespace: dict[str, str], shared_strings: list[str]) -> str:
+    raw = cell.find("x:v", namespace)
+    if raw is None or not raw.text or not raw.text.isdigit():
+        return ""
+
+    shared_index = int(raw.text)
+    if 0 <= shared_index < len(shared_strings):
+        return shared_strings[shared_index]
+    return ""
+
+
+def _extract_xlsx_inline_string_cell(cell: Any, namespace: dict[str, str]) -> str:
+    raw = cell.find("x:is/x:t", namespace)
+    return raw.text if raw is not None and raw.text else ""
+
+
+def _extract_xlsx_value_cell(cell: Any, namespace: dict[str, str]) -> str:
+    raw = cell.find("x:v", namespace)
+    return raw.text if raw is not None and raw.text else ""
+
+
+def _extract_xlsx_cell_value(cell: Any, namespace: dict[str, str], shared_strings: list[str]) -> str:
+    cell_type = cell.attrib.get("t")
+    if cell_type == "s":
+        return _extract_xlsx_shared_string_cell(cell, namespace, shared_strings)
+    if cell_type == "inlineStr":
+        return _extract_xlsx_inline_string_cell(cell, namespace)
+    return _extract_xlsx_value_cell(cell, namespace)
+
+
+def _extract_xlsx_row_values(
+    row_node: Any,
+    namespace: dict[str, str],
+    shared_strings: list[str],
+) -> list[str]:
+    indexed_values: dict[int, str] = {}
+    for cell in row_node.findall("x:c", namespace):
+        cell_ref = cell.attrib.get("r", "")
+        column_index = _xlsx_column_to_index(cell_ref)
+        if column_index < 0:
+            continue
+        indexed_values[column_index] = _extract_xlsx_cell_value(cell, namespace, shared_strings)
+
+    if not indexed_values:
+        return []
+
+    max_index = max(indexed_values.keys())
+    return [indexed_values.get(index, "") for index in range(max_index + 1)]
+
+
+def _normalize_xlsx_data_row(header: list[str], row_values: list[str]) -> dict[str, str]:
+    normalized_row: dict[str, str] = {}
+    for index, key in enumerate(header):
+        if not key:
+            continue
+        normalized_row[key] = row_values[index].strip() if index < len(row_values) else ""
+    return _canonicalize_import_row(normalized_row)
+
+
 def _extract_xlsx_rows(content: bytes) -> list[dict[str, str]]:
     namespace = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     rel_namespace = {"r": "http://schemas.openxmlformats.org/package/2006/relationships"}
-    shared_strings: list[str] = []
 
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
-        try:
-            shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
-            for item in shared_root.findall(".//x:si", namespace):
-                text_parts = [(node.text or "") for node in item.findall(".//x:t", namespace)]
-                shared_strings.append("".join(text_parts))
-        except KeyError:
-            shared_strings = []
-
-        worksheet_path = "xl/worksheets/sheet1.xml"
-        try:
-            workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-            rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
-            first_sheet = workbook.find(".//x:sheets/x:sheet", namespace)
-            if first_sheet is not None:
-                rel_id = first_sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
-                if rel_id:
-                    rel_target = rels.find(f'.//r:Relationship[@Id="{rel_id}"]', rel_namespace)
-                    if rel_target is not None:
-                        worksheet_path = f"xl/{rel_target.attrib.get('Target', '').lstrip('/')}"
-        except KeyError:
-            worksheet_path = "xl/worksheets/sheet1.xml"
+        shared_strings = _extract_xlsx_shared_strings(archive, namespace)
+        worksheet_path = _resolve_xlsx_worksheet_path(archive, namespace, rel_namespace)
 
         try:
-            worksheet = ET.fromstring(archive.read(worksheet_path))
+            worksheet = _parse_xlsx_xml(
+                _read_zip_entry_limited(archive, worksheet_path),
+                "Invalid XLSX worksheet XML.",
+            )
         except KeyError as exc:
             raise HTTPException(status_code=400, detail="XLSX worksheet not found.") from exc
 
@@ -362,48 +813,15 @@ def _extract_xlsx_rows(content: bytes) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
 
     for row_node in worksheet.findall(".//x:sheetData/x:row", namespace):
-        indexed_values: dict[int, str] = {}
-        for cell in row_node.findall("x:c", namespace):
-            cell_ref = cell.attrib.get("r", "")
-            column_index = _xlsx_column_to_index(cell_ref)
-            if column_index < 0:
-                continue
-
-            cell_type = cell.attrib.get("t")
-            value = ""
-
-            if cell_type == "s":
-                raw = cell.find("x:v", namespace)
-                if raw is not None and raw.text and raw.text.isdigit():
-                    shared_index = int(raw.text)
-                    if 0 <= shared_index < len(shared_strings):
-                        value = shared_strings[shared_index]
-            elif cell_type == "inlineStr":
-                raw = cell.find("x:is/x:t", namespace)
-                value = raw.text if raw is not None and raw.text else ""
-            else:
-                raw = cell.find("x:v", namespace)
-                value = raw.text if raw is not None and raw.text else ""
-
-            indexed_values[column_index] = value
-
-        if not indexed_values:
+        row_values = _extract_xlsx_row_values(row_node, namespace, shared_strings)
+        if not row_values:
             continue
-
-        max_index = max(indexed_values.keys())
-        row_values = [indexed_values.get(index, "") for index in range(max_index + 1)]
 
         if not header:
             header = [_normalize_header(value) for value in row_values]
             continue
 
-        normalized_row: dict[str, str] = {}
-        for index, key in enumerate(header):
-            if not key:
-                continue
-            normalized_row[key] = row_values[index].strip() if index < len(row_values) else ""
-
-        normalized_row = _canonicalize_import_row(normalized_row)
+        normalized_row = _normalize_xlsx_data_row(header, row_values)
         if any(value for value in normalized_row.values()):
             rows.append(normalized_row)
 
@@ -412,6 +830,12 @@ def _extract_xlsx_rows(content: bytes) -> list[dict[str, str]]:
 
 def _parse_import_rows(filename: str, content: bytes) -> list[dict[str, str]]:
     extension = Path(filename).suffix.lower()
+
+    if len(content) > PRODUCT_IMPORT_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Import file exceeds {PRODUCT_IMPORT_MAX_BYTES} bytes.",
+        )
 
     if extension not in PRODUCT_IMPORT_ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Only CSV and XLSX files are supported.")
@@ -429,11 +853,55 @@ def _parse_optional_int(value: str) -> Optional[int]:
     return int(raw)
 
 
+def _parse_stock_quantity(value: str) -> int:
+    raw = value.strip()
+    if not raw:
+        return 0
+
+    try:
+        parsed = int(raw)
+        return max(parsed, 0)
+    except ValueError:
+        normalized = raw.replace(" ", "")
+
+        # Common supplier formats: "10-100", ">100", "<5", "от 3"
+        if "-" in normalized:
+            left_part = normalized.split("-", 1)[0]
+            if left_part.isdigit():
+                return int(left_part)
+
+        match = re.search(r"\d+", normalized)
+        if match:
+            return int(match.group(0))
+
+    raise ValueError(f"invalid stock_quantity value '{value}'")
+
+
 def _parse_optional_float(value: str) -> Optional[float]:
-    raw = value.strip().replace(" ", "").replace(",", ".")
+    raw_value = value.strip()
+    if _is_price_on_request(raw_value):
+        return None
+    raw = raw_value.replace(" ", "").replace(",", ".")
     if not raw:
         return None
     return float(raw)
+
+
+def _is_price_on_request(value: str) -> bool:
+    normalized = value.strip().lower().replace(" ", "")
+    return normalized in {
+        "позапросу",
+        "ценапозапросу",
+        "по-запросу",
+        "запрос",
+        "onrequest",
+        "on_request",
+        "request",
+        "na",
+        "n/a",
+        "-",
+        "—",
+    }
 
 
 def _parse_bool(value: str, default: bool = True) -> bool:
@@ -441,6 +909,14 @@ def _parse_bool(value: str, default: bool = True) -> bool:
     if not raw:
         return default
     return raw in {"1", "true", "yes", "y", "on", "да"}
+
+
+def _slugify_category_part(value: str) -> str:
+    normalized = re.sub(r"[^0-9a-zа-яё]+", "-", value.strip().lower())
+    normalized = normalized.strip("-")
+    if normalized:
+        return normalized
+    return f"generated-{uuid.uuid4().hex[:8]}"
 
 
 def _extract_import_counts(run: ImportRun) -> dict[str, int]:
@@ -465,6 +941,131 @@ def _extract_import_counts(run: ImportRun) -> dict[str, int]:
     }
 
 
+def _product_snapshot_image_sort_key(image: ProductImage) -> tuple[int, int]:
+    return image.sort_order, image.id
+
+
+def _product_snapshot_compatibility_sort_key(compatibility: ProductCompatibility) -> tuple[str, str, int, int, int]:
+    return (
+        (compatibility.make or "").lower(),
+        (compatibility.model or "").lower(),
+        compatibility.year_from or 0,
+        compatibility.year_to or 0,
+        compatibility.id,
+    )
+
+
+def _serialize_product_snapshot_image(image: ProductImage) -> dict[str, Any]:
+    return {
+        "id": image.id,
+        "url": image.url,
+        "sort_order": image.sort_order,
+        "is_main": image.is_main,
+    }
+
+
+def _serialize_product_snapshot_compatibility(compatibility: ProductCompatibility) -> dict[str, Any]:
+    return {
+        "id": compatibility.id,
+        "make": compatibility.make,
+        "model": compatibility.model,
+        "year_from": compatibility.year_from,
+        "year_to": compatibility.year_to,
+        "engine": compatibility.engine,
+    }
+
+
+def _serialize_product_snapshot_item(product: Product) -> dict[str, Any]:
+    images = sorted(product.images or [], key=_product_snapshot_image_sort_key)
+    compatibilities = sorted(product.compatibilities or [], key=_product_snapshot_compatibility_sort_key)
+
+    return {
+        "id": product.id,
+        "sku": product.sku,
+        "category_id": product.category_id,
+        "oem": product.oem,
+        "brand": product.brand,
+        "name": product.name,
+        "description": product.description,
+        "price": product.price,
+        "stock_quantity": product.stock_quantity,
+        "is_active": product.is_active,
+        "attributes": product.attributes or {},
+        "images": [_serialize_product_snapshot_image(image) for image in images],
+        "compatibilities": [_serialize_product_snapshot_compatibility(compatibility) for compatibility in compatibilities],
+        "updated_at": product.updated_at.isoformat() if product.updated_at else None,
+    }
+
+
+async def _sync_latest_products_snapshot(db: AsyncSession, product_id: int, *, remove: bool = False) -> None:
+    run_result = await db.execute(
+        select(ImportRun)
+        .where(ImportRun.entity_type == "products", ImportRun.status == "finished")
+        .order_by(ImportRun.id.desc())
+        .limit(1)
+    )
+    latest_run = run_result.scalar_one_or_none()
+    if not latest_run or not isinstance(latest_run.snapshot_data, list):
+        return
+
+    snapshot_items = list(latest_run.snapshot_data)
+    existing_index = _find_product_snapshot_index(snapshot_items, product_id)
+
+    if remove:
+        if _remove_snapshot_item(snapshot_items, existing_index):
+            await _save_import_run_snapshot_data(db, latest_run, snapshot_items)
+        return
+
+    product = await _load_product_for_snapshot(db, product_id)
+    if not product:
+        if _remove_snapshot_item(snapshot_items, existing_index):
+            await _save_import_run_snapshot_data(db, latest_run, snapshot_items)
+        return
+
+    _upsert_product_snapshot_item(snapshot_items, existing_index, product)
+    await _save_import_run_snapshot_data(db, latest_run, snapshot_items)
+
+
+def _find_product_snapshot_index(snapshot_items: list[Any], product_id: int) -> Optional[int]:
+    return next(
+        (
+            index
+            for index, item in enumerate(snapshot_items)
+            if isinstance(item, dict) and item.get("id") == product_id
+        ),
+        None,
+    )
+
+
+def _remove_snapshot_item(snapshot_items: list[Any], index: Optional[int]) -> bool:
+    if index is None:
+        return False
+    snapshot_items.pop(index)
+    return True
+
+
+def _upsert_product_snapshot_item(snapshot_items: list[Any], index: Optional[int], product: Product) -> None:
+    snapshot_item = _serialize_product_snapshot_item(product)
+    if index is None:
+        snapshot_items.append(snapshot_item)
+    else:
+        snapshot_items[index] = snapshot_item
+
+
+async def _load_product_for_snapshot(db: AsyncSession, product_id: int) -> Optional[Product]:
+    product_result = await db.execute(
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .where(Product.id == product_id)
+    )
+    return product_result.scalar_one_or_none()
+
+
+async def _save_import_run_snapshot_data(db: AsyncSession, run: ImportRun, snapshot_items: list[Any]) -> None:
+    run.snapshot_data = snapshot_items
+    await db.flush()
+
+
 def _serialize_import_run(run: ImportRun, users_by_id: dict[int, str]) -> dict[str, Any]:
     counts = _extract_import_counts(run)
     return {
@@ -482,6 +1083,42 @@ def _serialize_import_run(run: ImportRun, users_by_id: dict[int, str]) -> dict[s
         "failed": counts["failed"],
         "details_url": f"/admin/imports/{run.id}",
         "previous_successful_run_id": run.previous_successful_run_id,
+    }
+
+
+def _extract_import_errors(run: ImportRun) -> list[str]:
+    errors_raw = run.errors if isinstance(run.errors, list) else []
+    return [str(item) for item in errors_raw]
+
+
+def _extract_snapshot_metadata(run: ImportRun) -> dict[str, Any]:
+    snapshot_items = run.snapshot_data if isinstance(run.snapshot_data, list) else []
+    sample_keys: list[str] = []
+    if snapshot_items and isinstance(snapshot_items[0], dict):
+        sample_keys = sorted(str(key) for key in snapshot_items[0].keys())
+    return {
+        "items_count": len(snapshot_items),
+        "has_snapshot": bool(snapshot_items),
+        "sample_keys": sample_keys[:20],
+    }
+
+
+async def _load_previous_successful_import_run(
+    db: AsyncSession,
+    run: ImportRun,
+) -> Optional[dict[str, Any]]:
+    if run.previous_successful_run_id is None:
+        return None
+
+    previous_run = await db.get(ImportRun, run.previous_successful_run_id)
+    if not previous_run:
+        return None
+
+    return {
+        "id": previous_run.id,
+        "status": previous_run.status,
+        "source": previous_run.source,
+        "finished_at": previous_run.finished_at,
     }
 
 
@@ -624,19 +1261,15 @@ async def admin_create_user(
     return db_user
 
 
-@router.put("/users/{user_id}", response_model=UserResponse)
-async def admin_update_user(
-    user_id: int,
-    payload: UserUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user),
-):
-    """Update user role/status/profile (admin only)."""
-    result = await db.execute(select(User).where(User.id == user_id))
-    target_user = result.scalar_one_or_none()
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
+def _snapshot_user_state(user: User) -> dict[str, Any]:
+    return {
+        "name": user.name,
+        "role": user.role,
+        "is_active": user.is_active,
+    }
 
+
+def _validate_user_update_request(payload: UserUpdate, target_user: User, current_user: User) -> None:
     if (
         payload.name is None
         and payload.role is None
@@ -651,12 +1284,8 @@ async def admin_update_user(
     if payload.role is not None and target_user.id == current_user.id and payload.role != "admin":
         raise HTTPException(status_code=400, detail="Cannot change your own role from admin")
 
-    old_values = {
-        "name": target_user.name,
-        "role": target_user.role,
-        "is_active": target_user.is_active,
-    }
 
+def _apply_user_updates(target_user: User, payload: UserUpdate) -> bool:
     if payload.name is not None:
         target_user.name = payload.name
     if payload.role is not None:
@@ -665,6 +1294,26 @@ async def admin_update_user(
         target_user.is_active = payload.is_active
     if payload.password is not None:
         target_user.password_hash = get_password_hash(payload.password)
+        return True
+    return False
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+async def admin_update_user(
+    user_id: int,
+    payload: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Update user role/status/profile (admin only)."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    _validate_user_update_request(payload, target_user, current_user)
+    old_values = _snapshot_user_state(target_user)
+    password_changed = _apply_user_updates(target_user, payload)
 
     await db.commit()
     await db.refresh(target_user)
@@ -679,7 +1328,7 @@ async def admin_update_user(
             "name": target_user.name,
             "role": target_user.role,
             "is_active": target_user.is_active,
-            "password_changed": payload.password is not None,
+            "password_changed": password_changed,
         },
     )
     db.add(audit)
@@ -692,17 +1341,28 @@ async def admin_update_user(
 async def admin_get_products(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_catalog_user)
 ):
     """Get all products (admin only)"""
-    query = (
-        select(Product)
-        .options(selectinload(Product.images), selectinload(Product.compatibilities))
-        .offset(skip)
-        .limit(limit)
-        .order_by(Product.id)
+    query = select(Product).options(
+        selectinload(Product.images),
+        selectinload(Product.compatibilities),
     )
+
+    if search:
+        term = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                Product.sku.ilike(term),
+                Product.oem.ilike(term),
+                Product.brand.ilike(term),
+                Product.name.ilike(term),
+            )
+        )
+
+    query = query.offset(skip).limit(limit).order_by(Product.id.desc())
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -758,6 +1418,7 @@ async def admin_create_product(
         db.add(db_image)
 
     await db.commit()
+    await _sync_latest_products_snapshot(db, db_product.id)
 
     # Audit log
     audit = AuditLog(
@@ -811,6 +1472,7 @@ async def admin_attach_product_image(
     db.add(db_image)
     await db.commit()
     await db.refresh(db_image)
+    await _sync_latest_products_snapshot(db, product_id)
 
     audit = AuditLog(
         user_id=current_user.id,
@@ -890,7 +1552,8 @@ async def admin_update_product(
             )
     
     await db.commit()
-    
+    await _sync_latest_products_snapshot(db, product_id)
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
@@ -935,6 +1598,7 @@ async def admin_delete_product(
     
     await db.delete(product)
     await db.commit()
+    await _sync_latest_products_snapshot(db, product_id, remove=True)
     
     # Audit log
     audit = AuditLog(
@@ -947,6 +1611,325 @@ async def admin_delete_product(
     await db.commit()
     
     return None
+
+
+def _build_products_import_summary(
+    file_name: str,
+    trigger_mode: str,
+    *,
+    total: int,
+    created: int,
+    updated: int,
+    failed: int,
+) -> dict[str, Any]:
+    return {
+        "file": file_name,
+        "trigger_mode": trigger_mode,
+        "total": total,
+        "created": created,
+        "updated": updated,
+        "failed": failed,
+    }
+
+
+def _build_products_import_response(
+    run_id: int,
+    summary: dict[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "file": summary["file"],
+        "trigger_mode": summary["trigger_mode"],
+        "total": summary["total"],
+        "created": summary["created"],
+        "updated": summary["updated"],
+        "failed": summary["failed"],
+        "errors": errors[:100],
+    }
+
+
+async def _mark_import_run_failed(
+    db: AsyncSession,
+    run_id: Optional[int],
+    collected_errors: list[str],
+    failure_message: str,
+) -> None:
+    if run_id is None:
+        return
+
+    failed_run = await db.get(ImportRun, run_id)
+    if not failed_run:
+        return
+
+    failed_run.status = "failed"
+    failed_run.finished_at = _utcnow()
+    failed_run.errors = (collected_errors + [failure_message])[:500]
+    await db.commit()
+
+
+async def _finish_products_import_run(
+    db: AsyncSession,
+    run: ImportRun,
+    *,
+    summary: dict[str, Any],
+    errors: list[str],
+    snapshot_data: list[dict[str, Any]],
+) -> None:
+    run.status = "finished"
+    run.finished_at = _utcnow()
+    run.summary = summary
+    run.errors = errors[:500]
+    run.snapshot_data = snapshot_data
+    await db.commit()
+
+
+async def _load_import_category_maps(db: AsyncSession) -> tuple[dict[str, int], dict[str, int]]:
+    categories_result = await db.execute(select(Category))
+    categories = categories_result.scalars().all()
+    category_by_slug = {category.slug.lower(): category.id for category in categories if category.slug}
+    category_by_name = {category.name.lower(): category.id for category in categories if category.name}
+    return category_by_slug, category_by_name
+
+
+async def _resolve_import_category_id(
+    row: dict[str, str],
+    *,
+    default_category_id: Optional[int],
+    db: AsyncSession,
+    category_by_name: dict[str, int],
+    category_by_slug: dict[str, int],
+) -> Optional[int]:
+    category_id: Optional[int] = None
+    if row.get("category_id"):
+        category_id = _parse_optional_int(row["category_id"])
+    elif row.get("category_slug"):
+        category_id = category_by_slug.get(row["category_slug"].strip().lower())
+    elif row.get("category_name"):
+        category_id = category_by_name.get(row["category_name"].strip().lower())
+    else:
+        category_id = default_category_id
+
+    if not category_id:
+        inferred_category_name = _infer_category_name(row)
+        if inferred_category_name:
+            category_id = await _ensure_category_id(
+                inferred_category_name,
+                db,
+                category_by_name,
+                category_by_slug,
+            )
+
+    if not category_id:
+        category_id = await _ensure_category_id(
+            FALLBACK_CATEGORY_NAME,
+            db,
+            category_by_name,
+            category_by_slug,
+        )
+
+    return category_id
+
+
+def _build_import_row_payload(
+    row: dict[str, str],
+    *,
+    category_id: int,
+    name: str,
+    existing_product: Optional[Product],
+) -> tuple[dict[str, Any], list[dict[str, Any]], Optional[str]]:
+    price_raw = row.get("price", "")
+    price_on_request = _parse_bool(row.get("price_on_request", ""), default=False) or _is_price_on_request(price_raw)
+    compatibility_rows, compatibility_raw = _parse_import_compatibilities(row.get("compatibility_raw", ""))
+
+    payload = {
+        "category_id": category_id,
+        "oem": row.get("oem") or None,
+        "brand": row.get("brand") or None,
+        "name": name,
+        "description": row.get("description") or None,
+        "price": None if price_on_request else _parse_optional_float(price_raw),
+        "stock_quantity": _parse_stock_quantity(row.get("stock_quantity", "")),
+        "is_active": _parse_bool(row.get("is_active", ""), default=True),
+    }
+    base_attributes = dict(existing_product.attributes or {}) if existing_product else {}
+    if compatibility_raw:
+        base_attributes["compatibility_raw"] = compatibility_raw
+    payload["attributes"] = base_attributes
+
+    return payload, compatibility_rows, compatibility_raw
+
+
+async def _load_product_by_sku(db: AsyncSession, sku: str) -> Optional[Product]:
+    existing_result = await db.execute(select(Product).where(Product.sku == sku))
+    return existing_result.scalar_one_or_none()
+
+
+def _apply_product_payload(product: Product, payload: dict[str, Any]) -> None:
+    for field, value in payload.items():
+        setattr(product, field, value)
+
+
+async def _sync_product_compatibilities(
+    db: AsyncSession,
+    *,
+    product_id: int,
+    compatibility_rows: list[dict[str, Any]],
+    clear_existing: bool,
+) -> None:
+    if clear_existing:
+        await db.execute(delete(ProductCompatibility).where(ProductCompatibility.product_id == product_id))
+    for compatibility in compatibility_rows:
+        db.add(ProductCompatibility(product_id=product_id, **compatibility))
+
+
+async def _upsert_import_row(
+    row: dict[str, str],
+    *,
+    default_category_id: Optional[int],
+    db: AsyncSession,
+    category_by_name: dict[str, int],
+    category_by_slug: dict[str, int],
+) -> tuple[int, int, Optional[str]]:
+    sku = row.get("sku", "").strip()
+    name = row.get("name", "").strip()
+    if not sku or not name:
+        return 0, 0, "'sku' and 'name' are required."
+
+    category_id = await _resolve_import_category_id(
+        row,
+        default_category_id=default_category_id,
+        db=db,
+        category_by_name=category_by_name,
+        category_by_slug=category_by_slug,
+    )
+    if not category_id:
+        return 0, 0, "category is required."
+
+    existing_product = await _load_product_by_sku(db, sku)
+    payload, compatibility_rows, compatibility_raw = _build_import_row_payload(
+        row,
+        category_id=category_id,
+        name=name,
+        existing_product=existing_product,
+    )
+    has_compatibility_raw = bool(compatibility_raw)
+
+    if existing_product:
+        _apply_product_payload(existing_product, payload)
+        if has_compatibility_raw:
+            await _sync_product_compatibilities(
+                db,
+                product_id=existing_product.id,
+                compatibility_rows=compatibility_rows,
+                clear_existing=True,
+            )
+        return 0, 1, None
+
+    new_product = Product(sku=sku, **payload)
+    db.add(new_product)
+    if has_compatibility_raw:
+        await db.flush()
+        await _sync_product_compatibilities(
+            db,
+            product_id=new_product.id,
+            compatibility_rows=compatibility_rows,
+            clear_existing=False,
+        )
+    return 1, 0, None
+
+
+async def _build_products_snapshot(db: AsyncSession) -> list[dict[str, Any]]:
+    snapshot_result = await db.execute(
+        select(Product)
+        .options(selectinload(Product.images), selectinload(Product.compatibilities))
+        .order_by(Product.id)
+    )
+    return [_serialize_product_snapshot_item(product) for product in snapshot_result.scalars().all()]
+
+
+async def _create_products_import_run(
+    db: AsyncSession,
+    *,
+    file_name: Optional[str],
+    trigger_mode: str,
+    created_by: int,
+) -> ImportRun:
+    previous_successful_run = await db.execute(
+        select(ImportRun)
+        .where(ImportRun.entity_type == "products", ImportRun.status == "finished")
+        .order_by(ImportRun.id.desc())
+        .limit(1)
+    )
+    previous_run = previous_successful_run.scalar_one_or_none()
+
+    run = ImportRun(
+        entity_type="products",
+        status="started",
+        source=f"{trigger_mode}:{file_name}" if file_name else trigger_mode,
+        started_at=_utcnow(),
+        created_by=created_by,
+        previous_successful_run_id=previous_run.id if previous_run else None,
+    )
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
+async def _process_products_import_rows(
+    db: AsyncSession,
+    *,
+    rows: list[dict[str, str]],
+    default_category_id: Optional[int],
+) -> tuple[int, int, list[str]]:
+    category_by_slug, category_by_name = await _load_import_category_maps(db)
+    created = 0
+    updated = 0
+    collected_errors: list[str] = []
+
+    for row_index, row in enumerate(rows, start=2):
+        try:
+            created_inc, updated_inc, row_error = await _upsert_import_row(
+                row,
+                default_category_id=default_category_id,
+                db=db,
+                category_by_name=category_by_name,
+                category_by_slug=category_by_slug,
+            )
+            if row_error:
+                collected_errors.append(f"Row {row_index}: {row_error}")
+                continue
+            created += created_inc
+            updated += updated_inc
+        except ValueError as exc:
+            collected_errors.append(f"Row {row_index}: {exc}")
+
+    return created, updated, collected_errors
+
+
+def _build_products_import_audit(
+    *,
+    user_id: int,
+    run_id: int,
+    skip_invalid: bool,
+    summary: dict[str, Any],
+) -> AuditLog:
+    return AuditLog(
+        user_id=user_id,
+        action="import",
+        entity_type="product",
+        new_values={
+            "run_id": run_id,
+            "file": summary["file"],
+            "trigger_mode": summary["trigger_mode"],
+            "skip_invalid": skip_invalid,
+            "total": summary["total"],
+            "created": summary["created"],
+            "updated": summary["updated"],
+            "failed": summary["failed"],
+        },
+    )
 
 
 @router.post("/products/import")
@@ -966,25 +1949,12 @@ async def admin_import_products(
     collected_errors: list[str] = []
     normalized_trigger_mode = _normalize_import_trigger_mode(trigger_mode)
 
-    previous_successful_run = await db.execute(
-        select(ImportRun)
-        .where(ImportRun.entity_type == "products", ImportRun.status == "finished")
-        .order_by(ImportRun.id.desc())
-        .limit(1)
-    )
-    previous_run = previous_successful_run.scalar_one_or_none()
-
-    run = ImportRun(
-        entity_type="products",
-        status="started",
-        source=f"{normalized_trigger_mode}:{file.filename}" if file.filename else normalized_trigger_mode,
-        started_at=_utcnow(),
+    run = await _create_products_import_run(
+        db,
+        file_name=file.filename,
+        trigger_mode=normalized_trigger_mode,
         created_by=current_user.id,
-        previous_successful_run_id=previous_run.id if previous_run else None,
     )
-    db.add(run)
-    await db.commit()
-    await db.refresh(run)
     run_id = run.id
 
     if not file.filename:
@@ -1002,84 +1972,28 @@ async def admin_import_products(
 
         rows = _parse_import_rows(file.filename, content)
         if not rows:
-            run.status = "finished"
-            run.finished_at = _utcnow()
-            run.summary = {
-                "file": file.filename,
-                "trigger_mode": normalized_trigger_mode,
-                "total": 0,
-                "created": 0,
-                "updated": 0,
-                "failed": 0,
-            }
-            run.errors = []
-            run.snapshot_data = []
-            await db.commit()
-            return {
-                "run_id": run.id,
-                "file": file.filename,
-                "trigger_mode": normalized_trigger_mode,
-                "total": 0,
-                "created": 0,
-                "updated": 0,
-                "failed": 0,
-                "errors": [],
-            }
+            summary = _build_products_import_summary(
+                file.filename,
+                normalized_trigger_mode,
+                total=0,
+                created=0,
+                updated=0,
+                failed=0,
+            )
+            await _finish_products_import_run(
+                db,
+                run,
+                summary=summary,
+                errors=[],
+                snapshot_data=[],
+            )
+            return _build_products_import_response(run.id, summary, [])
 
-        categories_result = await db.execute(select(Category))
-        categories = categories_result.scalars().all()
-        category_by_slug = {category.slug.lower(): category.id for category in categories if category.slug}
-        category_by_name = {category.name.lower(): category.id for category in categories if category.name}
-
-        created = 0
-        updated = 0
-
-        for row_index, row in enumerate(rows, start=2):
-            try:
-                sku = row.get("sku", "").strip()
-                name = row.get("name", "").strip()
-                if not sku or not name:
-                    collected_errors.append(f"Row {row_index}: 'sku' and 'name' are required.")
-                    continue
-
-                category_id: Optional[int] = None
-                if row.get("category_id"):
-                    category_id = _parse_optional_int(row["category_id"])
-                elif row.get("category_slug"):
-                    category_id = category_by_slug.get(row["category_slug"].strip().lower())
-                elif row.get("category_name"):
-                    category_id = category_by_name.get(row["category_name"].strip().lower())
-                else:
-                    category_id = default_category_id
-
-                if not category_id:
-                    collected_errors.append(f"Row {row_index}: category is required.")
-                    continue
-
-                payload = {
-                    "category_id": category_id,
-                    "oem": row.get("oem") or None,
-                    "brand": row.get("brand") or None,
-                    "name": name,
-                    "description": row.get("description") or None,
-                    "price": _parse_optional_float(row.get("price", "")),
-                    "stock_quantity": _parse_optional_int(row.get("stock_quantity", "")) or 0,
-                    "is_active": _parse_bool(row.get("is_active", ""), default=True),
-                }
-
-                existing_result = await db.execute(select(Product).where(Product.sku == sku))
-                existing_product = existing_result.scalar_one_or_none()
-
-                if existing_product:
-                    for field, value in payload.items():
-                        setattr(existing_product, field, value)
-                    updated += 1
-                else:
-                    db.add(Product(sku=sku, **payload))
-                    created += 1
-
-            except ValueError as exc:
-                collected_errors.append(f"Row {row_index}: {exc}")
+        created, updated, collected_errors = await _process_products_import_rows(
+            db,
+            rows=rows,
+            default_category_id=default_category_id,
+        )
 
         if collected_errors and not skip_invalid:
             raise HTTPException(
@@ -1091,125 +2005,38 @@ async def admin_import_products(
             )
 
         await db.flush()
-
-        snapshot_result = await db.execute(
-            select(Product)
-            .options(selectinload(Product.images), selectinload(Product.compatibilities))
-            .order_by(Product.id)
+        summary = _build_products_import_summary(
+            file.filename,
+            normalized_trigger_mode,
+            total=len(rows),
+            created=created,
+            updated=updated,
+            failed=len(collected_errors),
         )
-        snapshot_data = []
-        for product in snapshot_result.scalars().all():
-            images = sorted(
-                product.images or [],
-                key=lambda image: (image.sort_order, image.id),
+        snapshot_data = await _build_products_snapshot(db)
+        db.add(
+            _build_products_import_audit(
+                user_id=current_user.id,
+                run_id=run.id,
+                skip_invalid=skip_invalid,
+                summary=summary,
             )
-            compatibilities = sorted(
-                product.compatibilities or [],
-                key=lambda compatibility: (
-                    (compatibility.make or "").lower(),
-                    (compatibility.model or "").lower(),
-                    compatibility.year_from or 0,
-                    compatibility.year_to or 0,
-                    compatibility.id,
-                ),
-            )
-            snapshot_data.append(
-                {
-                    "id": product.id,
-                    "sku": product.sku,
-                    "category_id": product.category_id,
-                    "oem": product.oem,
-                    "brand": product.brand,
-                    "name": product.name,
-                    "description": product.description,
-                    "price": product.price,
-                    "stock_quantity": product.stock_quantity,
-                    "is_active": product.is_active,
-                    "attributes": product.attributes or {},
-                    "images": [
-                        {
-                            "id": image.id,
-                            "url": image.url,
-                            "sort_order": image.sort_order,
-                            "is_main": image.is_main,
-                        }
-                        for image in images
-                    ],
-                    "compatibilities": [
-                        {
-                            "id": compatibility.id,
-                            "make": compatibility.make,
-                            "model": compatibility.model,
-                            "year_from": compatibility.year_from,
-                            "year_to": compatibility.year_to,
-                            "engine": compatibility.engine,
-                        }
-                        for compatibility in compatibilities
-                    ],
-                    "updated_at": product.updated_at.isoformat() if product.updated_at else None,
-                }
-            )
-
-        audit = AuditLog(
-            user_id=current_user.id,
-            action="import",
-            entity_type="product",
-            new_values={
-                "run_id": run.id,
-                "file": file.filename,
-                "trigger_mode": normalized_trigger_mode,
-                "skip_invalid": skip_invalid,
-                "total": len(rows),
-                "created": created,
-                "updated": updated,
-                "failed": len(collected_errors),
-            },
         )
-        db.add(audit)
-
-        run.status = "finished"
-        run.finished_at = _utcnow()
-        run.summary = {
-            "file": file.filename,
-            "trigger_mode": normalized_trigger_mode,
-            "total": len(rows),
-            "created": created,
-            "updated": updated,
-            "failed": len(collected_errors),
-        }
-        run.errors = collected_errors[:500]
-        run.snapshot_data = snapshot_data
-        await db.commit()
-
-        return {
-            "run_id": run.id,
-            "file": file.filename,
-            "trigger_mode": normalized_trigger_mode,
-            "total": len(rows),
-            "created": created,
-            "updated": updated,
-            "failed": len(collected_errors),
-            "errors": collected_errors[:100],
-        }
+        await _finish_products_import_run(
+            db,
+            run,
+            summary=summary,
+            errors=collected_errors,
+            snapshot_data=snapshot_data,
+        )
+        return _build_products_import_response(run.id, summary, collected_errors)
     except HTTPException as http_exc:
         await db.rollback()
-        if run_id is not None:
-            failed_run = await db.get(ImportRun, run_id)
-            if failed_run:
-                failed_run.status = "failed"
-                failed_run.finished_at = _utcnow()
-                failed_run.errors = collected_errors[:500] + [str(http_exc.detail)]
-                await db.commit()
+        await _mark_import_run_failed(db, run_id, collected_errors, str(http_exc.detail))
         raise
     except Exception as exc:
         await db.rollback()
-        if run_id is not None:
-            failed_run = await db.get(ImportRun, run_id)
-            if failed_run:
-                failed_run.status = "failed"
-                failed_run.finished_at = _utcnow()
-                failed_run.errors = collected_errors[:500] + [str(exc)]
-                await db.commit()
+        await _mark_import_run_failed(db, run_id, collected_errors, str(exc))
         raise HTTPException(status_code=500, detail="Import failed. Please check file format and data.") from exc
 
 
@@ -1253,25 +2080,9 @@ async def admin_get_import_run_details(
 
     users_by_id = await _load_users_map(db, {run.created_by} if run.created_by is not None else set())
     counts = _extract_import_counts(run)
-
-    errors_raw = run.errors if isinstance(run.errors, list) else []
-    errors = [str(item) for item in errors_raw]
-
-    snapshot_items = run.snapshot_data if isinstance(run.snapshot_data, list) else []
-    sample_keys: list[str] = []
-    if snapshot_items and isinstance(snapshot_items[0], dict):
-        sample_keys = sorted(str(key) for key in snapshot_items[0].keys())
-
-    previous = None
-    if run.previous_successful_run_id is not None:
-        previous_run = await db.get(ImportRun, run.previous_successful_run_id)
-        if previous_run:
-            previous = {
-                "id": previous_run.id,
-                "status": previous_run.status,
-                "source": previous_run.source,
-                "finished_at": previous_run.finished_at,
-            }
+    errors = _extract_import_errors(run)
+    snapshot_metadata = _extract_snapshot_metadata(run)
+    previous = await _load_previous_successful_import_run(db, run)
 
     return {
         "id": run.id,
@@ -1290,11 +2101,7 @@ async def admin_get_import_run_details(
         "errors": errors,
         "errors_count": len(errors),
         "previous_successful_run": previous,
-        "snapshot_metadata": {
-            "items_count": len(snapshot_items),
-            "has_snapshot": bool(snapshot_items),
-            "sample_keys": sample_keys[:20],
-        },
+        "snapshot_metadata": snapshot_metadata,
     }
 
 # ---------- Categories ----------
@@ -1969,6 +2776,32 @@ async def admin_upload_file(
 
 
 # ---------- Orders ----------
+def _apply_order_search_filter(query: Any, search: Optional[str]) -> Any:
+    if not search:
+        return query
+
+    search_pattern = f"%{search.strip()}%"
+    return query.where(
+        or_(
+            Order.customer_phone.ilike(search_pattern),
+            Order.customer_name.ilike(search_pattern),
+            Order.customer_email.ilike(search_pattern),
+            Order.uuid.ilike(search_pattern),
+            Order.legal_entity_inn.ilike(search_pattern),
+        )
+    )
+
+
+def _apply_order_date_filters(query: Any, date_from_dt: Optional[datetime], date_to_dt: Optional[datetime]) -> Any:
+    if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
+        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
+    if date_from_dt:
+        query = query.where(Order.created_at >= date_from_dt)
+    if date_to_dt:
+        query = query.where(Order.created_at < date_to_dt + timedelta(days=1))
+    return query
+
+
 @router.get("/orders", response_model=List[OrderResponse])
 async def admin_get_orders(
     skip: int = Query(0, ge=0),
@@ -1982,43 +2815,13 @@ async def admin_get_orders(
 ):
     """Get all orders with filters."""
     query = select(Order).options(selectinload(Order.items))
-    date_from_dt: Optional[datetime] = None
-    date_to_dt: Optional[datetime] = None
+    date_from_dt = _parse_optional_date_filter(date_from, "date_from")
+    date_to_dt = _parse_optional_date_filter(date_to, "date_to")
 
     if status:
         query = query.where(Order.status == status.strip().lower())
-
-    if search:
-        search_pattern = f"%{search.strip()}%"
-        query = query.where(
-            or_(
-                Order.customer_phone.ilike(search_pattern),
-                Order.customer_name.ilike(search_pattern),
-                Order.customer_email.ilike(search_pattern),
-                Order.uuid.ilike(search_pattern),
-                Order.legal_entity_inn.ilike(search_pattern),
-            )
-        )
-
-    if date_from:
-        try:
-            date_from_dt = datetime.strptime(date_from.strip(), "%Y-%m-%d")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail="date_from must be in YYYY-MM-DD format") from exc
-
-    if date_to:
-        try:
-            date_to_dt = datetime.strptime(date_to.strip(), "%Y-%m-%d")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail="date_to must be in YYYY-MM-DD format") from exc
-
-    if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
-        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
-
-    if date_from_dt:
-        query = query.where(Order.created_at >= date_from_dt)
-    if date_to_dt:
-        query = query.where(Order.created_at < date_to_dt + timedelta(days=1))
+    query = _apply_order_search_filter(query, search)
+    query = _apply_order_date_filters(query, date_from_dt, date_to_dt)
 
     query = query.order_by(Order.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
@@ -2115,6 +2918,48 @@ async def admin_get_order_statuses(
     return ORDER_STATUSES
 
 # ---------- Leads ----------
+def _parse_optional_date_filter(value: Optional[str], field_name: str) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be in YYYY-MM-DD format") from exc
+
+
+def _normalize_lead_type_filter(value: str) -> str:
+    normalized_type = value.strip().lower()
+    if normalized_type in {"product inquiry", "product_inquiry"}:
+        return "product"
+    return normalized_type
+
+
+def _apply_lead_search_filter(query: Any, search: Optional[str]) -> Any:
+    if not search:
+        return query
+    search_pattern = f"%{search.strip()}%"
+    return query.where(
+        or_(
+            Lead.phone.ilike(search_pattern),
+            Lead.name.ilike(search_pattern),
+            Lead.email.ilike(search_pattern),
+            Lead.vin.ilike(search_pattern),
+            Lead.product_sku.ilike(search_pattern),
+            Lead.message.ilike(search_pattern),
+        )
+    )
+
+
+def _apply_lead_date_filters(query: Any, date_from_dt: Optional[datetime], date_to_dt: Optional[datetime]) -> Any:
+    if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
+        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
+    if date_from_dt:
+        query = query.where(Lead.created_at >= date_from_dt)
+    if date_to_dt:
+        query = query.where(Lead.created_at < date_to_dt + timedelta(days=1))
+    return query
+
+
 @router.get("/leads", response_model=List[LeadResponse])
 async def admin_get_leads(
     skip: int = Query(0, ge=0),
@@ -2129,47 +2974,15 @@ async def admin_get_leads(
 ):
     """Get all leads with filters"""
     query = select(Lead)
-    date_from_dt: Optional[datetime] = None
-    date_to_dt: Optional[datetime] = None
+    date_from_dt = _parse_optional_date_filter(date_from, "date_from")
+    date_to_dt = _parse_optional_date_filter(date_to, "date_to")
     
     if status:
         query = query.where(Lead.status == status.strip().lower())
     if type:
-        normalized_type = type.strip().lower()
-        if normalized_type in {"product inquiry", "product_inquiry"}:
-            normalized_type = "product"
-        query = query.where(Lead.type == normalized_type)
-    if search:
-        search_pattern = f"%{search.strip()}%"
-        query = query.where(
-            or_(
-                Lead.phone.ilike(search_pattern),
-                Lead.name.ilike(search_pattern),
-                Lead.email.ilike(search_pattern),
-                Lead.vin.ilike(search_pattern),
-                Lead.product_sku.ilike(search_pattern),
-                Lead.message.ilike(search_pattern),
-            )
-        )
-    if date_from:
-        try:
-            date_from_dt = datetime.strptime(date_from.strip(), "%Y-%m-%d")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail="date_from must be in YYYY-MM-DD format") from exc
-
-    if date_to:
-        try:
-            date_to_dt = datetime.strptime(date_to.strip(), "%Y-%m-%d")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail="date_to must be in YYYY-MM-DD format") from exc
-
-    if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
-        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
-
-    if date_from_dt:
-        query = query.where(Lead.created_at >= date_from_dt)
-    if date_to_dt:
-        query = query.where(Lead.created_at < date_to_dt + timedelta(days=1))
+        query = query.where(Lead.type == _normalize_lead_type_filter(type))
+    query = _apply_lead_search_filter(query, search)
+    query = _apply_lead_date_filters(query, date_from_dt, date_to_dt)
     
     query = query.order_by(Lead.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)

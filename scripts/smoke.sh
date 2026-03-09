@@ -241,7 +241,7 @@ bootstrap_smoke_admin_user() {
   password_hash="$(
     (
       cd apps/api
-      JWT_SECRET_KEY="${JWT_SECRET_KEY:-dev_smoke_secret_change_me}" ./.venv/bin/python -c \
+      DATABASE_URL="$DATABASE_URL" JWT_SECRET_KEY="${JWT_SECRET_KEY:-dev_smoke_secret_change_me}" ./.venv/bin/python -c \
         "from routers.admin import get_password_hash; print(get_password_hash('${SMOKE_ADMIN_PASSWORD}'))"
     )
   )"
