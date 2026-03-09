@@ -19,16 +19,20 @@ type StatConfig = {
   key: StatKey;
   label: string;
   endpoint: string;
+  mode: "paginated" | "array";
 };
 
+const API_PAGE_LIMIT = 100;
+const MAX_COUNT_PAGES = 200;
+
 const statConfigs: StatConfig[] = [
-  { key: "leads", label: "Заявки (запчасти)", endpoint: "/api/admin/leads?limit=500" },
-  { key: "orders", label: "Заказы", endpoint: "/api/admin/orders?limit=500" },
-  { key: "vin", label: "VIN-заявки", endpoint: "/api/admin/vin-requests?limit=500" },
-  { key: "service", label: "Заявки (сервис)", endpoint: "/api/admin/service-requests?limit=500" },
-  { key: "products", label: "Товары", endpoint: "/api/admin/products?limit=500" },
-  { key: "categories", label: "Категории", endpoint: "/api/admin/categories" },
-  { key: "content", label: "Контент-блоки", endpoint: "/api/admin/content" },
+  { key: "leads", label: "Заявки (запчасти)", endpoint: "/api/admin/leads", mode: "paginated" },
+  { key: "orders", label: "Заказы", endpoint: "/api/admin/orders", mode: "paginated" },
+  { key: "vin", label: "VIN-заявки", endpoint: "/api/admin/vin-requests", mode: "paginated" },
+  { key: "service", label: "Заявки (сервис)", endpoint: "/api/admin/service-requests", mode: "paginated" },
+  { key: "products", label: "Товары", endpoint: "/api/admin/products", mode: "paginated" },
+  { key: "categories", label: "Категории", endpoint: "/api/admin/categories", mode: "array" },
+  { key: "content", label: "Контент-блоки", endpoint: "/api/admin/content", mode: "array" },
 ];
 
 const initialStats: Record<StatKey, StatCardState> = {
@@ -41,15 +45,42 @@ const initialStats: Record<StatKey, StatCardState> = {
   content: { status: "loading", count: null, text: "Загрузка..." },
 };
 
-function toCardState(payload: unknown): StatCardState {
-  if (!Array.isArray(payload)) {
-    return { status: "error", count: null, text: "Некорректный ответ API" };
-  }
-  const count = payload.length;
+function toCardState(count: number): StatCardState {
   if (count <= 0) {
     return { status: "empty", count: 0, text: "Пока пусто" };
   }
   return { status: "ready", count, text: "Данные доступны" };
+}
+
+function withPagination(endpoint: string, skip: number, limit: number): string {
+  const [path, rawQuery = ""] = endpoint.split("?");
+  const params = new URLSearchParams(rawQuery);
+  params.set("skip", String(skip));
+  params.set("limit", String(limit));
+  return `${path}?${params.toString()}`;
+}
+
+async function fetchPaginatedCount(apiBaseUrl: string, endpoint: string): Promise<number> {
+  let total = 0;
+
+  for (let pageIndex = 0; pageIndex < MAX_COUNT_PAGES; pageIndex += 1) {
+    const pagedEndpoint = withPagination(endpoint, pageIndex * API_PAGE_LIMIT, API_PAGE_LIMIT);
+    const payload = await fetchJsonWithTimeout<unknown>(
+      withApiBase(apiBaseUrl, pagedEndpoint),
+      {},
+      12000
+    );
+    if (!Array.isArray(payload)) {
+      throw new Error("Некорректный формат ответа");
+    }
+
+    total += payload.length;
+    if (payload.length < API_PAGE_LIMIT) {
+      break;
+    }
+  }
+
+  return total;
 }
 
 export default function AdminDashboard() {
@@ -72,12 +103,20 @@ export default function AdminDashboard() {
         const entries = await Promise.all(
           statConfigs.map(async (config) => {
             try {
-              const payload = await fetchJsonWithTimeout<unknown>(
-                withApiBase(apiBaseUrl, config.endpoint),
-                {},
-                12000
-              );
-              return [config.key, toCardState(payload)] as const;
+              if (config.mode === "array") {
+                const payload = await fetchJsonWithTimeout<unknown>(
+                  withApiBase(apiBaseUrl, config.endpoint),
+                  {},
+                  12000
+                );
+                if (!Array.isArray(payload)) {
+                  return [config.key, { status: "error", count: null, text: "Некорректный ответ API" }] as const;
+                }
+                return [config.key, toCardState(payload.length)] as const;
+              }
+
+              const count = await fetchPaginatedCount(apiBaseUrl, config.endpoint);
+              return [config.key, toCardState(count)] as const;
             } catch (fetchError) {
               if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
                 throw fetchError;
