@@ -163,6 +163,14 @@ export default function AdminImportsPage() {
     void fetchRuns();
   }, [fetchRuns]);
 
+  async function refreshRunsAfterMutation() {
+    if (page !== 1) {
+      setPage(1);
+      return;
+    }
+    await fetchRuns();
+  }
+
   async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUploadError("");
@@ -198,7 +206,7 @@ export default function AdminImportsPage() {
       );
       setUploadResult(result);
       setFile(null);
-      await fetchRuns();
+      await refreshRunsAfterMutation();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
         router.push("/admin/login");
@@ -236,7 +244,7 @@ export default function AdminImportsPage() {
         12000
       );
       setUploadResult(result);
-      await fetchRuns();
+      await refreshRunsAfterMutation();
     } catch (err) {
       if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
         router.push("/admin/login");
@@ -442,7 +450,9 @@ export default function AdminImportsPage() {
       {isLoading ? (
         <div className="py-12 text-center text-neutral-500">Загрузка...</div>
       ) : runs.length === 0 ? (
-        <div className="py-12 text-center text-neutral-500">Запусков импорта пока нет</div>
+        <div className="py-12 text-center text-neutral-500">
+          {statusFilter ? "По выбранному статусу запусков нет" : "Запусков импорта пока нет"}
+        </div>
       ) : (
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
