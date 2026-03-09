@@ -450,8 +450,43 @@ export default function AdminImportsPage() {
       {isLoading ? (
         <div className="py-12 text-center text-neutral-500">Загрузка...</div>
       ) : runs.length === 0 ? (
-        <div className="py-12 text-center text-neutral-500">
-          {statusFilter ? "По выбранному статусу запусков нет" : "Запусков импорта пока нет"}
+        <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-neutral-500">
+              {statusFilter ? "По выбранному статусу запусков нет" : "Запусков импорта пока нет"}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs uppercase tracking-wide text-neutral-500">Статус</label>
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setPage(1);
+                }}
+                className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
+              >
+                <option value="">Все</option>
+                <option value="finished">Завершён</option>
+                <option value="failed">Ошибка</option>
+                <option value="started">Выполняется</option>
+              </select>
+              {statusFilter ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("");
+                    setPage(1);
+                  }}
+                  className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                >
+                  Сбросить
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="py-12 text-center text-neutral-500">
+            {statusFilter ? "По выбранному статусу запусков нет" : "Запусков импорта пока нет"}
+          </div>
         </div>
       ) : (
         <div>
