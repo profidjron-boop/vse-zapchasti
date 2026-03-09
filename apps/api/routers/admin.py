@@ -525,7 +525,7 @@ async def _download_import_source_payload(
             timeout=IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS,
             connect=IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS,
         )
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
             response = await client.get(source_url, headers=headers, auth=auth)
             response.raise_for_status()
     except httpx.HTTPError as exc:
