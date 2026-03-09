@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:8000}"
 IMPORT_MODE="${IMPORT_MODE:-auto}"   # auto/manual/hourly/daily/event
 IMPORT_EVENT_TRIGGER=0
+IMPORT_SERVER_SOURCE=0
 IMPORT_FILE_PATH="${IMPORT_FILE_PATH:-}"
 IMPORT_SOURCE_URL="${IMPORT_SOURCE_URL:-}"
 IMPORT_SOURCE_AUTH_HEADER="${IMPORT_SOURCE_AUTH_HEADER:-}"
@@ -33,6 +34,7 @@ Options:
   --source-auth <value>    Authorization header for source URL (optional)
   --mode <mode>            auto/manual/hourly/daily/event (default: auto)
   --event                  Mark this run as event-triggered (required when mode=event)
+  --server-source          Trigger API-side source import (uses API env IMPORT_SOURCE_*)
   --api <url>              API base url (default: http://127.0.0.1:8000)
   --default-category-id N  Fallback category id for rows without category
   --skip-invalid           Use skip_invalid=1 (default strict)
@@ -54,6 +56,7 @@ Optional network timeout tuning:
 Examples:
   IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --mode hourly
   IMPORT_FILE_PATH=./imports/products.csv IMPORT_ADMIN_EMAIL=admin@x IMPORT_ADMIN_PASSWORD=... bash scripts/import-products.sh --mode event --event
+  IMPORT_ADMIN_EMAIL=admin@x IMPORT_ADMIN_PASSWORD=... bash scripts/import-products.sh --mode event --event --server-source
 EOF
 }
 
@@ -77,6 +80,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --event)
       IMPORT_EVENT_TRIGGER=1
+      shift
+      ;;
+    --server-source)
+      IMPORT_SERVER_SOURCE=1
       shift
       ;;
     --api)
@@ -265,18 +272,6 @@ if [[ "$mode" == "event" && "$IMPORT_EVENT_TRIGGER" -ne 1 ]]; then
   exit 0
 fi
 
-resolve_import_file
-
-if [[ -z "$IMPORT_FILE_PATH" ]]; then
-  echo "❌ IMPORT_FILE_PATH or IMPORT_SOURCE_URL is required for mode=$mode" >&2
-  exit 1
-fi
-
-if [[ ! -f "$IMPORT_FILE_PATH" ]]; then
-  echo "❌ Import file not found: $IMPORT_FILE_PATH" >&2
-  exit 1
-fi
-
 if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" && ! "$IMPORT_DEFAULT_CATEGORY_ID" =~ ^[0-9]+$ ]]; then
   echo "❌ IMPORT_DEFAULT_CATEGORY_ID must be a non-negative integer" >&2
   exit 1
@@ -290,13 +285,31 @@ if [[ ! "$IMPORT_HTTP_TIMEOUT_SECONDS" =~ ^[0-9]+$ || "$IMPORT_HTTP_TIMEOUT_SECO
   exit 1
 fi
 
+if [[ "$IMPORT_SERVER_SOURCE" != "1" ]]; then
+  resolve_import_file
+
+  if [[ -z "$IMPORT_FILE_PATH" ]]; then
+    echo "❌ IMPORT_FILE_PATH or IMPORT_SOURCE_URL is required for mode=$mode" >&2
+    exit 1
+  fi
+
+  if [[ ! -f "$IMPORT_FILE_PATH" ]]; then
+    echo "❌ Import file not found: $IMPORT_FILE_PATH" >&2
+    exit 1
+  fi
+fi
+
 token="$(resolve_admin_token)"
 if [[ -z "$token" ]]; then
   echo "❌ ADMIN_TOKEN is not set and cannot resolve token via IMPORT_ADMIN_EMAIL/IMPORT_ADMIN_PASSWORD" >&2
   exit 1
 fi
 
-endpoint="$API_BASE_URL/api/admin/products/import?trigger_mode=$mode"
+if [[ "$IMPORT_SERVER_SOURCE" == "1" ]]; then
+  endpoint="$API_BASE_URL/api/admin/products/import-from-source?trigger_mode=$mode"
+else
+  endpoint="$API_BASE_URL/api/admin/products/import?trigger_mode=$mode"
+fi
 if [[ "$IMPORT_SKIP_INVALID" == "1" ]]; then
   endpoint="${endpoint}&skip_invalid=true"
 fi
@@ -305,12 +318,20 @@ if [[ -n "$IMPORT_DEFAULT_CATEGORY_ID" ]]; then
 fi
 
 tmp="$(mktemp)"
-code="$(curl -sS -o "$tmp" -w "%{http_code}" \
-  --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
-  --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
-  -X POST "$endpoint" \
-  -H "Authorization: Bearer $token" \
-  -F "file=@$IMPORT_FILE_PATH")"
+if [[ "$IMPORT_SERVER_SOURCE" == "1" ]]; then
+  code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+    --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
+    -X POST "$endpoint" \
+    -H "Authorization: Bearer $token")"
+else
+  code="$(curl -sS -o "$tmp" -w "%{http_code}" \
+    --connect-timeout "$IMPORT_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$IMPORT_HTTP_TIMEOUT_SECONDS" \
+    -X POST "$endpoint" \
+    -H "Authorization: Bearer $token" \
+    -F "file=@$IMPORT_FILE_PATH")"
+fi
 
 if [[ "$code" != "200" ]]; then
   echo "❌ Import failed with HTTP $code" >&2
@@ -320,7 +341,11 @@ if [[ "$code" != "200" ]]; then
   exit 1
 fi
 
-echo "✅ Import finished (mode=$mode)"
+if [[ "$IMPORT_SERVER_SOURCE" == "1" ]]; then
+  echo "✅ Import finished (mode=$mode, source=api-env)"
+else
+  echo "✅ Import finished (mode=$mode)"
+fi
 python - "$tmp" <<'PY'
 import json
 import pathlib
