@@ -674,13 +674,13 @@ export default function ContentEditorPage() {
       </div>
       
       {error && (
-        <div className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
+        <div role="alert" aria-live="assertive" className="mb-6 rounded-2xl bg-red-50 p-4 text-sm text-red-600 border border-red-200">
           {error}
         </div>
       )}
-      
+
       {success && (
-        <div className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-600 border border-green-200">
+        <div role="status" aria-live="polite" className="mb-6 rounded-2xl bg-green-50 p-4 text-sm text-green-600 border border-green-200">
           {success}
         </div>
       )}
