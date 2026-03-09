@@ -30,11 +30,15 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: "service_manager", label: "Менеджер сервиса" },
 ];
 
+const PAGE_SIZE = 50;
+
 export default function AdminUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [drafts, setDrafts] = useState<Record<number, UserDraft>>({});
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
@@ -59,7 +63,8 @@ export default function AdminUsersPage() {
     try {
       const query = new URLSearchParams();
       if (search.trim().length >= 2) query.set("search", search.trim());
-      query.set("limit", "200");
+      query.set("skip", String((page - 1) * PAGE_SIZE));
+      query.set("limit", String(PAGE_SIZE + 1));
       const endpoint = query.toString() ? `/api/admin/users?${query.toString()}` : "/api/admin/users";
 
       const data = await fetchJsonWithTimeout<AdminUser[]>(
@@ -67,9 +72,12 @@ export default function AdminUsersPage() {
         {},
         12000
       );
-      setUsers(data);
+      const nextPageAvailable = data.length > PAGE_SIZE;
+      const pageRows = nextPageAvailable ? data.slice(0, PAGE_SIZE) : data;
+      setHasNextPage(nextPageAvailable);
+      setUsers(pageRows);
       setDrafts(
-        data.reduce<Record<number, UserDraft>>((acc, user) => {
+        pageRows.reduce<Record<number, UserDraft>>((acc, user) => {
           acc[user.id] = {
             name: user.name || "",
             role: user.role,
@@ -92,11 +100,15 @@ export default function AdminUsersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiBaseUrl, router, search]);
+  }, [apiBaseUrl, page, router, search]);
 
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -292,6 +304,9 @@ export default function AdminUsersPage() {
             Обновить
           </button>
         </div>
+        <div className="mt-3 text-sm text-neutral-500">
+          Показано пользователей: {users.length} · Страница {page}
+        </div>
 
         {users.length === 0 ? (
           <p className="mt-4 text-sm text-neutral-500">Пользователи не найдены.</p>
@@ -484,6 +499,31 @@ export default function AdminUsersPage() {
                 })}
               </tbody>
               </table>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-200 pt-4 text-sm">
+              <div className="text-neutral-500">
+                Поиск и пагинация работают по всей базе пользователей.
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page <= 1}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  Назад
+                </button>
+                <span className="min-w-[5rem] text-center text-neutral-600">Стр. {page}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => prev + 1)}
+                  disabled={!hasNextPage}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+                >
+                  Вперёд
+                </button>
+              </div>
             </div>
           </div>
         )}
