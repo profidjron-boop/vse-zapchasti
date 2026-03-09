@@ -92,7 +92,8 @@ Release note:
 
 ## Prompt Flow (existing repo)
 - Фоновый baseline: `docs/master-prompts/RU_STACK_LOCK_v1_5.docx`
-- Canonical index/precedence: `docs/master-prompts/STACK_MANIFEST.md`
+- Canonical index/precedence: `docs/master-prompts/STACK_MANIFEST.md` (актуализирован до v1.1)
+- Версионированная копия манифеста: `docs/master-prompts/STACK_MANIFEST_v1_1.md`
 - ADR template для архитектурных исключений: `docs/master-prompts/ADR_TEMPLATE.md`
 - Рабочая цепочка:
   1. `PROJECT_STATE_TEMPLATE_RU_v1.0` -> зафиксировать stage/source of truth/scope
