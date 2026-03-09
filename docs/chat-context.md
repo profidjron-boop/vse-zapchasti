@@ -15,7 +15,7 @@ Runtime: NO CDN (self-hosted assets)
 - `/parts/p/[sku]` — карточка товара + форма “Уточнить/Заказать” + быстрый заказ
 - `/parts/vin` — VIN-заявка
 - `/service` — форма сервис-заявки + каталог услуг (включая отображение требований предоплаты, если они заданы)
-- `/cart` — корзина гостя + checkout (самовывоз/курьер, при получении/по счёту)
+- `/cart` — корзина гостя + checkout (самовывоз/курьер, при получении/по счёту, необязательное вложение реквизитов для invoice)
 - `/favorites` — избранное/отложенное
 - `/account/orders` — история/статусы заказов по телефону
 - `/contacts`, `/about`, `/privacy`, `/offer`
@@ -46,7 +46,7 @@ RBAC (фактически реализовано):
 - `POST /api/public/leads`
 - `POST /api/public/vin-requests`
 - `POST /api/public/service-requests`
-- `POST /api/public/orders`, `GET /api/public/orders/history`
+- `POST /api/public/orders`, `POST /api/public/orders/requisites-upload`, `GET /api/public/orders/history`
 - `GET /api/public/service-catalog`
 - `GET /api/public/content`
 
@@ -64,6 +64,26 @@ Service catalog:
 - Umbrella gate: `bash scripts/verify-all.sh`
 - Smoke: `bash scripts/smoke.sh` и `bash scripts/smoke.sh --with-write`
 - Release readiness: `bash scripts/release-check.sh`
+
+## Current QA Status (2026-03-09)
+- API tests: `67 passed` (`cd apps/api && make test`)
+- Coverage snapshot (`pytest-cov`):
+  - `main.py`: `84%`
+  - `routers/admin.py`: `64%`
+  - `routers/public.py`: `80%`
+  - total: `70%`
+- `bash scripts/release-check.sh --skip-write-smoke`: `RELEASE CHECK GREEN`
+- Full release-check (admin + write smoke):
+  - `SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
+  - result: `RELEASE CHECK GREEN`
+- Runtime functional audit:
+  - `bash scripts/runtime-audit.sh`
+  - result: `all checks passed`
+  - `SMOKE_ADMIN_EMAIL=... SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit.sh`
+  - result: `all checks passed` (including admin protected routes)
+
+Release note:
+- `scripts/smoke.sh`: в bootstrap smoke-admin добавлен `DATABASE_URL` при генерации hash (исправлен падал full release-check path).
 
 ## Environment quick refs
 - Postgres (docker compose): host port `5433`
