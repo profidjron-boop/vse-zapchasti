@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AddToCartButton } from "@/components/add-to-cart-button";
@@ -10,6 +11,7 @@ import {
   getPublicContentValue,
   getPublicSiteContent,
 } from "@/lib/public-site-content";
+import { getCategoryIconPath } from "@/lib/category-icon";
 
 export const metadata: Metadata = {
   title: "Каталог запчастей | АвтоПлатформа",
@@ -175,27 +177,6 @@ function getProductDisplayName(product: Product): string {
     return description;
   }
   return product.name;
-}
-
-function categoryMonogram(name: string): string {
-  const parts = name
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .slice(0, 2);
-
-  if (parts.length === 0) return "VP";
-  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("");
-}
-
-function categoryTone(index: number): string {
-  const tones = [
-    "from-[#1F3B73] to-[#365CAD]",
-    "from-[#17315E] to-[#365CAD]",
-    "from-[#244A8D] to-[#5A7EC6]",
-    "from-[#2A4578] to-[#4E73B8]",
-  ];
-  return tones[index % tones.length] ?? tones[0];
 }
 
 export default async function PartsPage({
@@ -700,7 +681,7 @@ export default async function PartsPage({
                       Разделов: {topCategories.length}.
                     </p>
                     <div className="mt-5 flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2">
-                      {topCategories.map((category, index) => (
+                      {topCategories.map((category) => (
                         <Link
                           key={category.id}
                           href={buildCatalogHref(category.id, 1)}
@@ -710,10 +691,15 @@ export default async function PartsPage({
                               : "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100"
                           }`}
                         >
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${categoryTone(index)} text-sm font-black text-white`}
-                          >
-                            {categoryMonogram(category.name)}
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#1F3B73]/10 bg-[#EEF3FF]">
+                            <Image
+                              src={getCategoryIconPath(category.name)}
+                              alt=""
+                              width={28}
+                              height={28}
+                              className="h-7 w-7"
+                              aria-hidden="true"
+                            />
                           </div>
                           <span className="text-sm font-medium leading-5">
                             {category.name}

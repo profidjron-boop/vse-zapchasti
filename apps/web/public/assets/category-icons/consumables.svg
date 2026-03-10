@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <style>
+      .s{fill:none;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .a{fill:#ff8a00;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .f{fill:#eaf2ff;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <path class="f" d="M34 22h34l6 16v64H28V38z"/>
+  <path class="s" d="M34 38h40"/>
+  <path class="a" d="M90 24h18l8 14v56H90z"/>
+  <path class="s" d="M98 50h10M98 66h10"/>
+  <path class="f" d="M54 56c6 8 6 14 0 22c-6-8-6-14 0-22z"/>
+</svg>

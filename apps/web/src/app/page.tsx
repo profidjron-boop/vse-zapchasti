@@ -8,6 +8,7 @@ import {
   getPublicContentValue,
   getPublicSiteContent,
 } from "@/lib/public-site-content";
+import { getCategoryIconPath } from "@/lib/category-icon";
 
 type Category = {
   id: number;
@@ -36,27 +37,6 @@ function shouldShowHomeCategory(name: string): boolean {
   if (normalized.startsWith("бренд:")) return false;
   if (normalized.startsWith("импорт ")) return false;
   return true;
-}
-
-function categoryMonogram(name: string): string {
-  const parts = name
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .slice(0, 2);
-
-  if (parts.length === 0) return "VP";
-  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("");
-}
-
-function categoryTone(index: number): string {
-  const tones = [
-    "from-[#1F3B73] to-[#365CAD]",
-    "from-[#244A8D] to-[#5A7EC6]",
-    "from-[#17315E] to-[#365CAD]",
-    "from-[#2A4578] to-[#4E73B8]",
-  ];
-  return tones[index % tones.length] ?? tones[0];
 }
 
 export default async function Page() {
@@ -129,14 +109,6 @@ export default async function Page() {
     "Охлаждение",
     "Сцепление и КПП",
   ];
-  const categoryIconMap: Record<string, string> = {
-    "Подвеска и рулевое": "/assets/category-icons/suspension.svg",
-    "Тормозная система": "/assets/category-icons/brakes.svg",
-    "Двигатель и зажигание": "/assets/category-icons/engine.svg",
-    "Масла и жидкости": "/assets/category-icons/to.svg",
-    Электрика: "/assets/category-icons/electrics.svg",
-    "Сцепление и КПП": "/assets/category-icons/gearbox.svg",
-  };
   const homeCategories = categories
     .filter((category) => shouldShowHomeCategory(category.name))
     .slice(0, 8);
@@ -323,33 +295,21 @@ export default async function Page() {
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-4 xl:grid-cols-4">
-          {categoryCards.map((category, index) => (
+          {categoryCards.map((category) => (
             <Link
               key={category.id}
               href={category.href}
               className="group rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_22px_54px_rgba(15,23,42,0.10)]"
             >
-              <div
-                className={`inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-[#1F3B73]/10 ${
-                  categoryIconMap[category.name]
-                    ? "bg-[#EEF3FF]"
-                    : `bg-gradient-to-br ${categoryTone(index)}`
-                }`}
-              >
-                {categoryIconMap[category.name] ? (
-                  <Image
-                    src={categoryIconMap[category.name]}
-                    alt=""
-                    width={44}
-                    height={44}
-                    className="h-11 w-11"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <span className="text-lg font-black tracking-wide text-white">
-                    {categoryMonogram(category.name)}
-                  </span>
-                )}
+              <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-[#1F3B73]/10 bg-[#EEF3FF]">
+                <Image
+                  src={getCategoryIconPath(category.name)}
+                  alt=""
+                  width={44}
+                  height={44}
+                  className="h-11 w-11"
+                  aria-hidden="true"
+                />
               </div>
               <h3 className="mt-5 text-lg font-bold leading-6 text-neutral-900">
                 {category.name}

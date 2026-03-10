@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <style>
+      .s{fill:none;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .a{fill:#ff8a00;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+      .f{fill:#eaf2ff;stroke:#1f3b73;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect class="f" x="18" y="36" width="92" height="70" rx="12"/>
+  <rect class="a" x="48" y="20" width="32" height="16" rx="6"/>
+  <path class="s" d="M18 60h92"/>
+  <path class="s" d="M58 58v8h12v-8"/>
+  <circle class="s" cx="38" cy="82" r="8"/>
+  <circle class="s" cx="64" cy="82" r="8"/>
+  <circle class="s" cx="90" cy="82" r="8"/>
+</svg>
