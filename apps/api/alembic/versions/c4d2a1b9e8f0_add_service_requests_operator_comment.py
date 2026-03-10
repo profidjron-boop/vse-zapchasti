@@ -11,6 +11,7 @@ service_requests.operator_comment column.
 
 To keep the migration graph stable (after merge), we keep this revision as a no-op.
 """
+
 from typing import Sequence, Union
 
 # revision identifiers, used by Alembic.

@@ -40,8 +40,12 @@ function readFavoritesRaw(): FavoriteItem[] {
           sku: candidate.sku.trim(),
           name: candidate.name.trim(),
           price: typeof candidate.price === "number" ? candidate.price : null,
-          imageUrl: typeof candidate.imageUrl === "string" ? candidate.imageUrl : null,
-          updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : new Date().toISOString(),
+          imageUrl:
+            typeof candidate.imageUrl === "string" ? candidate.imageUrl : null,
+          updatedAt:
+            typeof candidate.updatedAt === "string"
+              ? candidate.updatedAt
+              : new Date().toISOString(),
         } satisfies FavoriteItem;
       })
       .filter((item): item is FavoriteItem => item !== null);
@@ -63,14 +67,19 @@ export function isFavorite(productId: number): boolean {
   return readFavoritesRaw().some((item) => item.productId === productId);
 }
 
-export function toggleFavorite(
-  nextItem: Omit<FavoriteItem, "updatedAt">
-): { items: FavoriteItem[]; added: boolean } {
+export function toggleFavorite(nextItem: Omit<FavoriteItem, "updatedAt">): {
+  items: FavoriteItem[];
+  added: boolean;
+} {
   const currentItems = readFavoritesRaw();
-  const existingIndex = currentItems.findIndex((item) => item.productId === nextItem.productId);
+  const existingIndex = currentItems.findIndex(
+    (item) => item.productId === nextItem.productId,
+  );
 
   if (existingIndex >= 0) {
-    const updated = currentItems.filter((item) => item.productId !== nextItem.productId);
+    const updated = currentItems.filter(
+      (item) => item.productId !== nextItem.productId,
+    );
     writeFavorites(updated);
     return { items: updated, added: false };
   }

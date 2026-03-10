@@ -13,17 +13,11 @@ if not DATABASE_URL:
 ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql+psycopg", "postgresql+asyncpg")
 
 engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=True,
-    pool_size=5,
-    max_overflow=10
+    ASYNC_DATABASE_URL, echo=True, pool_size=5, max_overflow=10
 )
 
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
 
 async def get_db():
     async with AsyncSessionLocal() as session:

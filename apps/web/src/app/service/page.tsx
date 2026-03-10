@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -18,20 +18,92 @@ type ServiceCard = {
 
 const fallbackServices: { passenger: ServiceCard[]; truck: ServiceCard[] } = {
   passenger: [
-    { title: "Диагностика и ТО", desc: "Полная диагностика, плановое ТО, замена жидкостей", icon: "ТО", duration: "60 мин", price: "от 2 000 ₽" },
-    { title: "Ремонт двигателя", desc: "Капитальный ремонт, замена ГРМ, диагностика", icon: "ДВС", duration: "180 мин", price: "от 8 000 ₽" },
-    { title: "Ремонт КПП", desc: "Автомат, механика, вариатор — любой сложности", icon: "КПП", duration: "240 мин", price: "от 9 500 ₽" },
-    { title: "Ходовая часть", desc: "Замена амортизаторов, рычагов, сайлентблоков", icon: "ХД", duration: "120 мин", price: "от 4 000 ₽" },
-    { title: "Автоэлектрика", desc: "Диагностика электрики, ремонт генератора, стартера", icon: "ЭЛ", duration: "90 мин", price: "от 3 500 ₽" },
-    { title: "Шиномонтаж", desc: "Сезонная замена, балансировка, ремонт проколов", icon: "ШМ", duration: "45 мин", price: "от 1 500 ₽" },
+    {
+      title: "Диагностика и ТО",
+      desc: "Полная диагностика, плановое ТО, замена жидкостей",
+      icon: "ТО",
+      duration: "60 мин",
+      price: "от 2 000 ₽",
+    },
+    {
+      title: "Ремонт двигателя",
+      desc: "Капитальный ремонт, замена ГРМ, диагностика",
+      icon: "ДВС",
+      duration: "180 мин",
+      price: "от 8 000 ₽",
+    },
+    {
+      title: "Ремонт КПП",
+      desc: "Автомат, механика, вариатор — любой сложности",
+      icon: "КПП",
+      duration: "240 мин",
+      price: "от 9 500 ₽",
+    },
+    {
+      title: "Ходовая часть",
+      desc: "Замена амортизаторов, рычагов, сайлентблоков",
+      icon: "ХД",
+      duration: "120 мин",
+      price: "от 4 000 ₽",
+    },
+    {
+      title: "Автоэлектрика",
+      desc: "Диагностика электрики, ремонт генератора, стартера",
+      icon: "ЭЛ",
+      duration: "90 мин",
+      price: "от 3 500 ₽",
+    },
+    {
+      title: "Шиномонтаж",
+      desc: "Сезонная замена, балансировка, ремонт проколов",
+      icon: "ШМ",
+      duration: "45 мин",
+      price: "от 1 500 ₽",
+    },
   ],
   truck: [
-    { title: "Диагностика грузовых", desc: "Компьютерная диагностика, проверка систем", icon: "DG", duration: "90 мин", price: "от 3 000 ₽" },
-    { title: "Ремонт ДВС", desc: "Капитальный ремонт двигателей грузовиков", icon: "DT", duration: "300 мин", price: "от 15 000 ₽" },
-    { title: "Ремонт КПП", desc: "Ремонт коробок передач ZF, Eaton и других систем", icon: "TG", duration: "300 мин", price: "от 16 000 ₽" },
-    { title: "Ходовая часть", desc: "Замена рессор, сайлентблоков и амортизаторов", icon: "HC", duration: "180 мин", price: "от 7 000 ₽" },
-    { title: "Электрика", desc: "Ремонт электропроводки и диагностика CAN-шин", icon: "EL", duration: "120 мин", price: "от 5 000 ₽" },
-    { title: "ТО грузовиков", desc: "Плановое ТО, замена масел и фильтров", icon: "TR", duration: "90 мин", price: "от 4 500 ₽" },
+    {
+      title: "Диагностика грузовых",
+      desc: "Компьютерная диагностика, проверка систем",
+      icon: "DG",
+      duration: "90 мин",
+      price: "от 3 000 ₽",
+    },
+    {
+      title: "Ремонт ДВС",
+      desc: "Капитальный ремонт двигателей грузовиков",
+      icon: "DT",
+      duration: "300 мин",
+      price: "от 15 000 ₽",
+    },
+    {
+      title: "Ремонт КПП",
+      desc: "Ремонт коробок передач ZF, Eaton и других систем",
+      icon: "TG",
+      duration: "300 мин",
+      price: "от 16 000 ₽",
+    },
+    {
+      title: "Ходовая часть",
+      desc: "Замена рессор, сайлентблоков и амортизаторов",
+      icon: "HC",
+      duration: "180 мин",
+      price: "от 7 000 ₽",
+    },
+    {
+      title: "Электрика",
+      desc: "Ремонт электропроводки и диагностика CAN-шин",
+      icon: "EL",
+      duration: "120 мин",
+      price: "от 5 000 ₽",
+    },
+    {
+      title: "ТО грузовиков",
+      desc: "Плановое ТО, замена масел и фильтров",
+      icon: "TR",
+      duration: "90 мин",
+      price: "от 4 500 ₽",
+    },
   ],
 };
 
@@ -65,7 +137,9 @@ export default function ServicePage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [selectedServiceType, setSelectedServiceType] = useState("");
-  const [selectedVehicleType, setSelectedVehicleType] = useState<"passenger" | "truck">("passenger");
+  const [selectedVehicleType, setSelectedVehicleType] = useState<
+    "passenger" | "truck"
+  >("passenger");
   const [contentMap, setContentMap] = useState<Record<string, string>>({});
   const [services, setServices] = useState(fallbackServices);
   const [installPrefill, setInstallPrefill] = useState<{
@@ -83,20 +157,39 @@ export default function ServicePage() {
   const requestedProductSku = installPrefill.requestedProductSku;
   const requestedProductName = installPrefill.requestedProductName;
   const requestedBundleTotalFromQuery = installPrefill.requestedBundleTotal;
-  const hasRequestedBundleTotal = typeof requestedBundleTotalFromQuery === "number";
+  const hasRequestedBundleTotal =
+    typeof requestedBundleTotalFromQuery === "number";
   const installWithPartFlow = installPrefill.installWithPartFlow;
   const installServiceType = "Установка запчасти из каталога";
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const preselectedServiceType = (params.get("service_type") || "").trim();
-    const preselectedVehicleType = params.get("vehicle_type") === "truck" ? "truck" : "passenger";
-    const sku = (params.get("product_sku") || params.get("requested_product_sku") || "").trim().toUpperCase();
-    const name = (params.get("product_name") || params.get("requested_product_name") || "").trim();
-    const rawBundleTotal = (params.get("bundle_total") || "").trim().replace(",", ".");
+    const preselectedVehicleType =
+      params.get("vehicle_type") === "truck" ? "truck" : "passenger";
+    const sku = (
+      params.get("product_sku") ||
+      params.get("requested_product_sku") ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+    const name = (
+      params.get("product_name") ||
+      params.get("requested_product_name") ||
+      ""
+    ).trim();
+    const rawBundleTotal = (params.get("bundle_total") || "")
+      .trim()
+      .replace(",", ".");
     const parsedBundleTotal = Number.parseFloat(rawBundleTotal);
-    const bundleTotal = Number.isFinite(parsedBundleTotal) && parsedBundleTotal >= 0 ? parsedBundleTotal : null;
-    const flow = Boolean(sku || name || params.get("install_with_part") === "1");
+    const bundleTotal =
+      Number.isFinite(parsedBundleTotal) && parsedBundleTotal >= 0
+        ? parsedBundleTotal
+        : null;
+    const flow = Boolean(
+      sku || name || params.get("install_with_part") === "1",
+    );
     setInstallPrefill({
       requestedProductSku: sku,
       requestedProductName: name,
@@ -117,10 +210,16 @@ export default function ServicePage() {
     async function loadContent() {
       try {
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        const response = await fetch(
+          withApiBase(apiBaseUrl, "/api/public/content"),
+          { cache: "no-store" },
+        );
         if (!response.ok) return;
 
-        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        const payload = (await response.json()) as Array<{
+          key?: string;
+          value?: string | null;
+        }>;
         if (!Array.isArray(payload) || cancelled) return;
 
         const map: Record<string, string> = {};
@@ -147,7 +246,10 @@ export default function ServicePage() {
     async function loadServiceCatalog() {
       try {
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/service-catalog"), { cache: "no-store" });
+        const response = await fetch(
+          withApiBase(apiBaseUrl, "/api/public/service-catalog"),
+          { cache: "no-store" },
+        );
         if (!response.ok) return;
 
         const payload = (await response.json()) as Array<{
@@ -168,7 +270,8 @@ export default function ServicePage() {
           if (!item?.name || typeof item.name !== "string") continue;
 
           const durationLabel =
-            typeof item.duration_minutes === "number" && item.duration_minutes > 0
+            typeof item.duration_minutes === "number" &&
+            item.duration_minutes > 0
               ? `${Math.round(item.duration_minutes)} мин`
               : "по согласованию";
           const priceLabel =
@@ -191,7 +294,9 @@ export default function ServicePage() {
             duration: durationLabel,
             price: priceLabel,
             prepaymentLabel:
-              item.prepayment_required && typeof item.prepayment_amount === "number" && item.prepayment_amount > 0
+              item.prepayment_required &&
+              typeof item.prepayment_amount === "number" &&
+              item.prepayment_amount > 0
                 ? `Предоплата ${Math.round(item.prepayment_amount).toLocaleString("ru-RU")} ₽`
                 : undefined,
           };
@@ -209,7 +314,8 @@ export default function ServicePage() {
 
         if (!cancelled && (passenger.length > 0 || truck.length > 0)) {
           setServices({
-            passenger: passenger.length > 0 ? passenger : fallbackServices.passenger,
+            passenger:
+              passenger.length > 0 ? passenger : fallbackServices.passenger,
             truck: truck.length > 0 ? truck : fallbackServices.truck,
           });
         }
@@ -238,16 +344,34 @@ export default function ServicePage() {
   const navCart = contentValue("site_nav_cart_label", "Корзина");
   const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
   const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
-  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
-  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
-  const heroTitle = contentValue("service_hero_title", "Автосервис в Красноярске");
-  const heroSubtitle = contentValue("service_hero_subtitle", "Профессиональный ремонт и обслуживание автомобилей");
-  const formTitle = contentValue("service_form_title", "Заявка на обслуживание");
+  const navCallback = contentValue(
+    "site_nav_callback_label",
+    "Заказать звонок",
+  );
+  const footerText = contentValue(
+    "site_footer_text",
+    "Все запчасти · Красноярск · NO CDN",
+  );
+  const heroTitle = contentValue(
+    "service_hero_title",
+    "Автосервис в Красноярске",
+  );
+  const heroSubtitle = contentValue(
+    "service_hero_subtitle",
+    "Профессиональный ремонт и обслуживание автомобилей",
+  );
+  const formTitle = contentValue(
+    "service_form_title",
+    "Заявка на обслуживание",
+  );
   const formSubtitle = contentValue(
     "service_form_subtitle",
     "Заполните форму — менеджер свяжется с вами для подтверждения",
   );
-  const successTitle = contentValue("service_success_title", "Заявка отправлена!");
+  const successTitle = contentValue(
+    "service_success_title",
+    "Заявка отправлена!",
+  );
   const successText = contentValue(
     "service_success_text",
     "Менеджер свяжется с вами в рабочее время для подтверждения записи.",
@@ -266,9 +390,19 @@ export default function ServicePage() {
       const normalizedPhone = normalizePhone(rawPhone);
       const description = String(formData.get("description") || "").trim();
       const normalizedVin = normalizeVin(String(formData.get("vin") || ""));
-      const requestedProductSkuValue = String(formData.get("requested_product_sku") || "").trim().toUpperCase();
-      const requestedProductNameValue = String(formData.get("requested_product_name") || "").trim();
-      const estimatedBundleTotalRaw = String(formData.get("estimated_bundle_total") || "").trim().replace(",", ".");
+      const requestedProductSkuValue = String(
+        formData.get("requested_product_sku") || "",
+      )
+        .trim()
+        .toUpperCase();
+      const requestedProductNameValue = String(
+        formData.get("requested_product_name") || "",
+      ).trim();
+      const estimatedBundleTotalRaw = String(
+        formData.get("estimated_bundle_total") || "",
+      )
+        .trim()
+        .replace(",", ".");
       let estimatedBundleTotal: number | undefined;
       if (estimatedBundleTotalRaw) {
         const parsed = Number.parseFloat(estimatedBundleTotalRaw);
@@ -278,27 +412,44 @@ export default function ServicePage() {
         estimatedBundleTotal = parsed;
       }
       const includeInstallWithPart = formData.get("install_with_part") === "on";
-      const effectiveRequestedProductSku = includeInstallWithPart ? requestedProductSkuValue : "";
-      const effectiveRequestedProductName = includeInstallWithPart ? requestedProductNameValue : "";
-      const effectiveEstimatedBundleTotal = includeInstallWithPart ? estimatedBundleTotal : undefined;
-      const installWithPart = includeInstallWithPart
-        && Boolean(effectiveRequestedProductSku || effectiveRequestedProductName || typeof effectiveEstimatedBundleTotal === "number");
+      const effectiveRequestedProductSku = includeInstallWithPart
+        ? requestedProductSkuValue
+        : "";
+      const effectiveRequestedProductName = includeInstallWithPart
+        ? requestedProductNameValue
+        : "";
+      const effectiveEstimatedBundleTotal = includeInstallWithPart
+        ? estimatedBundleTotal
+        : undefined;
+      const installWithPart =
+        includeInstallWithPart &&
+        Boolean(
+          effectiveRequestedProductSku ||
+          effectiveRequestedProductName ||
+          typeof effectiveEstimatedBundleTotal === "number",
+        );
       if (!description) {
         throw new Error("Опишите проблему или задачу для сервиса");
       }
 
       const data = {
-        vehicle_type: formData.get("vehicle_type") === "truck" ? "truck" : "passenger",
+        vehicle_type:
+          formData.get("vehicle_type") === "truck" ? "truck" : "passenger",
         service_type: formData.get("service_type"),
         name: formData.get("name")?.toString().trim() || undefined,
         phone: normalizedPhone,
         email: formData.get("email") || undefined,
         vehicle_make: formData.get("vehicle_make") || undefined,
         vehicle_model: formData.get("vehicle_model") || undefined,
-        vehicle_engine: formData.get("vehicle_engine")?.toString().trim() || undefined,
-        vehicle_year: formData.get("vehicle_year") ? parseInt(formData.get("vehicle_year") as string, 10) : undefined,
+        vehicle_engine:
+          formData.get("vehicle_engine")?.toString().trim() || undefined,
+        vehicle_year: formData.get("vehicle_year")
+          ? parseInt(formData.get("vehicle_year") as string, 10)
+          : undefined,
         vin: normalizedVin || undefined,
-        mileage: formData.get("mileage") ? parseInt(formData.get("mileage") as string, 10) : undefined,
+        mileage: formData.get("mileage")
+          ? parseInt(formData.get("mileage") as string, 10)
+          : undefined,
         description,
         install_with_part: installWithPart,
         requested_product_sku: effectiveRequestedProductSku || undefined,
@@ -326,7 +477,9 @@ export default function ServicePage() {
       event.currentTarget.reset();
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+        setError(
+          err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message,
+        );
       } else if (err instanceof Error && err.message) {
         setError(err.message);
       } else {
@@ -355,14 +508,20 @@ export default function ServicePage() {
     />
   );
 
-  const buildServiceFormHref = (serviceType: string, vehicleType: "passenger" | "truck"): string => {
+  const buildServiceFormHref = (
+    serviceType: string,
+    vehicleType: "passenger" | "truck",
+  ): string => {
     const params = new URLSearchParams();
     params.set("service_type", serviceType);
     params.set("vehicle_type", vehicleType);
     return `/service?${params.toString()}#form`;
   };
 
-  const renderServiceCard = (service: ServiceCard, vehicleType: "passenger" | "truck") => (
+  const renderServiceCard = (
+    service: ServiceCard,
+    vehicleType: "passenger" | "truck",
+  ) => (
     <article
       key={`${vehicleType}-${service.title}`}
       className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
@@ -375,9 +534,13 @@ export default function ServicePage() {
           {service.duration}
         </div>
       </div>
-      <h3 className="mt-5 text-xl font-bold tracking-tight text-neutral-900">{service.title}</h3>
+      <h3 className="mt-5 text-xl font-bold tracking-tight text-neutral-900">
+        {service.title}
+      </h3>
       <p className="mt-2 text-sm leading-6 text-neutral-600">{service.desc}</p>
-      <div className="mt-5 text-2xl font-black tracking-tight text-[#1F3B73]">{service.price}</div>
+      <div className="mt-5 text-2xl font-black tracking-tight text-[#1F3B73]">
+        {service.price}
+      </div>
       {service.prepaymentLabel ? (
         <div className="mt-2 inline-flex rounded-full bg-[#EEF3FF] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#1F3B73]">
           {service.prepaymentLabel}
@@ -404,7 +567,9 @@ export default function ServicePage() {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#EEF3FF] text-3xl font-black text-[#1F3B73]">
               OK
             </div>
-            <h1 className="mt-6 text-3xl font-black tracking-tight text-[#10264B]">{successTitle}</h1>
+            <h1 className="mt-6 text-3xl font-black tracking-tight text-[#10264B]">
+              {successTitle}
+            </h1>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-neutral-600 sm:text-base">
               {successText}
             </p>
@@ -425,7 +590,11 @@ export default function ServicePage() {
           </div>
         </section>
 
-        <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
+        <PublicFooter
+          brandName={brandName}
+          footerText={footerText}
+          contactsLabel={navContacts}
+        />
       </main>
     );
   }
@@ -440,7 +609,9 @@ export default function ServicePage() {
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               service · diagnostics · maintenance
             </div>
-            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{heroTitle}</h1>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
+              {heroTitle}
+            </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
               {heroSubtitle}
             </p>
@@ -462,11 +633,18 @@ export default function ServicePage() {
         </div>
       </section>
 
-      <section id="passenger-services" className="mx-auto max-w-[92rem] scroll-mt-36 px-4 py-12 sm:px-6">
+      <section
+        id="passenger-services"
+        className="mx-auto max-w-[92rem] scroll-mt-36 px-4 py-12 sm:px-6"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">легковые автомобили</div>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Направления работ</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              легковые автомобили
+            </div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">
+              Направления работ
+            </h2>
           </div>
           <Link
             href="#form"
@@ -476,7 +654,9 @@ export default function ServicePage() {
           </Link>
         </div>
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {services.passenger.map((service) => renderServiceCard(service, "passenger"))}
+          {services.passenger.map((service) =>
+            renderServiceCard(service, "passenger"),
+          )}
         </div>
       </section>
 
@@ -484,8 +664,12 @@ export default function ServicePage() {
         <div className="mx-auto max-w-[92rem] scroll-mt-36 px-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">коммерческий транспорт</div>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Направления работ</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                коммерческий транспорт
+              </div>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">
+                Направления работ
+              </h2>
             </div>
             <Link
               href="#form"
@@ -495,266 +679,349 @@ export default function ServicePage() {
             </Link>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {services.truck.map((service) => renderServiceCard(service, "truck"))}
+            {services.truck.map((service) =>
+              renderServiceCard(service, "truck"),
+            )}
           </div>
         </div>
       </section>
 
-      <section id="form" className="mx-auto max-w-[92rem] scroll-mt-36 px-4 py-12 sm:px-6">
+      <section
+        id="form"
+        className="mx-auto max-w-[92rem] scroll-mt-36 px-4 py-12 sm:px-6"
+      >
         <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">заявка на обслуживание</div>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">{formTitle}</h2>
-            <p className="mt-3 text-sm leading-7 text-neutral-600 sm:text-base">
-              {formSubtitle}
-            </p>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+            заявка на обслуживание
+          </div>
+          <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">
+            {formTitle}
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-neutral-600 sm:text-base">
+            {formSubtitle}
+          </p>
 
-            <div className="mt-6 min-h-[4.5rem]">
-              {error ? (
-                <div
-                  role="alert"
-                  aria-live="assertive"
-                  className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          <div className="mt-6 min-h-[4.5rem]">
+            {error ? (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+              >
+                {error}
+              </div>
+            ) : null}
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Вид работ *
+                </label>
+                <select
+                  name="service_type"
+                  required
+                  value={selectedServiceType}
+                  onChange={(event) =>
+                    setSelectedServiceType(event.target.value)
+                  }
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
                 >
-                  {error}
-                </div>
-              ) : null}
+                  <option value="">Выберите направление</option>
+                  <option value={installServiceType}>
+                    {installServiceType}
+                  </option>
+                  <optgroup label="Легковые">
+                    {services.passenger.map((service) => (
+                      <option
+                        key={`passenger-${service.title}`}
+                        value={service.title}
+                      >
+                        {service.title} · {service.duration} · {service.price}
+                        {service.prepaymentLabel
+                          ? ` · ${service.prepaymentLabel}`
+                          : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Грузовые">
+                    {services.truck.map((service) => (
+                      <option
+                        key={`truck-${service.title}`}
+                        value={service.title}
+                      >
+                        {service.title} · {service.duration} · {service.price}
+                        {service.prepaymentLabel
+                          ? ` · ${service.prepaymentLabel}`
+                          : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Тип авто *
+                </label>
+                <select
+                  name="vehicle_type"
+                  required
+                  value={selectedVehicleType}
+                  onChange={(event) =>
+                    setSelectedVehicleType(
+                      event.target.value === "truck" ? "truck" : "passenger",
+                    )
+                  }
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                >
+                  <option value="passenger">Легковой</option>
+                  <option value="truck">Грузовой</option>
+                </select>
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Вид работ *</label>
-                  <select
-                    name="service_type"
-                    required
-                    value={selectedServiceType}
-                    onChange={(event) => setSelectedServiceType(event.target.value)}
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  >
-                    <option value="">Выберите направление</option>
-                    <option value={installServiceType}>{installServiceType}</option>
-                    <optgroup label="Легковые">
-                      {services.passenger.map((service) => (
-                        <option key={`passenger-${service.title}`} value={service.title}>
-                          {service.title} · {service.duration} · {service.price}
-                          {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Грузовые">
-                      {services.truck.map((service) => (
-                        <option key={`truck-${service.title}`} value={service.title}>
-                          {service.title} · {service.duration} · {service.price}
-                          {service.prepaymentLabel ? ` · ${service.prepaymentLabel}` : ""}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+            {installWithPartFlow ? (
+              <div className="rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#1F3B73]">
+                  Связка: запчасть + установка
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Тип авто *</label>
-                  <select
-                    name="vehicle_type"
-                    required
-                    value={selectedVehicleType}
-                    onChange={(event) => setSelectedVehicleType(event.target.value === "truck" ? "truck" : "passenger")}
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  >
-                    <option value="passenger">Легковой</option>
-                    <option value="truck">Грузовой</option>
-                  </select>
-                </div>
-              </div>
-
-              {installWithPartFlow ? (
-                <div className="rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#1F3B73]">
-                    Связка: запчасть + установка
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-neutral-600">
-                    Заявка пришла из карточки товара. Менеджер рассчитает предварительную оценку работ и запчасти.
-                  </p>
-                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="text-sm font-medium text-neutral-700">Артикул запчасти</label>
-                      <input
-                        type="text"
-                        name="requested_product_sku"
-                        readOnly
-                        value={requestedProductSku}
-                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-neutral-700 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-neutral-700">Название запчасти</label>
-                      <input
-                        type="text"
-                        name="requested_product_name"
-                        readOnly
-                        value={requestedProductName}
-                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-neutral-700 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                    <div>
-                      <label className="text-sm font-medium text-neutral-700">Оценка комплекта (запчасть + работы), ₽</label>
-                      <input
-                        type="number"
-                        name="estimated_bundle_total"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.01"
-                        defaultValue={hasRequestedBundleTotal ? requestedBundleTotalFromQuery.toFixed(2) : ""}
-                        placeholder="Опционально"
-                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
-                      />
-                    </div>
-                    <label className="inline-flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-                      <input type="checkbox" name="install_with_part" defaultChecked className="h-4 w-4" />
-                      Включить в заявку
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  Заявка пришла из карточки товара. Менеджер рассчитает
+                  предварительную оценку работ и запчасти.
+                </p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-neutral-700">
+                      Артикул запчасти
                     </label>
+                    <input
+                      type="text"
+                      name="requested_product_sku"
+                      readOnly
+                      value={requestedProductSku}
+                      className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-neutral-700 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-neutral-700">
+                      Название запчасти
+                    </label>
+                    <input
+                      type="text"
+                      name="requested_product_name"
+                      readOnly
+                      value={requestedProductName}
+                      className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-neutral-700 focus:outline-none"
+                    />
                   </div>
                 </div>
-              ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Имя</label>
-                  <input
-                    type="text"
-                    name="name"
-                    autoComplete="name"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Телефон *</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    required
-                    autoComplete="tel"
-                    inputMode="tel"
-                    placeholder="+7 (___) ___-__-__"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    autoComplete="email"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Предпочтительная дата</label>
-                  <input
-                    type="date"
-                    name="preferred_date"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
+                <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <div>
+                    <label className="text-sm font-medium text-neutral-700">
+                      Оценка комплекта (запчасть + работы), ₽
+                    </label>
+                    <input
+                      type="number"
+                      name="estimated_bundle_total"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      defaultValue={
+                        hasRequestedBundleTotal
+                          ? requestedBundleTotalFromQuery.toFixed(2)
+                          : ""
+                      }
+                      placeholder="Опционально"
+                      className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 focus:border-[#1F3B73]/30 focus:outline-none"
+                    />
+                  </div>
+                  <label className="inline-flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+                    <input
+                      type="checkbox"
+                      name="install_with_part"
+                      defaultChecked
+                      className="h-4 w-4"
+                    />
+                    Включить в заявку
+                  </label>
                 </div>
               </div>
+            ) : null}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Марка</label>
-                  <input
-                    type="text"
-                    name="vehicle_make"
-                    placeholder="Например: Toyota"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Модель</label>
-                  <input
-                    type="text"
-                    name="vehicle_model"
-                    placeholder="Например: Camry"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Год</label>
-                  <input
-                    type="number"
-                    name="vehicle_year"
-                    inputMode="numeric"
-                    min="1950"
-                    max="2100"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Двигатель</label>
-                  <input
-                    type="text"
-                    name="vehicle_engine"
-                    placeholder="Например: 2.0 TDI"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">Пробег</label>
-                  <input
-                    type="number"
-                    name="mileage"
-                    inputMode="numeric"
-                    min="0"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-neutral-700">VIN</label>
-                  <input
-                    type="text"
-                    name="vin"
-                    placeholder="17 символов"
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-sm font-medium text-neutral-700">Причина обращения *</label>
-                <textarea
-                  name="description"
-                  required
-                  rows={4}
-                  placeholder="Опишите неисправность, симптомы или задачу для сервиса"
+                <label className="text-sm font-medium text-neutral-700">
+                  Имя
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  autoComplete="name"
                   className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
                 />
               </div>
-
-              <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <input type="checkbox" name="consent" id="service-consent" className="mt-1" required />
-                <label htmlFor="service-consent" className="text-xs leading-6 text-neutral-600">
-                  Согласен на обработку персональных данных в соответствии с политикой конфиденциальности.
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Телефон *
                 </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  required
+                  autoComplete="tel"
+                  inputMode="tel"
+                  placeholder="+7 (___) ___-__-__"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
               </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-[#FF7A00] py-4 text-sm font-semibold text-white shadow-lg shadow-[#FF7A00]/20 transition-colors hover:bg-[#E86F00] disabled:cursor-not-allowed disabled:opacity-50"
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Предпочтительная дата
+                </label>
+                <input
+                  type="date"
+                  name="preferred_date"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Марка
+                </label>
+                <input
+                  type="text"
+                  name="vehicle_make"
+                  placeholder="Например: Toyota"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Модель
+                </label>
+                <input
+                  type="text"
+                  name="vehicle_model"
+                  placeholder="Например: Camry"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Год
+                </label>
+                <input
+                  type="number"
+                  name="vehicle_year"
+                  inputMode="numeric"
+                  min="1950"
+                  max="2100"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Двигатель
+                </label>
+                <input
+                  type="text"
+                  name="vehicle_engine"
+                  placeholder="Например: 2.0 TDI"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  Пробег
+                </label>
+                <input
+                  type="number"
+                  name="mileage"
+                  inputMode="numeric"
+                  min="0"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-neutral-700">
+                  VIN
+                </label>
+                <input
+                  type="text"
+                  name="vin"
+                  placeholder="17 символов"
+                  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-neutral-700">
+                Причина обращения *
+              </label>
+              <textarea
+                name="description"
+                required
+                rows={4}
+                placeholder="Опишите неисправность, симптомы или задачу для сервиса"
+                className="mt-1 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73]/30 focus:bg-white focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+              <input
+                type="checkbox"
+                name="consent"
+                id="service-consent"
+                className="mt-1"
+                required
+              />
+              <label
+                htmlFor="service-consent"
+                className="text-xs leading-6 text-neutral-600"
               >
-                {isSubmitting ? "Отправка..." : "Отправить заявку"}
-              </button>
-            </form>
+                Согласен на обработку персональных данных в соответствии с
+                политикой конфиденциальности.
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-[#FF7A00] py-4 text-sm font-semibold text-white shadow-lg shadow-[#FF7A00]/20 transition-colors hover:bg-[#E86F00] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? "Отправка..." : "Отправить заявку"}
+            </button>
+          </form>
         </div>
       </section>
 
-      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
+      <PublicFooter
+        brandName={brandName}
+        footerText={footerText}
+        contactsLabel={navContacts}
+      />
     </main>
   );
 }

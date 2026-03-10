@@ -9,6 +9,9 @@ ORDER_STATUSES = {"new", "in_progress", "ready", "closed", "canceled"}
 ORDER_DELIVERY_METHODS = {"pickup", "courier"}
 ORDER_PAYMENT_METHODS = {"cash_on_delivery", "invoice"}
 ORDER_SOURCES = {"checkout", "one_click"}
+PAYMENT_STATUSES = {"not_required", "pending", "paid", "failed", "refunded"}
+PAYMENT_WEBHOOK_STATUSES = {"pending", "paid", "failed", "refunded"}
+PAYMENT_ENTITY_TYPES = {"order", "service_request"}
 LEAD_TYPES = {"product", "callback", "vin", "parts_search"}
 USER_ROLES = {"admin", "manager", "service_manager"}
 SERVICE_CATALOG_VEHICLE_TYPES = {"passenger", "truck", "both"}
@@ -26,6 +29,7 @@ def normalize_phone(value: str) -> str:
 
     return f"+{digits}"
 
+
 # ---------- Category Schemas ----------
 class CategoryBase(BaseModel):
     name: str
@@ -34,8 +38,10 @@ class CategoryBase(BaseModel):
     sort_order: int = 0
     is_active: bool = True
 
+
 class CategoryCreate(CategoryBase):
     pass
+
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
@@ -44,12 +50,14 @@ class CategoryUpdate(BaseModel):
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
 
+
 class CategoryResponse(CategoryBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- Product Schemas ----------
 class ProductImageBase(BaseModel):
@@ -67,8 +75,10 @@ class ProductImageBase(BaseModel):
             raise ValueError("Image URL must point to self-hosted /uploads path")
         return normalized
 
+
 class ProductImageResponse(ProductImageBase):
     id: int
+
 
 class ProductCompatibilityBase(BaseModel):
     make: str
@@ -77,8 +87,10 @@ class ProductCompatibilityBase(BaseModel):
     year_to: Optional[int] = None
     engine: Optional[str] = None
 
+
 class ProductCompatibilityResponse(ProductCompatibilityBase):
     id: int
+
 
 class ProductBase(BaseModel):
     category_id: int
@@ -92,9 +104,11 @@ class ProductBase(BaseModel):
     is_active: bool = True
     attributes: Dict[str, Any] = Field(default_factory=dict)
 
+
 class ProductCreate(ProductBase):
     images: List[ProductImageBase] = []
     compatibilities: List[ProductCompatibilityBase] = []
+
 
 class ProductUpdate(BaseModel):
     category_id: Optional[int] = None
@@ -109,13 +123,14 @@ class ProductUpdate(BaseModel):
     attributes: Optional[Dict[str, Any]] = None
     compatibilities: Optional[List[ProductCompatibilityBase]] = None
 
+
 class ProductResponse(ProductBase):
     id: int
     created_at: datetime
     updated_at: datetime
     images: List[ProductImageResponse] = []
     compatibilities: List[ProductCompatibilityResponse] = []
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -179,7 +194,9 @@ class OrderBase(BaseModel):
     def validate_source(cls, value: str) -> str:
         normalized = value.strip().lower()
         if normalized not in ORDER_SOURCES:
-            raise ValueError(f"source must be one of: {', '.join(sorted(ORDER_SOURCES))}")
+            raise ValueError(
+                f"source must be one of: {', '.join(sorted(ORDER_SOURCES))}"
+            )
         return normalized
 
     @field_validator("customer_phone")
@@ -211,7 +228,9 @@ class OrderBase(BaseModel):
             )
         return normalized
 
-    @field_validator("customer_name", "comment", "legal_entity_name", "invoice_requisites_file_name")
+    @field_validator(
+        "customer_name", "comment", "legal_entity_name", "invoice_requisites_file_name"
+    )
     @classmethod
     def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
@@ -229,7 +248,9 @@ class OrderBase(BaseModel):
 
     @field_validator("invoice_requisites_file_url")
     @classmethod
-    def validate_invoice_requisites_file_url(cls, value: Optional[str]) -> Optional[str]:
+    def validate_invoice_requisites_file_url(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
         if value is None:
             return None
         normalized = value.strip()
@@ -238,14 +259,18 @@ class OrderBase(BaseModel):
         if normalized.startswith("http://") or normalized.startswith("https://"):
             raise ValueError("External invoice requisites file URLs are not allowed")
         if not normalized.startswith("/uploads/"):
-            raise ValueError("Invoice requisites file URL must point to self-hosted /uploads path")
+            raise ValueError(
+                "Invoice requisites file URL must point to self-hosted /uploads path"
+            )
         return normalized
 
 
 class OrderCreate(OrderBase):
     @field_validator("items")
     @classmethod
-    def validate_items_for_checkout(cls, value: List[OrderItemCreate]) -> List[OrderItemCreate]:
+    def validate_items_for_checkout(
+        cls, value: List[OrderItemCreate]
+    ) -> List[OrderItemCreate]:
         return value
 
 
@@ -254,6 +279,14 @@ class OrderResponse(OrderBase):
     uuid: str
     status: str
     manager_comment: Optional[str] = None
+    payment_status: str = "not_required"
+    payment_required: bool = False
+    payment_amount: Optional[float] = None
+    payment_currency: str = "RUB"
+    payment_provider: Optional[str] = None
+    payment_reference: Optional[str] = None
+    payment_error: Optional[str] = None
+    payment_updated_at: Optional[datetime] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     consent_at: Optional[datetime] = None
@@ -273,7 +306,9 @@ class OrderStatusUpdate(BaseModel):
     def validate_status(cls, value: str) -> str:
         normalized = value.strip().lower()
         if normalized not in ORDER_STATUSES:
-            raise ValueError(f"status must be one of: {', '.join(sorted(ORDER_STATUSES))}")
+            raise ValueError(
+                f"status must be one of: {', '.join(sorted(ORDER_STATUSES))}"
+            )
         return normalized
 
     @field_validator("manager_comment")
@@ -302,6 +337,14 @@ class OrderPublicResponse(BaseModel):
     source: str
     delivery_method: Optional[str] = None
     payment_method: Optional[str] = None
+    payment_status: str = "not_required"
+    payment_required: bool = False
+    payment_amount: Optional[float] = None
+    payment_currency: str = "RUB"
+    payment_provider: Optional[str] = None
+    payment_reference: Optional[str] = None
+    payment_error: Optional[str] = None
+    payment_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     items: List[OrderPublicItemResponse] = []
@@ -314,6 +357,7 @@ class OrderRequisitesUploadResponse(BaseModel):
     filename: str
     size_bytes: int
     content_type: str
+
 
 # ---------- Lead Schemas ----------
 class LeadBase(BaseModel):
@@ -347,7 +391,9 @@ class LeadBase(BaseModel):
     def validate_phone(cls, value: str) -> str:
         return normalize_phone(value)
 
-    @field_validator("name", "message", "vin", "vehicle_make", "vehicle_model", "product_sku")
+    @field_validator(
+        "name", "message", "vin", "vehicle_make", "vehicle_model", "product_sku"
+    )
     @classmethod
     def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
@@ -355,8 +401,10 @@ class LeadBase(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+
 class LeadCreate(LeadBase):
     pass
+
 
 class LeadResponse(LeadBase):
     id: int
@@ -367,8 +415,9 @@ class LeadResponse(LeadBase):
     consent_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- VIN Request Schemas ----------
 class VinRequestBase(BaseModel):
@@ -386,7 +435,9 @@ class VinRequestBase(BaseModel):
     @classmethod
     def validate_vin(cls, value: str) -> str:
         normalized = value.strip().upper()
-        if len(normalized) != 17 or not re.fullmatch(r"[A-HJ-NPR-Z0-9]{17}", normalized):
+        if len(normalized) != 17 or not re.fullmatch(
+            r"[A-HJ-NPR-Z0-9]{17}", normalized
+        ):
             raise ValueError("VIN must contain 17 symbols")
         return normalized
 
@@ -430,7 +481,9 @@ class VinRequestStatusUpdate(BaseModel):
     def validate_status(cls, value: str) -> str:
         normalized = value.strip().lower()
         if normalized not in VIN_REQUEST_STATUSES:
-            raise ValueError(f"status must be one of: {', '.join(sorted(VIN_REQUEST_STATUSES))}")
+            raise ValueError(
+                f"status must be one of: {', '.join(sorted(VIN_REQUEST_STATUSES))}"
+            )
         return normalized
 
     @field_validator("operator_comment")
@@ -440,6 +493,7 @@ class VinRequestStatusUpdate(BaseModel):
             return None
         normalized = value.strip()
         return normalized or None
+
 
 # ---------- Service Request Schemas ----------
 class ServiceRequestBase(BaseModel):
@@ -459,6 +513,7 @@ class ServiceRequestBase(BaseModel):
     requested_product_sku: Optional[str] = None
     requested_product_name: Optional[str] = None
     estimated_bundle_total: Optional[float] = Field(default=None, ge=0)
+    payment_reference: Optional[str] = None
     operator_comment: Optional[str] = None
     preferred_date: Optional[datetime] = None
     consent_given: bool = False
@@ -486,7 +541,14 @@ class ServiceRequestBase(BaseModel):
             raise ValueError("Field must not be empty")
         return normalized
 
-    @field_validator("name", "vehicle_make", "vehicle_model", "vehicle_engine", "vin", "requested_product_name")
+    @field_validator(
+        "name",
+        "vehicle_make",
+        "vehicle_model",
+        "vehicle_engine",
+        "vin",
+        "requested_product_name",
+    )
     @classmethod
     def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
@@ -502,6 +564,14 @@ class ServiceRequestBase(BaseModel):
         normalized = value.strip().upper()
         return normalized or None
 
+    @field_validator("payment_reference")
+    @classmethod
+    def normalize_payment_reference(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @field_validator("operator_comment")
     @classmethod
     def validate_operator_comment(cls, value: Optional[str]) -> Optional[str]:
@@ -510,19 +580,28 @@ class ServiceRequestBase(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+
 class ServiceRequestCreate(ServiceRequestBase):
     pass
+
 
 class ServiceRequestResponse(ServiceRequestBase):
     id: int
     uuid: str
     status: str
+    payment_status: str = "not_required"
+    payment_required: bool = False
+    payment_amount: Optional[float] = None
+    payment_currency: str = "RUB"
+    payment_provider: Optional[str] = None
+    payment_error: Optional[str] = None
+    payment_updated_at: Optional[datetime] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     consent_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -535,7 +614,9 @@ class ServiceRequestStatusUpdate(BaseModel):
     def validate_status(cls, value: str) -> str:
         normalized = value.strip().lower()
         if normalized not in SERVICE_REQUEST_STATUSES:
-            raise ValueError(f"status must be one of: {', '.join(sorted(SERVICE_REQUEST_STATUSES))}")
+            raise ValueError(
+                f"status must be one of: {', '.join(sorted(SERVICE_REQUEST_STATUSES))}"
+            )
         return normalized
 
     @field_validator("operator_comment")
@@ -618,6 +699,55 @@ class ServiceCatalogItemResponse(ServiceCatalogItemBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class PaymentWebhookPayload(BaseModel):
+    entity_type: str
+    entity_id: int = Field(ge=1)
+    status: str
+    payment_reference: Optional[str] = None
+    provider: Optional[str] = None
+    amount: Optional[float] = Field(default=None, ge=0)
+    currency: str = "RUB"
+    event: Optional[str] = None
+    error: Optional[str] = None
+
+    @field_validator("entity_type")
+    @classmethod
+    def validate_entity_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in PAYMENT_ENTITY_TYPES:
+            raise ValueError(
+                f"entity_type must be one of: {', '.join(sorted(PAYMENT_ENTITY_TYPES))}"
+            )
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in PAYMENT_WEBHOOK_STATUSES:
+            raise ValueError(
+                f"status must be one of: {', '.join(sorted(PAYMENT_WEBHOOK_STATUSES))}"
+            )
+        return normalized
+
+    @field_validator("payment_reference", "provider", "event", "error")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if not normalized:
+            return "RUB"
+        return normalized[:10]
+
+
 # ---------- User Schemas ----------
 class UserBase(BaseModel):
     email: EmailStr
@@ -640,6 +770,7 @@ class UserBase(BaseModel):
             return None
         normalized = value.strip()
         return normalized or None
+
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=128)
@@ -669,9 +800,11 @@ class UserUpdate(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UserResponse(BaseModel):
     email: str
@@ -681,18 +814,21 @@ class UserResponse(BaseModel):
     id: int
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
 
 # ---------- Health Response ----------
 class HealthResponse(BaseModel):
     status: str
     database: str
     timestamp: datetime
+
 
 # ---------- Site Content Schemas ----------
 class SiteContentBase(BaseModel):
@@ -701,16 +837,19 @@ class SiteContentBase(BaseModel):
     type: str = "text"
     description: Optional[str] = None
 
+
 class SiteContentCreate(SiteContentBase):
     pass
+
 
 class SiteContentUpdate(BaseModel):
     value: Optional[str] = None
     type: Optional[str] = None
     description: Optional[str] = None
 
+
 class SiteContentResponse(SiteContentBase):
     id: int
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)

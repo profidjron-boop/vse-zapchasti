@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -12,7 +12,8 @@ function normalizePhone(value: string): string | null {
   const digits = value.replace(/\D/g, "");
   let normalized = digits;
 
-  if (normalized.length === 11 && normalized.startsWith("8")) normalized = `7${normalized.slice(1)}`;
+  if (normalized.length === 11 && normalized.startsWith("8"))
+    normalized = `7${normalized.slice(1)}`;
   if (normalized.length === 10) normalized = `7${normalized}`;
 
   if (normalized.length !== 11 || !normalized.startsWith("7")) return null;
@@ -31,9 +32,15 @@ export default function ContactsPage() {
     async function fetchPublicContent() {
       try {
         const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
+        const response = await fetch(
+          withApiBase(apiBaseUrl, "/api/public/content"),
+          { cache: "no-store" },
+        );
         if (!response.ok) return;
-        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
+        const payload = (await response.json()) as Array<{
+          key?: string;
+          value?: string | null;
+        }>;
         if (!Array.isArray(payload)) return;
 
         const nextMap: Record<string, string> = {};
@@ -58,47 +65,79 @@ export default function ContactsPage() {
   }, []);
 
   const contentValue = useMemo(
-    () => (key: string, fallback: string): string => {
-      const value = contentMap[key];
-      return value && value.trim() ? value : fallback;
-    },
+    () =>
+      (key: string, fallback: string): string => {
+        const value = contentMap[key];
+        return value && value.trim() ? value : fallback;
+      },
     [contentMap],
   );
 
   const toTelHref = useMemo(
-    () => (displayPhone: string, fallbackHref: string): string => {
-      const digits = displayPhone.replace(/\D/g, "");
-      if (!digits) return fallbackHref;
-      if (digits.length === 11 && digits.startsWith("8")) {
-        return `tel:+7${digits.slice(1)}`;
-      }
-      if (digits.length === 11 && digits.startsWith("7")) {
-        return `tel:+${digits}`;
-      }
-      return fallbackHref;
-    },
+    () =>
+      (displayPhone: string, fallbackHref: string): string => {
+        const digits = displayPhone.replace(/\D/g, "");
+        if (!digits) return fallbackHref;
+        if (digits.length === 11 && digits.startsWith("8")) {
+          return `tel:+7${digits.slice(1)}`;
+        }
+        if (digits.length === 11 && digits.startsWith("7")) {
+          return `tel:+${digits}`;
+        }
+        return fallbackHref;
+      },
     [],
   );
 
-  const contactAddress = contentValue("contacts_address", "660000, г. Красноярск, пр. Металлургов, 2В");
-  const scheduleWeekdays = contentValue("contacts_schedule_weekdays", "09:00 – 19:00");
-  const scheduleSaturday = contentValue("contacts_schedule_saturday", "10:00 – 17:00");
+  const contactAddress = contentValue(
+    "contacts_address",
+    "660000, г. Красноярск, пр. Металлургов, 2В",
+  );
+  const scheduleWeekdays = contentValue(
+    "contacts_schedule_weekdays",
+    "09:00 – 19:00",
+  );
+  const scheduleSaturday = contentValue(
+    "contacts_schedule_saturday",
+    "10:00 – 17:00",
+  );
   const scheduleSunday = contentValue("contacts_schedule_sunday", "Выходной");
 
   const phoneParts = contentValue("contacts_phone_parts", "+7 (391) 258-95-00");
-  const phoneService = contentValue("contacts_phone_service", "+7 (391) 258-95-01");
+  const phoneService = contentValue(
+    "contacts_phone_service",
+    "+7 (391) 258-95-01",
+  );
   const phoneMain = contentValue("contacts_phone_main", "+7 (391) 258-95-00");
 
   const emailInfo = contentValue("contacts_email_info", "info@vsezapchasti.ru");
-  const emailService = contentValue("contacts_email_service", "service@vsezapchasti.ru");
-  const emailPrivacy = contentValue("contacts_email_privacy", "privacy@vsezapchasti.ru");
+  const emailService = contentValue(
+    "contacts_email_service",
+    "service@vsezapchasti.ru",
+  );
+  const emailPrivacy = contentValue(
+    "contacts_email_privacy",
+    "privacy@vsezapchasti.ru",
+  );
 
-  const legalName = contentValue("contacts_legal_name", "ИП Иванов Иван Иванович");
+  const legalName = contentValue(
+    "contacts_legal_name",
+    "ИП Иванов Иван Иванович",
+  );
   const legalInn = contentValue("contacts_inn", "246500123456");
   const legalOgrnip = contentValue("contacts_ogrnip", "321246800123456");
-  const legalAddress = contentValue("contacts_legal_address", "660000, г. Красноярск, ул. Ленина, 1");
-  const legalBankAccount = contentValue("contacts_bank_account", "40802810900001234567");
-  const legalBankName = contentValue("contacts_bank_name", "ПАО Сбербанк г. Красноярск");
+  const legalAddress = contentValue(
+    "contacts_legal_address",
+    "660000, г. Красноярск, ул. Ленина, 1",
+  );
+  const legalBankAccount = contentValue(
+    "contacts_bank_account",
+    "40802810900001234567",
+  );
+  const legalBankName = contentValue(
+    "contacts_bank_name",
+    "ПАО Сбербанк г. Красноярск",
+  );
   const legalBik = contentValue("contacts_bank_bik", "040407123");
 
   const brandName = contentValue("site_brand_name", "Все запчасти");
@@ -110,8 +149,14 @@ export default function ContactsPage() {
   const navCart = contentValue("site_nav_cart_label", "Корзина");
   const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
   const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
-  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
-  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+  const navCallback = contentValue(
+    "site_nav_callback_label",
+    "Заказать звонок",
+  );
+  const footerText = contentValue(
+    "site_footer_text",
+    "Все запчасти · Красноярск · NO CDN",
+  );
 
   const mapYandexUrl = contentValue(
     "contacts_map_yandex_url",
@@ -166,10 +211,16 @@ export default function ContactsPage() {
       );
 
       form.reset();
-      setSuccess("Заявка на обратный звонок отправлена. Менеджер свяжется с вами в рабочее время.");
+      setSuccess(
+        "Заявка на обратный звонок отправлена. Менеджер свяжется с вами в рабочее время.",
+      );
     } catch (submitError) {
       if (submitError instanceof ApiRequestError) {
-        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
+        setError(
+          submitError.traceId
+            ? `${submitError.message}. Код: ${submitError.traceId}`
+            : submitError.message,
+        );
       } else {
         setError("Не удалось отправить заявку. Попробуйте позже.");
       }
@@ -223,9 +274,12 @@ export default function ContactsPage() {
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               contacts · callback · route
             </div>
-            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Контакты и реквизиты</h1>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
+              Контакты и реквизиты
+            </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
-              Приезжайте, звоните или отправляйте заявку онлайн. Работаем в Красноярске, принимаем обращения по каталогу и сервису.
+              Приезжайте, звоните или отправляйте заявку онлайн. Работаем в
+              Красноярске, принимаем обращения по каталогу и сервису.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {[
@@ -233,7 +287,10 @@ export default function ContactsPage() {
                 `Сб ${scheduleSaturday}`,
                 `Вс ${scheduleSunday}`,
               ].map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-medium text-white/78">
+                <div
+                  key={item}
+                  className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-medium text-white/78"
+                >
                   {item}
                 </div>
               ))}
@@ -256,13 +313,18 @@ export default function ContactsPage() {
 
           <div className="space-y-4">
             <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как добраться</div>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Адрес и точка обслуживания</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                как добраться
+              </div>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">
+                Адрес и точка обслуживания
+              </h2>
               <p className="mt-3 text-sm leading-7 text-neutral-600">
                 {contactAddress}
               </p>
               <p className="mt-3 text-sm leading-7 text-neutral-600">
-                Вход с торца здания, вывеска «Все запчасти». Пункт выдачи и приемка в сервис находятся по этому же адресу.
+                Вход с торца здания, вывеска «Все запчасти». Пункт выдачи и
+                приемка в сервис находятся по этому же адресу.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <a
@@ -285,15 +347,26 @@ export default function ContactsPage() {
             </div>
 
             <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">почта</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                почта
+              </div>
               <div className="mt-4 space-y-3 text-sm">
-                <a href={`mailto:${emailInfo}`} className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white">
+                <a
+                  href={`mailto:${emailInfo}`}
+                  className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white"
+                >
                   {emailInfo}
                 </a>
-                <a href={`mailto:${emailService}`} className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white">
+                <a
+                  href={`mailto:${emailService}`}
+                  className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white"
+                >
                   {emailService}
                 </a>
-                <a href={`mailto:${emailPrivacy}`} className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white">
+                <a
+                  href={`mailto:${emailPrivacy}`}
+                  className="block rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-medium text-[#1F3B73] transition-colors hover:bg-white"
+                >
                   {emailPrivacy}
                 </a>
               </div>
@@ -310,9 +383,15 @@ export default function ContactsPage() {
               href={card.href}
               className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)]"
             >
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">{card.title}</div>
-              <div className="mt-3 text-2xl font-black tracking-tight text-[#10264B]">{card.value}</div>
-              <p className="mt-3 text-sm leading-6 text-neutral-600">{card.description}</p>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                {card.title}
+              </div>
+              <div className="mt-3 text-2xl font-black tracking-tight text-[#10264B]">
+                {card.value}
+              </div>
+              <p className="mt-3 text-sm leading-6 text-neutral-600">
+                {card.description}
+              </p>
             </a>
           ))}
         </div>
@@ -321,29 +400,48 @@ export default function ContactsPage() {
       <section className="bg-white py-12">
         <div className="mx-auto grid max-w-[92rem] gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,0.85fr)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">обратный звонок</div>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">Напишите нам</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              обратный звонок
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">
+              Напишите нам
+            </h2>
             <p className="mt-3 text-sm leading-7 text-neutral-600 sm:text-base">
-              Оставьте телефон и сообщение. Менеджер свяжется с вами в рабочее время по каталогу, заказу или сервисной записи.
+              Оставьте телефон и сообщение. Менеджер свяжется с вами в рабочее
+              время по каталогу, заказу или сервисной записи.
             </p>
 
             <div className="mt-6 min-h-[5rem]">
               {error ? (
-                <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+                >
                   {error}
                 </div>
               ) : null}
               {!error && success ? (
-                <div role="status" aria-live="polite" className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700"
+                >
                   {success}
                 </div>
               ) : null}
             </div>
 
-            <form id="callback-form" onSubmit={handleCallbackSubmit} className="mt-8 space-y-4 scroll-mt-36">
+            <form
+              id="callback-form"
+              onSubmit={handleCallbackSubmit}
+              className="mt-8 space-y-4 scroll-mt-36"
+            >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-neutral-700">Имя</label>
+                  <label className="text-sm font-medium text-neutral-700">
+                    Имя
+                  </label>
                   <input
                     type="text"
                     name="name"
@@ -353,7 +451,9 @@ export default function ContactsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-neutral-700">Телефон *</label>
+                  <label className="text-sm font-medium text-neutral-700">
+                    Телефон *
+                  </label>
                   <input
                     type="tel"
                     name="phone"
@@ -366,7 +466,9 @@ export default function ContactsPage() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-neutral-700">Email</label>
+                <label className="text-sm font-medium text-neutral-700">
+                  Email
+                </label>
                 <input
                   type="email"
                   name="email"
@@ -376,7 +478,9 @@ export default function ContactsPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-neutral-700">Сообщение</label>
+                <label className="text-sm font-medium text-neutral-700">
+                  Сообщение
+                </label>
                 <textarea
                   name="message"
                   rows={4}
@@ -385,9 +489,19 @@ export default function ContactsPage() {
                 />
               </div>
               <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <input type="checkbox" name="consent" id="contact-consent" className="mt-1" required />
-                <label htmlFor="contact-consent" className="text-xs leading-6 text-neutral-600">
-                  Согласен на обработку персональных данных в соответствии с политикой конфиденциальности.
+                <input
+                  type="checkbox"
+                  name="consent"
+                  id="contact-consent"
+                  className="mt-1"
+                  required
+                />
+                <label
+                  htmlFor="contact-consent"
+                  className="text-xs leading-6 text-neutral-600"
+                >
+                  Согласен на обработку персональных данных в соответствии с
+                  политикой конфиденциальности.
                 </label>
               </div>
               <button
@@ -402,7 +516,9 @@ export default function ContactsPage() {
 
           <aside className="space-y-4">
             <div className="rounded-[2rem] bg-[linear-gradient(135deg,#10264B_0%,#1F3B73_100%)] p-6 text-white shadow-[0_28px_70px_rgba(16,38,75,0.18)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">режим работы</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">
+                режим работы
+              </div>
               <div className="mt-4 space-y-3 text-sm leading-6 text-white/78">
                 <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
                   Пн–Пт: {scheduleWeekdays}
@@ -414,13 +530,16 @@ export default function ContactsPage() {
                   Вс: {scheduleSunday}
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                  Онлайн-заявки принимаются круглосуточно, обработка — в рабочее время.
+                  Онлайн-заявки принимаются круглосуточно, обработка — в рабочее
+                  время.
                 </div>
               </div>
             </div>
 
             <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">реквизиты</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                реквизиты
+              </div>
               <div className="mt-4 space-y-2 text-sm leading-6 text-neutral-600">
                 <p className="font-semibold text-neutral-900">{legalName}</p>
                 <p>ИНН {legalInn}</p>
@@ -442,9 +561,12 @@ export default function ContactsPage() {
                 />
               </div>
               <div className="p-5">
-                <div className="text-sm font-semibold text-neutral-900">Точка приёма и выдачи</div>
+                <div className="text-sm font-semibold text-neutral-900">
+                  Точка приёма и выдачи
+                </div>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  По одному адресу можно забрать заказ, уточнить подбор и передать автомобиль в сервис.
+                  По одному адресу можно забрать заказ, уточнить подбор и
+                  передать автомобиль в сервис.
                 </p>
               </div>
             </div>
@@ -452,7 +574,11 @@ export default function ContactsPage() {
         </div>
       </section>
 
-      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
+      <PublicFooter
+        brandName={brandName}
+        footerText={footerText}
+        contactsLabel={navContacts}
+      />
     </main>
   );
 }

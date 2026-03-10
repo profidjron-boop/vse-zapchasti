@@ -3,6 +3,11 @@ import Link from "next/link";
 import { PublicFooter } from "@/components/public-footer";
 import { PublicHeader } from "@/components/public-header";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import {
+  fetchPublicContentMapServer,
+  getPublicContentValue,
+  getPublicSiteContent,
+} from "@/lib/public-site-content";
 
 type Category = {
   id: number;
@@ -10,30 +15,13 @@ type Category = {
   parent_id: number | null;
 };
 
-async function getPublicContentMap(): Promise<Record<string, string>> {
-  try {
-    const apiBaseUrl = getServerApiBaseUrl();
-    const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
-    if (!response.ok) return {};
-    const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
-    if (!Array.isArray(payload)) return {};
-
-    const map: Record<string, string> = {};
-    for (const item of payload) {
-      if (item?.key && typeof item.value === "string") {
-        map[item.key] = item.value;
-      }
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
-
 async function getPublicCategories(): Promise<Category[]> {
   try {
     const apiBaseUrl = getServerApiBaseUrl();
-    const response = await fetch(withApiBase(apiBaseUrl, "/api/public/categories"), { cache: "no-store" });
+    const response = await fetch(
+      withApiBase(apiBaseUrl, "/api/public/categories"),
+      { cache: "no-store" },
+    );
     if (!response.ok) return [];
     const payload = (await response.json()) as Category[];
     return Array.isArray(payload) ? payload : [];
@@ -72,42 +60,65 @@ function categoryTone(index: number): string {
 }
 
 export default async function Page() {
-  const contentMap = await getPublicContentMap();
+  const contentMap = await fetchPublicContentMapServer();
+  const siteContent = getPublicSiteContent(contentMap);
   const categories = await getPublicCategories();
   const contentValue = (key: string, fallback: string): string => {
-    const value = contentMap[key];
-    return value && value.trim() ? value : fallback;
+    return getPublicContentValue(contentMap, key, fallback);
   };
 
-  const brandName = contentValue("site_brand_name", "Все запчасти");
-  const navParts = contentValue("site_nav_parts_label", "Запчасти");
-  const navService = contentValue("site_nav_service_label", "Автосервис");
-  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
-  const navAbout = contentValue("site_nav_about_label", "О компании");
-  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
-  const navCart = contentValue("site_nav_cart_label", "Корзина");
-  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
-  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
-  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
-  const heroTitle = contentValue("home_hero_title", "Все запчасти и автосервис в одном месте");
+  const heroTitle = contentValue(
+    "home_hero_title",
+    "Все запчасти и автосервис в одном месте",
+  );
   const heroSubtitle = contentValue(
     "home_hero_subtitle",
-    "Каталог запчастей, подбор по артикулу или VIN и запись на сервис без лишних шагов."
+    "Каталог запчастей, подбор по артикулу или VIN и запись на сервис без лишних шагов.",
   );
-  const heroCtaParts = contentValue("home_hero_cta_parts_label", "Подобрать запчасти");
-  const heroCtaService = contentValue("home_hero_cta_service_label", "Записаться на сервис");
-  const orderPartsTitle = contentValue("home_order_parts_title", "Не нашли нужную запчасть?");
+  const heroCtaParts = contentValue(
+    "home_hero_cta_parts_label",
+    "Подобрать запчасти",
+  );
+  const heroCtaService = contentValue(
+    "home_hero_cta_service_label",
+    "Записаться на сервис",
+  );
+  const orderPartsTitle = contentValue(
+    "home_order_parts_title",
+    "Не нашли нужную запчасть?",
+  );
   const orderPartsSubtitle = contentValue(
     "home_order_parts_subtitle",
-    "Отправьте заявку, и менеджер подберёт позицию по VIN, OEM или описанию."
+    "Отправьте заявку, и менеджер подберёт позицию по VIN, OEM или описанию.",
   );
-  const orderPartsCta = contentValue("home_order_parts_cta_label", "Оставить заявку");
-  const homeContactsAddress = contentValue("home_contacts_address", "г. Красноярск, пр. Металлургов, 2В");
-  const homeContactsSchedule = contentValue("home_contacts_schedule", "Пн–Пт 9:00–19:00, Сб 10:00–17:00, Вс выходной");
-  const homeContactsPhone = contentValue("home_contacts_phone", "+7 (391) 258-95-00");
-  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN (self-hosted assets)");
-  const legalPrivacyLabel = contentValue("site_legal_privacy_label", "Политика конфиденциальности");
-  const legalOfferLabel = contentValue("site_legal_offer_label", "Публичная оферта");
+  const orderPartsCta = contentValue(
+    "home_order_parts_cta_label",
+    "Оставить заявку",
+  );
+  const homeContactsAddress = contentValue(
+    "home_contacts_address",
+    "г. Красноярск, пр. Металлургов, 2В",
+  );
+  const homeContactsSchedule = contentValue(
+    "home_contacts_schedule",
+    "Пн–Пт 9:00–19:00, Сб 10:00–17:00, Вс выходной",
+  );
+  const homeContactsPhone = contentValue(
+    "home_contacts_phone",
+    "+7 (391) 258-95-00",
+  );
+  const footerText = contentValue(
+    "site_footer_text",
+    siteContent.footerText,
+  );
+  const legalPrivacyLabel = contentValue(
+    "site_legal_privacy_label",
+    "Политика конфиденциальности",
+  );
+  const legalOfferLabel = contentValue(
+    "site_legal_offer_label",
+    "Публичная оферта",
+  );
   const homeCategoryFallback = [
     "Подвеска и рулевое",
     "Тормозная система",
@@ -123,7 +134,7 @@ export default async function Page() {
     "Тормозная система": "/assets/category-icons/brakes.svg",
     "Двигатель и зажигание": "/assets/category-icons/engine.svg",
     "Масла и жидкости": "/assets/category-icons/to.svg",
-    "Электрика": "/assets/category-icons/electrics.svg",
+    Электрика: "/assets/category-icons/electrics.svg",
     "Сцепление и КПП": "/assets/category-icons/gearbox.svg",
   };
   const homeCategories = categories
@@ -167,18 +178,8 @@ export default async function Page() {
   return (
     <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
       <PublicHeader
-        brandName={brandName}
-        labels={{
-          parts: navParts,
-          service: navService,
-          contacts: navContacts,
-          about: navAbout,
-          favorites: navFavorites,
-          cart: navCart,
-          orders: navOrders,
-          dealer: navDealer,
-          callback: navCallback,
-        }}
+        brandName={siteContent.brandName}
+        labels={siteContent.labels}
       />
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
@@ -209,9 +210,16 @@ export default async function Page() {
             </div>
             <div className="mt-10 grid gap-3 sm:grid-cols-3">
               {valueCards.map((card) => (
-                <div key={card.title} className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                  <div className="text-sm font-semibold text-white">{card.title}</div>
-                  <p className="mt-2 text-sm leading-6 text-white/72">{card.text}</p>
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-white/10 bg-white/8 p-4"
+                >
+                  <div className="text-sm font-semibold text-white">
+                    {card.title}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/72">
+                    {card.text}
+                  </p>
                 </div>
               ))}
             </div>
@@ -223,10 +231,15 @@ export default async function Page() {
               method="get"
               className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]"
             >
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">быстрый поиск</div>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#1F3B73]">Найти запчасть по артикулу</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                быстрый поиск
+              </div>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#1F3B73]">
+                Найти запчасть по артикулу
+              </h2>
               <p className="mt-2 text-sm leading-6 text-neutral-600">
-                Введите SKU, OEM или часть названия, чтобы сразу перейти в каталог.
+                Введите SKU, OEM или часть названия, чтобы сразу перейти в
+                каталог.
               </p>
               <div className="mt-5 space-y-3">
                 <label htmlFor="hero-parts-search" className="sr-only">
@@ -250,10 +263,15 @@ export default async function Page() {
 
             <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">VIN-подбор</div>
-                <h3 className="mt-3 text-xl font-bold text-neutral-900">Подбор без точного номера</h3>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">
+                  VIN-подбор
+                </div>
+                <h3 className="mt-3 text-xl font-bold text-neutral-900">
+                  Подбор без точного номера
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  Отправьте VIN, контакты и комментарий. Менеджер подберёт совместимость вручную.
+                  Отправьте VIN, контакты и комментарий. Менеджер подберёт
+                  совместимость вручную.
                 </p>
                 <Link
                   href="/parts/vin"
@@ -264,10 +282,15 @@ export default async function Page() {
               </div>
 
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">сервисный центр</div>
-                <h3 className="mt-3 text-xl font-bold text-neutral-900">Запись на сервис</h3>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">
+                  сервисный центр
+                </div>
+                <h3 className="mt-3 text-xl font-bold text-neutral-900">
+                  Запись на сервис
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  ТО, диагностика, ремонт и обслуживание. Запись оформляется заявкой с подтверждением.
+                  ТО, диагностика, ремонт и обслуживание. Запись оформляется
+                  заявкой с подтверждением.
                 </p>
                 <Link
                   href="/service#form"
@@ -284,8 +307,12 @@ export default async function Page() {
       <section className="mx-auto max-w-[92rem] px-4 py-14 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">каталог</div>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">Категории запчастей</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              каталог
+            </div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">
+              Категории запчастей
+            </h2>
           </div>
           <Link
             href="/parts"
@@ -304,7 +331,9 @@ export default async function Page() {
             >
               <div
                 className={`inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-[#1F3B73]/10 ${
-                  categoryIconMap[category.name] ? "bg-[#EEF3FF]" : `bg-gradient-to-br ${categoryTone(index)}`
+                  categoryIconMap[category.name]
+                    ? "bg-[#EEF3FF]"
+                    : `bg-gradient-to-br ${categoryTone(index)}`
                 }`}
               >
                 {categoryIconMap[category.name] ? (
@@ -317,10 +346,14 @@ export default async function Page() {
                     aria-hidden="true"
                   />
                 ) : (
-                  <span className="text-lg font-black tracking-wide text-white">{categoryMonogram(category.name)}</span>
+                  <span className="text-lg font-black tracking-wide text-white">
+                    {categoryMonogram(category.name)}
+                  </span>
                 )}
               </div>
-              <h3 className="mt-5 text-lg font-bold leading-6 text-neutral-900">{category.name}</h3>
+              <h3 className="mt-5 text-lg font-bold leading-6 text-neutral-900">
+                {category.name}
+              </h3>
               <p className="mt-3 text-sm leading-6 text-neutral-600">
                 Перейти в подбор и список доступных товаров по категории.
               </p>
@@ -335,17 +368,24 @@ export default async function Page() {
       <section className="bg-white py-14">
         <div className="mx-auto grid max-w-[92rem] gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] lg:p-8">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как мы работаем</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              как мы работаем
+            </div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">
               Магазин запчастей и автосервис в одном контуре
             </h2>
             <div className="mt-8 grid gap-4 lg:grid-cols-3">
               {processSteps.map((step, index) => (
-                <div key={step} className="rounded-2xl border border-neutral-200 bg-white p-5">
+                <div
+                  key={step}
+                  className="rounded-2xl border border-neutral-200 bg-white p-5"
+                >
                   <div className="text-2xl font-black text-[#1F3B73]">
                     {String(index + 1).padStart(2, "0")}
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-neutral-600">{step}</p>
+                  <p className="mt-3 text-sm leading-6 text-neutral-600">
+                    {step}
+                  </p>
                 </div>
               ))}
             </div>
@@ -364,7 +404,9 @@ export default async function Page() {
                   коммерческий транспорт
                 </div>
                 <h3 className="mt-3 text-2xl font-bold">{orderPartsTitle}</h3>
-                <p className="mt-3 text-sm leading-6 text-white/78">{orderPartsSubtitle}</p>
+                <p className="mt-3 text-sm leading-6 text-white/78">
+                  {orderPartsSubtitle}
+                </p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <Link
                     href="/contacts#callback-form"
@@ -393,8 +435,12 @@ export default async function Page() {
                 className="h-56 w-full object-cover"
               />
               <div className="p-6">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">автосервис</div>
-                <h3 className="mt-3 text-2xl font-bold text-[#10264B]">ТО, диагностика и ремонт</h3>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                  автосервис
+                </div>
+                <h3 className="mt-3 text-2xl font-bold text-[#10264B]">
+                  ТО, диагностика и ремонт
+                </h3>
                 <ul className="mt-4 space-y-3 text-sm text-neutral-600">
                   <li>Диагностика и техническое обслуживание.</li>
                   <li>Ремонт двигателя, ходовой части и автоэлектрики.</li>
@@ -414,20 +460,30 @@ export default async function Page() {
                 href="/parts?direction=parts"
                 className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
               >
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">каталог</div>
-                <div className="mt-3 text-lg font-bold text-neutral-900">Запчасти для ремонта</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">
+                  каталог
+                </div>
+                <div className="mt-3 text-lg font-bold text-neutral-900">
+                  Запчасти для ремонта
+                </div>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  Быстрый вход в основные категории и подбор по артикулу или OEM.
+                  Быстрый вход в основные категории и подбор по артикулу или
+                  OEM.
                 </p>
               </Link>
               <Link
                 href="/parts/vin"
                 className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
               >
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">подбор</div>
-                <div className="mt-3 text-lg font-bold text-neutral-900">VIN-заявка менеджеру</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">
+                  подбор
+                </div>
+                <div className="mt-3 text-lg font-bold text-neutral-900">
+                  VIN-заявка менеджеру
+                </div>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  Подходит для сложных случаев, когда нужна ручная проверка совместимости.
+                  Подходит для сложных случаев, когда нужна ручная проверка
+                  совместимости.
                 </p>
               </Link>
             </div>
@@ -438,20 +494,36 @@ export default async function Page() {
       <section className="mx-auto max-w-[92rem] px-4 py-14 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(20rem,0.85fr)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)] lg:p-8">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">контакты</div>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">Приезжайте, звоните или оставляйте заявку</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              контакты
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-[#10264B]">
+              Приезжайте, звоните или оставляйте заявку
+            </h2>
             <div className="mt-8 grid gap-5 sm:grid-cols-3">
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-sm font-semibold text-neutral-900">Адрес</div>
-                <p className="mt-2 text-sm leading-6 text-neutral-600">{homeContactsAddress}</p>
+                <div className="text-sm font-semibold text-neutral-900">
+                  Адрес
+                </div>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  {homeContactsAddress}
+                </p>
               </div>
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-sm font-semibold text-neutral-900">Режим работы</div>
-                <p className="mt-2 text-sm leading-6 text-neutral-600">{homeContactsSchedule}</p>
+                <div className="text-sm font-semibold text-neutral-900">
+                  Режим работы
+                </div>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  {homeContactsSchedule}
+                </p>
               </div>
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-sm font-semibold text-neutral-900">Телефон</div>
-                <p className="mt-2 text-sm leading-6 text-neutral-600">{homeContactsPhone}</p>
+                <div className="text-sm font-semibold text-neutral-900">
+                  Телефон
+                </div>
+                <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  {homeContactsPhone}
+                </p>
               </div>
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -471,22 +543,29 @@ export default async function Page() {
           </div>
 
           <div className="rounded-[2rem] border border-neutral-200 bg-[linear-gradient(135deg,#10264B_0%,#1F3B73_100%)] p-6 text-white shadow-[0_24px_70px_rgba(16,38,75,0.18)] lg:p-8">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">маршруты входа</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFB166]">
+              маршруты входа
+            </div>
             <div className="mt-4 space-y-4">
               <Link
                 href="/parts?direction=parts"
                 className="block rounded-2xl border border-white/10 bg-white/8 p-4 transition-colors hover:bg-white/12"
               >
-                <div className="text-sm font-semibold text-white">Каталог запчастей</div>
+                <div className="text-sm font-semibold text-white">
+                  Каталог запчастей
+                </div>
                 <p className="mt-2 text-sm leading-6 text-white/74">
-                  Основной поток для поиска товаров, карточек и оформления заказа.
+                  Основной поток для поиска товаров, карточек и оформления
+                  заказа.
                 </p>
               </Link>
               <Link
                 href="/service"
                 className="block rounded-2xl border border-white/10 bg-white/8 p-4 transition-colors hover:bg-white/12"
               >
-                <div className="text-sm font-semibold text-white">Автосервис</div>
+                <div className="text-sm font-semibold text-white">
+                  Автосервис
+                </div>
                 <p className="mt-2 text-sm leading-6 text-white/74">
                   Запись на диагностику, ТО и ремонт через удобную форму заявки.
                 </p>
@@ -495,9 +574,12 @@ export default async function Page() {
                 href="/account/orders"
                 className="block rounded-2xl border border-white/10 bg-white/8 p-4 transition-colors hover:bg-white/12"
               >
-                <div className="text-sm font-semibold text-white">Проверка заказов</div>
+                <div className="text-sm font-semibold text-white">
+                  Проверка заказов
+                </div>
                 <p className="mt-2 text-sm leading-6 text-white/74">
-                  История и статус заказов по номеру телефона, который был указан при оформлении.
+                  История и статус заказов по номеру телефона, который был
+                  указан при оформлении.
                 </p>
               </Link>
             </div>
@@ -506,9 +588,9 @@ export default async function Page() {
       </section>
 
       <PublicFooter
-        brandName={brandName}
+        brandName={siteContent.brandName}
         footerText={footerText}
-        contactsLabel={navContacts}
+        contactsLabel={siteContent.labels.contacts}
         privacyLabel={legalPrivacyLabel}
         offerLabel={legalOfferLabel}
       />

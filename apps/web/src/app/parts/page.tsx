@@ -1,15 +1,20 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AddToCartButton } from "@/components/add-to-cart-button";
 import { PublicFooter } from "@/components/public-footer";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { PublicHeader } from "@/components/public-header";
-import { ProductImageFallback } from "@/components/product-image-fallback";
+import { SmartProductImage } from "@/components/smart-product-image";
+import {
+  fetchPublicContentMapServer,
+  getPublicContentValue,
+  getPublicSiteContent,
+} from "@/lib/public-site-content";
 
 export const metadata: Metadata = {
   title: "Каталог запчастей | Все запчасти",
-  description: "Каталог запчастей: поиск по артикулу, OEM и названию, подбор по авто и VIN-заявка.",
+  description:
+    "Каталог запчастей: поиск по артикулу, OEM и названию, подбор по авто и VIN-заявка.",
 };
 
 type Category = {
@@ -40,30 +45,12 @@ function isTechnicalCategoryName(name: string): boolean {
   return normalized.startsWith("бренд:") || normalized.startsWith("импорт ");
 }
 
-async function getPublicContentMap(): Promise<Record<string, string>> {
-  try {
-    const apiBaseUrl = getServerApiBaseUrl();
-    const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
-    if (!response.ok) return {};
-    const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
-    if (!Array.isArray(payload)) return {};
-
-    const map: Record<string, string> = {};
-    for (const item of payload) {
-      if (item?.key && typeof item.value === "string") {
-        map[item.key] = item.value;
-      }
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
-
 async function getCategories(): Promise<Category[] | null> {
   try {
     const apiBaseUrl = getServerApiBaseUrl();
-    const res = await fetch(withApiBase(apiBaseUrl, "/api/public/categories"), { cache: "no-store" });
+    const res = await fetch(withApiBase(apiBaseUrl, "/api/public/categories"), {
+      cache: "no-store",
+    });
     if (!res.ok) return null;
     return res.json() as Promise<Category[]>;
   } catch {
@@ -102,7 +89,10 @@ async function searchProducts(
   },
 ) {
   const hasVehicleFilters = Boolean(
-    filters.vehicleMake || filters.vehicleModel || filters.vehicleYear || filters.vehicleEngine,
+    filters.vehicleMake ||
+    filters.vehicleModel ||
+    filters.vehicleYear ||
+    filters.vehicleEngine,
   );
   if (!query && !hasVehicleFilters) return [];
 
@@ -113,7 +103,8 @@ async function searchProducts(
     if (filters.vehicleMake) params.set("vehicle_make", filters.vehicleMake);
     if (filters.vehicleModel) params.set("vehicle_model", filters.vehicleModel);
     if (filters.vehicleYear) params.set("vehicle_year", filters.vehicleYear);
-    if (filters.vehicleEngine) params.set("vehicle_engine", filters.vehicleEngine);
+    if (filters.vehicleEngine)
+      params.set("vehicle_engine", filters.vehicleEngine);
     params.set("limit", "12");
 
     const res = await fetch(
@@ -135,7 +126,10 @@ function getMainImageUrl(product: Product): string | null {
   return main?.url || null;
 }
 
-function getNumericAttribute(attributes: Record<string, unknown> | undefined, key: string): number | null {
+function getNumericAttribute(
+  attributes: Record<string, unknown> | undefined,
+  key: string,
+): number | null {
   if (!attributes) return null;
   const value = attributes[key];
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -146,7 +140,10 @@ function getNumericAttribute(attributes: Record<string, unknown> | undefined, ke
   return null;
 }
 
-function getStringAttribute(attributes: Record<string, unknown> | undefined, key: string): string | null {
+function getStringAttribute(
+  attributes: Record<string, unknown> | undefined,
+  key: string,
+): string | null {
   if (!attributes) return null;
   const value = attributes[key];
   if (typeof value !== "string") return null;
@@ -154,12 +151,18 @@ function getStringAttribute(attributes: Record<string, unknown> | undefined, key
   return normalized || null;
 }
 
-function isPriceOnRequest(attributes: Record<string, unknown> | undefined, price: number | null): boolean {
+function isPriceOnRequest(
+  attributes: Record<string, unknown> | undefined,
+  price: number | null,
+): boolean {
   if (price === null) return true;
   return attributes?.price_on_request === true;
 }
 
-function formatPriceLabel(attributes: Record<string, unknown> | undefined, price: number | null): string {
+function formatPriceLabel(
+  attributes: Record<string, unknown> | undefined,
+  price: number | null,
+): string {
   if (typeof price === "number" && !isPriceOnRequest(attributes, price)) {
     return `${price.toLocaleString("ru-RU")} ₽`;
   }
@@ -209,27 +212,36 @@ export default async function PartsPage({
     vehicle_engine?: string;
   }>;
 }) {
-  const contentMap = await getPublicContentMap();
+  const contentMap = await fetchPublicContentMapServer();
+  const siteContent = getPublicSiteContent(contentMap);
   const contentValue = (key: string, fallback: string): string => {
-    const value = contentMap[key];
-    return value && value.trim() ? value : fallback;
+    return getPublicContentValue(contentMap, key, fallback);
   };
 
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const direction = params.direction?.trim().toLowerCase() ?? "";
-  const selectedDirection = direction === "parts" || direction === "oils" ? direction : "";
+  const selectedDirection =
+    direction === "parts" || direction === "oils" ? direction : "";
   const selectedCategoryParam = Number(params.category ?? "");
   const currentPageParam = Number(params.page ?? "1");
-  const currentPage = Number.isInteger(currentPageParam) && currentPageParam > 0 ? currentPageParam : 1;
+  const currentPage =
+    Number.isInteger(currentPageParam) && currentPageParam > 0
+      ? currentPageParam
+      : 1;
   const catalogPageSize = 24;
   const vehicleMake = params.vehicle_make?.trim() ?? "";
   const vehicleModel = params.vehicle_model?.trim() ?? "";
   const vehicleYear = params.vehicle_year?.trim() ?? "";
   const vehicleEngine = params.vehicle_engine?.trim() ?? "";
-  const hasVehicleFilters = Boolean(vehicleMake || vehicleModel || vehicleYear || vehicleEngine);
+  const hasVehicleFilters = Boolean(
+    vehicleMake || vehicleModel || vehicleYear || vehicleEngine,
+  );
   const normalizedQuery = query.replace(/\s+/g, " ").trim();
-  const tooShortSearch = normalizedQuery.length > 0 && normalizedQuery.length < 2 && !hasVehicleFilters;
+  const tooShortSearch =
+    normalizedQuery.length > 0 &&
+    normalizedQuery.length < 2 &&
+    !hasVehicleFilters;
 
   const productsResult =
     (normalizedQuery && !tooShortSearch) || hasVehicleFilters
@@ -241,83 +253,106 @@ export default async function PartsPage({
         })
       : [];
   const products = productsResult ?? [];
-  const searchError = (normalizedQuery && !tooShortSearch) || hasVehicleFilters ? productsResult === null : false;
+  const searchError =
+    (normalizedQuery && !tooShortSearch) || hasVehicleFilters
+      ? productsResult === null
+      : false;
 
-  const categoriesResult = normalizedQuery || hasVehicleFilters ? [] : await getCategories();
-  const categoriesError = normalizedQuery || hasVehicleFilters ? false : categoriesResult === null;
+  const categoriesResult =
+    normalizedQuery || hasVehicleFilters ? [] : await getCategories();
+  const categoriesError =
+    normalizedQuery || hasVehicleFilters ? false : categoriesResult === null;
   const catalogCategories = categoriesResult ?? [];
   const visibleCategories = catalogCategories.filter((category) => {
     if (isTechnicalCategoryName(category.name)) return false;
     if (!selectedDirection) return true;
     const name = category.name.toLowerCase();
     const isOilLike =
-      name.includes("масл")
-      || name.includes("смаз")
-      || name.includes("жидк")
-      || name.includes("расход")
-      || name.includes("фильтр");
+      name.includes("масл") ||
+      name.includes("смаз") ||
+      name.includes("жидк") ||
+      name.includes("расход") ||
+      name.includes("фильтр");
     return selectedDirection === "oils" ? isOilLike : !isOilLike;
   });
-  const visibleCategoryIds = new Set(visibleCategories.map((category) => category.id));
-  const topCategories = visibleCategories.filter((category) => (
-    category.parent_id === null || !visibleCategoryIds.has(category.parent_id)
-  ));
+  const visibleCategoryIds = new Set(
+    visibleCategories.map((category) => category.id),
+  );
+  const topCategories = visibleCategories.filter(
+    (category) =>
+      category.parent_id === null ||
+      !visibleCategoryIds.has(category.parent_id),
+  );
   const selectedCategory =
-    visibleCategories.find((category) => category.id === selectedCategoryParam)
-    ?? topCategories[0]
-    ?? visibleCategories[0]
-    ?? null;
+    visibleCategories.find(
+      (category) => category.id === selectedCategoryParam,
+    ) ??
+    topCategories[0] ??
+    visibleCategories[0] ??
+    null;
   const activeRootCategory = selectedCategory
-    ? (
-      selectedCategory.parent_id !== null
-        ? visibleCategories.find((category) => category.id === selectedCategory.parent_id) ?? selectedCategory
-        : selectedCategory
-    )
+    ? selectedCategory.parent_id !== null
+      ? (visibleCategories.find(
+          (category) => category.id === selectedCategory.parent_id,
+        ) ?? selectedCategory)
+      : selectedCategory
     : null;
   const rootSubcategories = activeRootCategory
-    ? visibleCategories.filter((category) => category.parent_id === activeRootCategory.id)
+    ? visibleCategories.filter(
+        (category) => category.parent_id === activeRootCategory.id,
+      )
     : [];
   const activeLeafCategory = selectedCategory
-    ? (
-      selectedCategory.parent_id === (activeRootCategory?.id ?? null)
+    ? selectedCategory.parent_id === (activeRootCategory?.id ?? null)
+      ? selectedCategory
+      : rootSubcategories.length === 0
         ? selectedCategory
-        : rootSubcategories.length === 0
-          ? selectedCategory
-          : null
-    )
+        : null
     : null;
   const catalogOffset = (currentPage - 1) * catalogPageSize;
   const selectedCategoryProductsResult =
     normalizedQuery || hasVehicleFilters || !activeLeafCategory
       ? []
-      : await getProductsByCategory(activeLeafCategory.id, catalogPageSize + 1, catalogOffset);
-  const categoryProducts = (selectedCategoryProductsResult ?? []).slice(0, catalogPageSize);
-  const hasNextCategoryPage = (selectedCategoryProductsResult?.length ?? 0) > catalogPageSize;
+      : await getProductsByCategory(
+          activeLeafCategory.id,
+          catalogPageSize + 1,
+          catalogOffset,
+        );
+  const categoryProducts = (selectedCategoryProductsResult ?? []).slice(
+    0,
+    catalogPageSize,
+  );
+  const hasNextCategoryPage =
+    (selectedCategoryProductsResult?.length ?? 0) > catalogPageSize;
   const hasPrevCategoryPage = currentPage > 1;
-  const catalogError = categoriesError || (!!activeLeafCategory && selectedCategoryProductsResult === null);
+  const catalogError =
+    categoriesError ||
+    (!!activeLeafCategory && selectedCategoryProductsResult === null);
 
-  const brandName = contentValue("site_brand_name", "Все запчасти");
-  const navParts = contentValue("site_nav_parts_label", "Запчасти");
-  const navService = contentValue("site_nav_service_label", "Автосервис");
-  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
-  const navAbout = contentValue("site_nav_about_label", "О компании");
-  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
-  const navCart = contentValue("site_nav_cart_label", "Корзина");
-  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
-  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
-  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
-  const heroTitle = contentValue("parts_hero_title", "Каталог и подбор запчастей");
+  const heroTitle = contentValue(
+    "parts_hero_title",
+    "Каталог и подбор запчастей",
+  );
   const heroSubtitle = contentValue(
     "parts_hero_subtitle",
     "Ищите по артикулу/OEM, фильтруйте по категории и оставляйте VIN-заявку, если нужен ручной подбор.",
   );
-  const searchLabel = contentValue("parts_search_label", "Поиск по артикулу или OEM");
-  const searchPlaceholder = contentValue("parts_search_placeholder", "Например: 06A905161B");
+  const searchLabel = contentValue(
+    "parts_search_label",
+    "Поиск по артикулу или OEM",
+  );
+  const searchPlaceholder = contentValue(
+    "parts_search_placeholder",
+    "Например: 06A905161B",
+  );
   const shortQueryMessage = contentValue(
     "parts_short_query_message",
     "Для поиска укажите минимум 2 символа: артикул, OEM или часть названия.",
   );
-  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+  const footerText = contentValue(
+    "site_footer_text",
+    siteContent.footerText,
+  );
 
   const buildCatalogHref = (categoryId?: number, page?: number): string => {
     const queryParams = new URLSearchParams();
@@ -368,128 +403,126 @@ export default async function PartsPage({
 
   const renderProductCard = (product: Product) => {
     const productHref = buildProductHref(product.sku);
+    const productImageUrl = getMainImageUrl(product);
     return (
-    <article
-      key={product.id}
-      className="group rounded-[1.75rem] border border-neutral-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_54px_rgba(15,23,42,0.10)]"
-    >
-      <Link href={productHref} className="block">
-        <div className="relative h-44 overflow-hidden rounded-[1.25rem] border border-neutral-200 bg-neutral-100">
-          {getMainImageUrl(product) ? (
-            <Image
-              src={getMainImageUrl(product) as string}
-              alt={product.name}
-              className="h-full w-full object-cover"
-              width={480}
-              height={320}
-            />
-          ) : (
-            <ProductImageFallback
+      <article
+        key={product.id}
+        className="group rounded-[1.75rem] border border-neutral-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_24px_54px_rgba(15,23,42,0.10)]"
+      >
+        <Link href={productHref} className="block">
+          <div className="relative h-44 overflow-hidden rounded-[1.25rem] border border-neutral-200 bg-neutral-100">
+            <SmartProductImage
               compact
+              src={productImageUrl}
+              alt={product.name}
               sku={product.sku}
               name={getProductDisplayName(product)}
               brand={product.brand}
+              width={480}
+              height={320}
             />
-          )}
-        </div>
-      </Link>
-
-      <div className="mt-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link
-            href={productHref}
-            className="line-clamp-2 text-base font-bold leading-6 text-neutral-900 transition-colors group-hover:text-[#1F3B73]"
-          >
-            {getProductDisplayName(product)}
-          </Link>
-          <div className="mt-2 text-sm text-neutral-500">
-            Артикул: {product.sku}
-            {product.oem ? ` · OEM: ${product.oem}` : ""}
           </div>
-          {product.brand ? (
-            <div className="mt-1 text-sm text-neutral-500">Бренд: {product.brand}</div>
+        </Link>
+
+        <div className="mt-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link
+              href={productHref}
+              className="line-clamp-2 text-base font-bold leading-6 text-neutral-900 transition-colors group-hover:text-[#1F3B73]"
+            >
+              {getProductDisplayName(product)}
+            </Link>
+            <div className="mt-2 text-sm text-neutral-500">
+              Артикул: {product.sku}
+              {product.oem ? ` · OEM: ${product.oem}` : ""}
+            </div>
+            {product.brand ? (
+              <div className="mt-1 text-sm text-neutral-500">
+                Бренд: {product.brand}
+              </div>
+            ) : null}
+          </div>
+          {getStringAttribute(product.attributes, "discount_label") ? (
+            <span className="shrink-0 rounded-full bg-[#FF7A00]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+              {getStringAttribute(product.attributes, "discount_label")}
+            </span>
           ) : null}
         </div>
-        {getStringAttribute(product.attributes, "discount_label") ? (
-          <span className="shrink-0 rounded-full bg-[#FF7A00]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
-            {getStringAttribute(product.attributes, "discount_label")}
-          </span>
-        ) : null}
-      </div>
 
-      <div className="mt-4">
-        {(() => {
-          const oldPrice = getNumericAttribute(product.attributes, "old_price");
-          const requestMode = isPriceOnRequest(product.attributes, product.price);
-          return (
-            <>
-              {typeof oldPrice === "number"
-              && typeof product.price === "number"
-              && !requestMode
-              && oldPrice > product.price ? (
-                <div className="text-sm text-neutral-400 line-through">
-                  {oldPrice.toLocaleString("ru-RU")} ₽
+        <div className="mt-4">
+          {(() => {
+            const oldPrice = getNumericAttribute(
+              product.attributes,
+              "old_price",
+            );
+            const requestMode = isPriceOnRequest(
+              product.attributes,
+              product.price,
+            );
+            return (
+              <>
+                {typeof oldPrice === "number" &&
+                typeof product.price === "number" &&
+                !requestMode &&
+                oldPrice > product.price ? (
+                  <div className="text-sm text-neutral-400 line-through">
+                    {oldPrice.toLocaleString("ru-RU")} ₽
+                  </div>
+                ) : null}
+                <div className="text-2xl font-black tracking-tight text-[#1F3B73]">
+                  {formatPriceLabel(product.attributes, product.price)}
                 </div>
-              ) : null}
-              <div className="text-2xl font-black tracking-tight text-[#1F3B73]">
-                {formatPriceLabel(product.attributes, product.price)}
-              </div>
-            </>
-          );
-        })()}
-      </div>
-
-      <div className="mt-2 text-sm text-neutral-600">
-        {product.stock_quantity > 0 ? (
-          <span className="font-semibold text-emerald-700">В наличии</span>
-        ) : (
-          <span className="font-semibold text-amber-700">Под заказ</span>
-        )}
-      </div>
-
-      <div className="mt-5 space-y-2">
-        <AddToCartButton
-          productId={product.id}
-          sku={product.sku}
-          name={getProductDisplayName(product)}
-          price={isPriceOnRequest(product.attributes, product.price) ? null : product.price}
-          stabilizeNoticeHeight
-        />
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Link
-            href={productHref}
-            className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
-          >
-            Открыть карточку
-          </Link>
-          <Link
-            href={`${productHref}#product-lead-form`}
-            className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
-          >
-            Запросить
-          </Link>
+              </>
+            );
+          })()}
         </div>
-      </div>
-    </article>
-  );
+
+        <div className="mt-2 text-sm text-neutral-600">
+          {product.stock_quantity > 0 ? (
+            <span className="font-semibold text-emerald-700">В наличии</span>
+          ) : (
+            <span className="font-semibold text-amber-700">Под заказ</span>
+          )}
+        </div>
+
+        <div className="mt-5 space-y-2">
+          <AddToCartButton
+            productId={product.id}
+            sku={product.sku}
+            name={getProductDisplayName(product)}
+            price={
+              isPriceOnRequest(product.attributes, product.price)
+                ? null
+                : product.price
+            }
+            stabilizeNoticeHeight
+            noticeBehavior="overlay"
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Link
+              href={productHref}
+              className="inline-flex items-center justify-center rounded-2xl bg-[#1F3B73] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#14294F]"
+            >
+              Открыть карточку
+            </Link>
+            <Link
+              href={`${productHref}#product-lead-form`}
+              className="inline-flex items-center justify-center rounded-2xl border border-[#1F3B73]/15 bg-[#EEF3FF] px-4 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#E1EAFB]"
+            >
+              Запросить
+            </Link>
+          </div>
+        </div>
+      </article>
+    );
   };
 
   return (
     <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
       <PublicHeader
-        brandName={brandName}
+        brandName={siteContent.brandName}
         activeKey="parts"
-        labels={{
-          parts: navParts,
-          service: navService,
-          contacts: navContacts,
-          about: navAbout,
-          favorites: navFavorites,
-          cart: navCart,
-          orders: navOrders,
-          dealer: navDealer,
-          callback: navCallback,
-        }}
+        labels={siteContent.labels}
       />
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
@@ -525,7 +558,10 @@ export default async function PartsPage({
                 "VIN-заявка для ручного подбора.",
                 "Переход в карточку, заявку или корзину.",
               ].map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/76">
+                <div
+                  key={item}
+                  className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm leading-6 text-white/76"
+                >
                   {item}
                 </div>
               ))}
@@ -539,11 +575,22 @@ export default async function PartsPage({
               method="get"
               className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.08)] sm:p-6"
             >
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">поиск по каталогу</div>
-              <label htmlFor="catalog-query" className="mt-3 block text-sm font-semibold text-neutral-900">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                поиск по каталогу
+              </div>
+              <label
+                htmlFor="catalog-query"
+                className="mt-3 block text-sm font-semibold text-neutral-900"
+              >
                 {searchLabel}
               </label>
-              {selectedDirection ? <input type="hidden" name="direction" value={selectedDirection} /> : null}
+              {selectedDirection ? (
+                <input
+                  type="hidden"
+                  name="direction"
+                  value={selectedDirection}
+                />
+              ) : null}
               <input
                 id="catalog-query"
                 name="q"
@@ -591,8 +638,12 @@ export default async function PartsPage({
                 href="/parts/vin"
                 className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
               >
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">VIN</div>
-                <div className="mt-3 text-lg font-bold text-neutral-900">Оставить VIN-заявку</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">
+                  VIN
+                </div>
+                <div className="mt-3 text-lg font-bold text-neutral-900">
+                  Оставить VIN-заявку
+                </div>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
                   Для случаев, когда нужен ручной подбор по автомобилю.
                 </p>
@@ -601,10 +652,15 @@ export default async function PartsPage({
                 href="/service#form"
                 className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)] transition-colors hover:border-[#1F3B73]/15 hover:bg-[#F8FBFF]"
               >
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">сервис</div>
-                <div className="mt-3 text-lg font-bold text-neutral-900">Записаться на ремонт</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1F3B73]">
+                  сервис
+                </div>
+                <div className="mt-3 text-lg font-bold text-neutral-900">
+                  Записаться на ремонт
+                </div>
                 <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  Диагностика, ТО и сервис для легковых и коммерческих автомобилей.
+                  Диагностика, ТО и сервис для легковых и коммерческих
+                  автомобилей.
                 </p>
               </Link>
             </div>
@@ -617,22 +673,29 @@ export default async function PartsPage({
           <>
             {catalogError ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                Каталог временно недоступен. Попробуйте поиск по артикулу или VIN-подбор.
+                Каталог временно недоступен. Попробуйте поиск по артикулу или
+                VIN-подбор.
               </div>
             ) : topCategories.length === 0 ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                Категории пока не опубликованы. Загрузите товары через админку или используйте поиск по артикулу.
+                Категории пока не опубликованы. Загрузите товары через админку
+                или используйте поиск по артикулу.
               </div>
             ) : !activeRootCategory ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                Не удалось определить активную категорию. Откройте каталог заново.
+                Не удалось определить активную категорию. Откройте каталог
+                заново.
               </div>
             ) : (
               <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
                 <aside className="space-y-4 xl:self-start">
                   <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">категории</div>
-                    <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Разделы каталога</h2>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                      категории
+                    </div>
+                    <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">
+                      Разделы каталога
+                    </h2>
                     <p className="mt-2 text-xs text-neutral-500">
                       Разделов: {topCategories.length}.
                     </p>
@@ -647,10 +710,14 @@ export default async function PartsPage({
                               : "border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100"
                           }`}
                         >
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${categoryTone(index)} text-sm font-black text-white`}>
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${categoryTone(index)} text-sm font-black text-white`}
+                          >
                             {categoryMonogram(category.name)}
                           </div>
-                          <span className="text-sm font-medium leading-5">{category.name}</span>
+                          <span className="text-sm font-medium leading-5">
+                            {category.name}
+                          </span>
                         </Link>
                       ))}
                     </div>
@@ -661,19 +728,25 @@ export default async function PartsPage({
                   <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                       <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">активная категория</div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                          активная категория
+                        </div>
                         <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">
                           {activeRootCategory.name}
                         </h2>
                       </div>
                       <div className="rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-600">
-                        {activeLeafCategory ? `Страница ${currentPage}` : "Выберите подкатегорию"}
+                        {activeLeafCategory
+                          ? `Страница ${currentPage}`
+                          : "Выберите подкатегорию"}
                       </div>
                     </div>
 
                     {rootSubcategories.length > 0 ? (
                       <div className="mt-5">
-                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">подкатегории</div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                          подкатегории
+                        </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {rootSubcategories.map((subcategory) => (
                             <Link
@@ -695,7 +768,8 @@ export default async function PartsPage({
 
                   {!activeLeafCategory ? (
                     <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                      Выберите подкатегорию, чтобы открыть товары и перейти к карточкам.
+                      Выберите подкатегорию, чтобы открыть товары и перейти к
+                      карточкам.
                     </div>
                   ) : categoryProducts.length === 0 ? (
                     <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-sm text-neutral-600 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
@@ -707,56 +781,77 @@ export default async function PartsPage({
                     </div>
                   )}
 
-                  {activeLeafCategory ? <div className="flex flex-wrap items-center gap-3">
-                    {hasPrevCategoryPage ? (
-                      <Link
-                        href={buildCatalogHref(activeLeafCategory.id, currentPage - 1)}
-                        className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
-                      >
-                        ← Предыдущая страница
-                      </Link>
-                    ) : (
-                      <span className="inline-flex items-center justify-center rounded-2xl border border-neutral-100 bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-400">
-                        ← Предыдущая страница
-                      </span>
-                    )}
-                    {hasNextCategoryPage ? (
-                      <Link
-                        href={buildCatalogHref(activeLeafCategory.id, currentPage + 1)}
-                        className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
-                      >
-                        Следующая страница →
-                      </Link>
-                    ) : (
-                      <span className="inline-flex items-center justify-center rounded-2xl border border-neutral-100 bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-400">
-                        Следующая страница →
-                      </span>
-                    )}
-                  </div> : null}
+                  {activeLeafCategory ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      {hasPrevCategoryPage ? (
+                        <Link
+                          href={buildCatalogHref(
+                            activeLeafCategory.id,
+                            currentPage - 1,
+                          )}
+                          className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                        >
+                          ← Предыдущая страница
+                        </Link>
+                      ) : (
+                        <span className="inline-flex items-center justify-center rounded-2xl border border-neutral-100 bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-400">
+                          ← Предыдущая страница
+                        </span>
+                      )}
+                      {hasNextCategoryPage ? (
+                        <Link
+                          href={buildCatalogHref(
+                            activeLeafCategory.id,
+                            currentPage + 1,
+                          )}
+                          className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+                        >
+                          Следующая страница →
+                        </Link>
+                      ) : (
+                        <span className="inline-flex items-center justify-center rounded-2xl border border-neutral-100 bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-400">
+                          Следующая страница →
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
                 </section>
               </div>
             )}
           </>
         ) : tooShortSearch ? (
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-            <div className="text-sm font-semibold text-[#1F3B73]">Слишком короткий запрос</div>
-            <div className="mt-2 text-sm leading-6 text-neutral-600">{shortQueryMessage}</div>
+            <div className="text-sm font-semibold text-[#1F3B73]">
+              Слишком короткий запрос
+            </div>
+            <div className="mt-2 text-sm leading-6 text-neutral-600">
+              {shortQueryMessage}
+            </div>
           </div>
         ) : searchError ? (
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-            <div className="text-sm font-semibold text-[#1F3B73]">Ошибка поиска</div>
+            <div className="text-sm font-semibold text-[#1F3B73]">
+              Ошибка поиска
+            </div>
             <div className="mt-2 text-sm leading-6 text-neutral-600">
               Не удалось загрузить результаты по запросу{" "}
-              <span className="font-medium text-[#1F3B73]">&quot;{normalizedQuery}&quot;</span>. Попробуйте повторить позже.
+              <span className="font-medium text-[#1F3B73]">
+                &quot;{normalizedQuery}&quot;
+              </span>
+              . Попробуйте повторить позже.
             </div>
           </div>
         ) : products.length === 0 ? (
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-            <div className="text-sm font-semibold text-[#1F3B73]">Ничего не найдено</div>
+            <div className="text-sm font-semibold text-[#1F3B73]">
+              Ничего не найдено
+            </div>
             <div className="mt-2 text-sm leading-6 text-neutral-600">
               По запросу{" "}
-              <span className="font-medium text-[#1F3B73]">&quot;{normalizedQuery}&quot;</span> результатов нет.
-              Для сложного подбора оставьте VIN-заявку.
+              <span className="font-medium text-[#1F3B73]">
+                &quot;{normalizedQuery}&quot;
+              </span>{" "}
+              результатов нет. Для сложного подбора оставьте VIN-заявку.
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -778,13 +873,17 @@ export default async function PartsPage({
             <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">результаты поиска</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+                    результаты поиска
+                  </div>
                   <h2 className="mt-2 text-3xl font-black tracking-tight text-[#10264B]">
                     Найдено {products.length} товаров
                   </h2>
                 </div>
                 <div className="text-sm text-neutral-500">
-                  {hasVehicleFilters ? "С учётом параметров автомобиля" : "По артикулу, OEM или названию"}
+                  {hasVehicleFilters
+                    ? "С учётом параметров автомобиля"
+                    : "По артикулу, OEM или названию"}
                 </div>
               </div>
             </div>
@@ -795,7 +894,11 @@ export default async function PartsPage({
         )}
       </section>
 
-      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
+      <PublicFooter
+        brandName={siteContent.brandName}
+        footerText={footerText}
+        contactsLabel={siteContent.labels.contacts}
+      />
     </main>
   );
 }

@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import json
 import io
 import zipfile
+from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -20,7 +22,13 @@ import main as app_main  # noqa: E402
 import notifications  # noqa: E402
 from models import AuditLog, ImportRun  # noqa: E402
 from routers import admin, public  # noqa: E402
-from schemas import LeadCreate, OrderCreate, ServiceRequestCreate, VinRequestCreate  # noqa: E402
+from schemas import (
+    LeadCreate,
+    OrderCreate,
+    PaymentWebhookPayload,
+    ServiceRequestCreate,
+    VinRequestCreate,
+)  # noqa: E402
 
 
 class _ScalarsResult:
@@ -120,12 +128,17 @@ def _make_request(path: str) -> Request:
     return Request(scope)
 
 
-def _make_request_with_headers(path: str, method: str, headers: dict[str, str]) -> Request:
+def _make_request_with_headers(
+    path: str, method: str, headers: dict[str, str]
+) -> Request:
     scope = {
         "type": "http",
         "method": method,
         "path": path,
-        "headers": [(key.lower().encode("utf-8"), value.encode("utf-8")) for key, value in headers.items()],
+        "headers": [
+            (key.lower().encode("utf-8"), value.encode("utf-8"))
+            for key, value in headers.items()
+        ],
         "client": ("127.0.0.1", 12345),
         "scheme": "http",
         "server": ("testserver", 80),
@@ -166,7 +179,9 @@ async def test_public_create_service_request_success_and_audit():
         consent_given=True,
     )
 
-    request_obj = await public.create_service_request(payload, _make_request("/api/public/service-requests"), db)
+    request_obj = await public.create_service_request(
+        payload, _make_request("/api/public/service-requests"), db
+    )
 
     assert request_obj.status == "new"
     assert request_obj.phone == "+79991112233"
@@ -177,7 +192,56 @@ async def test_public_create_service_request_success_and_audit():
     assert request_obj.requested_product_name == "Комплект ГРМ"
     assert request_obj.estimated_bundle_total == 24500.5
     assert request_obj.consent_at is not None
-    assert any(isinstance(item, AuditLog) and item.entity_type == "service_request" for item in db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "service_request"
+        for item in db.added
+    )
+
+
+@pytest.mark.asyncio
+async def test_public_create_service_request_sets_pending_payment_when_flow_enabled(
+    monkeypatch,
+):
+    public._rate_limit_buckets.clear()
+    db = FakeAsyncSession()
+    payload = ServiceRequestCreate(
+        vehicle_type="truck",
+        service_type="Диагностика",
+        phone="8 999 111 22 33",
+        description="Шум в трансмиссии",
+        payment_reference="pay-001",
+        consent_given=True,
+    )
+
+    async def _payment_settings(_db):
+        return {
+            "prepayment_enabled": True,
+            "payment_flow_enabled": True,
+            "payment_block_unpaid_enabled": True,
+            "provider_name": "test-provider",
+            "default_currency": "RUB",
+        }
+
+    async def _catalog_item(_db, *, service_type: str, vehicle_type: str):
+        assert service_type == "Диагностика"
+        assert vehicle_type == "truck"
+        return SimpleNamespace(prepayment_required=True, prepayment_amount=1200.0)
+
+    monkeypatch.setattr(public, "_get_service_payment_settings", _payment_settings)
+    monkeypatch.setattr(
+        public, "_resolve_service_catalog_item_for_request", _catalog_item
+    )
+
+    request_obj = await public.create_service_request(
+        payload, _make_request("/api/public/service-requests"), db
+    )
+
+    assert request_obj.payment_required is True
+    assert request_obj.payment_status == "pending"
+    assert request_obj.payment_amount == 1200.0
+    assert request_obj.payment_currency == "RUB"
+    assert request_obj.payment_provider == "test-provider"
+    assert request_obj.payment_reference == "pay-001"
 
 
 @pytest.mark.asyncio
@@ -190,12 +254,17 @@ async def test_public_create_vin_request_success_and_audit():
         consent_given=True,
     )
 
-    request_obj = await public.create_vin_request(payload, _make_request("/api/public/vin-requests"), db)
+    request_obj = await public.create_vin_request(
+        payload, _make_request("/api/public/vin-requests"), db
+    )
 
     assert request_obj.status == "new"
     assert request_obj.phone == "+79991112233"
     assert request_obj.consent_at is not None
-    assert any(isinstance(item, AuditLog) and item.entity_type == "vin_request" for item in db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "vin_request"
+        for item in db.added
+    )
 
 
 @pytest.mark.asyncio
@@ -217,7 +286,9 @@ async def test_import_products_strict_rejects_invalid_rows(monkeypatch):
     db = FakeAsyncSession()
     current_user = SimpleNamespace(id=1, role="admin", is_active=True)
 
-    monkeypatch.setattr(admin, "_parse_import_rows", lambda _name, _content: [{"sku": "", "name": ""}])
+    monkeypatch.setattr(
+        admin, "_parse_import_rows", lambda _name, _content: [{"sku": "", "name": ""}]
+    )
 
     upload = FakeUploadFile(filename="products.csv", content=b"sku,name\n,\n")
 
@@ -239,7 +310,9 @@ async def test_import_products_skip_invalid_allows_completion(monkeypatch):
     db = FakeAsyncSession()
     current_user = SimpleNamespace(id=1, role="admin", is_active=True)
 
-    monkeypatch.setattr(admin, "_parse_import_rows", lambda _name, _content: [{"sku": "", "name": ""}])
+    monkeypatch.setattr(
+        admin, "_parse_import_rows", lambda _name, _content: [{"sku": "", "name": ""}]
+    )
 
     upload = FakeUploadFile(filename="products.csv", content=b"sku,name\n,\n")
     result = await admin.admin_import_products(
@@ -325,7 +398,9 @@ async def test_import_products_from_source_uses_downloaded_payload(monkeypatch):
     async def _fake_download_import_source_payload(**_kwargs):
         return "export.csv", b"sku,name\n"
 
-    monkeypatch.setattr(admin, "_download_import_source_payload", _fake_download_import_source_payload)
+    monkeypatch.setattr(
+        admin, "_download_import_source_payload", _fake_download_import_source_payload
+    )
 
     result = await admin.admin_import_products_from_source(
         default_category_id=1,
@@ -341,7 +416,9 @@ async def test_import_products_from_source_uses_downloaded_payload(monkeypatch):
 
 
 def test_build_import_source_filename_uses_path_extension():
-    name = admin._build_import_source_filename("https://erp.example/export/products.xlsx?token=abc")
+    name = admin._build_import_source_filename(
+        "https://erp.example/export/products.xlsx?token=abc"
+    )
     assert name == "products.xlsx"
 
 
@@ -533,8 +610,12 @@ async def test_public_upload_order_requisites_rejects_invalid_extension(tmp_path
 def test_notifications_validate_webhook_url_allows_allowlisted_host():
     allowed_hosts = {"example.com"}
 
-    validated_primary = notifications._validate_webhook_url("https://example.com/hook", allowed_hosts)
-    validated_subdomain = notifications._validate_webhook_url("https://api.example.com/hook", allowed_hosts)
+    validated_primary = notifications._validate_webhook_url(
+        "https://example.com/hook", allowed_hosts
+    )
+    validated_subdomain = notifications._validate_webhook_url(
+        "https://api.example.com/hook", allowed_hosts
+    )
 
     assert validated_primary == "https://example.com/hook"
     assert validated_subdomain == "https://api.example.com/hook"
@@ -545,7 +626,9 @@ def test_notifications_validate_webhook_url_rejects_invalid_scheme_and_host():
         notifications._validate_webhook_url("file:///tmp/payload", {"example.com"})
 
     with pytest.raises(ValueError):
-        notifications._validate_webhook_url("https://evil.example.org/hook", {"example.com"})
+        notifications._validate_webhook_url(
+            "https://evil.example.org/hook", {"example.com"}
+        )
 
 
 def test_notifications_validate_webhook_url_rejects_http_without_explicit_flag():
@@ -553,10 +636,14 @@ def test_notifications_validate_webhook_url_rejects_http_without_explicit_flag()
         notifications._validate_webhook_url("http://localhost/hook", {"localhost"})
 
 
-def test_notifications_validate_webhook_url_allows_http_only_for_localhost_with_flag(monkeypatch):
+def test_notifications_validate_webhook_url_allows_http_only_for_localhost_with_flag(
+    monkeypatch,
+):
     monkeypatch.setenv("NOTIFY_ALLOW_INSECURE_HTTP_WEBHOOKS", "1")
 
-    validated = notifications._validate_webhook_url("http://localhost/hook", {"localhost"})
+    validated = notifications._validate_webhook_url(
+        "http://localhost/hook", {"localhost"}
+    )
     assert validated == "http://localhost/hook"
 
     with pytest.raises(ValueError):
@@ -565,7 +652,9 @@ def test_notifications_validate_webhook_url_allows_http_only_for_localhost_with_
 
 def test_notifications_validate_webhook_url_rejects_embedded_credentials():
     with pytest.raises(ValueError):
-        notifications._validate_webhook_url("https://user:pass@example.com/hook", {"example.com"})
+        notifications._validate_webhook_url(
+            "https://user:pass@example.com/hook", {"example.com"}
+        )
 
 
 def test_admin_parse_import_rows_rejects_oversized_content(monkeypatch):
@@ -618,7 +707,9 @@ async def test_admin_get_current_user_rejects_cookie_without_csrf_header():
 
 
 def test_main_origin_and_error_helpers(monkeypatch):
-    monkeypatch.setenv("WEB_ORIGIN", " https://example.ru/ , invalid , http://localhost:3000 ")
+    monkeypatch.setenv(
+        "WEB_ORIGIN", " https://example.ru/ , invalid , http://localhost:3000 "
+    )
 
     origins = app_main._load_allowed_origins()
 
@@ -626,11 +717,15 @@ def test_main_origin_and_error_helpers(monkeypatch):
     assert app_main._normalize_origin("https://domain.tld/") == "https://domain.tld"
     assert app_main._normalize_origin("ftp://domain.tld") is None
     assert app_main._error_detail_with_trace("", "trace-1") == "Код: trace-1"
-    assert app_main._error_detail_with_trace("Ошибка", "trace-1") == "Ошибка Код: trace-1"
+    assert (
+        app_main._error_detail_with_trace("Ошибка", "trace-1") == "Ошибка Код: trace-1"
+    )
 
 
 def test_main_error_response_contract():
-    response = app_main._error_response(400, "bad_request", "Некорректный запрос", "trace-123")
+    response = app_main._error_response(
+        400, "bad_request", "Некорректный запрос", "trace-123"
+    )
     payload = json.loads(response.body.decode("utf-8"))
 
     assert response.status_code == 400
@@ -663,14 +758,23 @@ async def test_main_validation_and_unhandled_exception_handlers():
     validation_response = await app_main.validation_exception_handler(
         request,
         RequestValidationError(
-            [{"type": "missing", "loc": ("body", "phone"), "msg": "Field required", "input": None}]
+            [
+                {
+                    "type": "missing",
+                    "loc": ("body", "phone"),
+                    "msg": "Field required",
+                    "input": None,
+                }
+            ]
         ),
     )
     validation_payload = json.loads(validation_response.body.decode("utf-8"))
     assert validation_response.status_code == 422
     assert validation_payload["error"]["code"] == "validation_error"
 
-    unhandled_response = await app_main.unhandled_exception_handler(request, RuntimeError("boom"))
+    unhandled_response = await app_main.unhandled_exception_handler(
+        request, RuntimeError("boom")
+    )
     unhandled_payload = json.loads(unhandled_response.body.decode("utf-8"))
     assert unhandled_response.status_code == 500
     assert unhandled_payload["error"]["code"] == "internal_error"
@@ -686,7 +790,11 @@ async def test_main_health_and_ready_endpoints(monkeypatch):
 
     monkeypatch.setattr(app_main, "_is_database_ready", _db_ready_true)
     assert await app_main.api_health_check() == {"ok": True, "database": "ok"}
-    assert await app_main.api_ready_check() == {"ok": True, "ready": True, "database": "ok"}
+    assert await app_main.api_ready_check() == {
+        "ok": True,
+        "ready": True,
+        "database": "ok",
+    }
 
     monkeypatch.setattr(app_main, "_is_database_ready", _db_ready_false)
     health_down = await app_main.api_health_check()
@@ -719,6 +827,25 @@ async def test_main_security_headers_middleware_sets_required_headers():
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert "Strict-Transport-Security" in response.headers
+
+
+def test_main_resolve_route_label_prefers_route_template():
+    request = _make_request("/api/public/content")
+    request.scope["route"] = SimpleNamespace(path="/api/public/content")
+
+    assert app_main._resolve_route_label(request) == "/api/public/content"
+
+
+@pytest.mark.asyncio
+async def test_main_metrics_endpoint_returns_prometheus_text():
+    response = await app_main.metrics()
+    payload = response.body.decode("utf-8")
+
+    assert response.status_code == 200
+    assert response.media_type.startswith("text/plain; version=")
+    assert response.media_type.endswith("; charset=utf-8")
+    assert "http_requests_total" in payload
+    assert "http_request_duration_seconds" in payload
 
 
 @pytest.mark.asyncio
@@ -894,7 +1021,9 @@ async def test_public_create_order_one_click_success_without_invoice():
         items=[],
     )
 
-    created_order = await public.create_order(payload, _make_request("/api/public/orders"), db)
+    created_order = await public.create_order(
+        payload, _make_request("/api/public/orders"), db
+    )
 
     assert created_order.status == "new"
     assert created_order.invoice_requisites_file_url is None
@@ -949,7 +1078,9 @@ async def test_admin_get_orders_rejects_invalid_dates():
         )
 
     assert invalid_date_exc.value.status_code == 400
-    assert "date_from must be in YYYY-MM-DD format" in str(invalid_date_exc.value.detail)
+    assert "date_from must be in YYYY-MM-DD format" in str(
+        invalid_date_exc.value.detail
+    )
 
     with pytest.raises(HTTPException) as invalid_range_exc:
         await admin.admin_get_orders(
@@ -964,7 +1095,9 @@ async def test_admin_get_orders_rejects_invalid_dates():
         )
 
     assert invalid_range_exc.value.status_code == 400
-    assert "date_from must be less than or equal to date_to" in str(invalid_range_exc.value.detail)
+    assert "date_from must be less than or equal to date_to" in str(
+        invalid_range_exc.value.detail
+    )
 
 
 class _ImportRunDetailsSession:
@@ -978,7 +1111,9 @@ class _ImportRunDetailsSession:
         return None
 
     async def execute(self, _query):
-        return _ExecResult(rows=[(user_id, email) for user_id, email in self._users_by_id.items()])
+        return _ExecResult(
+            rows=[(user_id, email) for user_id, email in self._users_by_id.items()]
+        )
 
 
 @pytest.mark.asyncio
@@ -1006,7 +1141,9 @@ async def test_admin_get_import_run_details_returns_enriched_payload():
     )
     current_user = SimpleNamespace(id=7, role="admin", is_active=True)
 
-    payload = await admin.admin_get_import_run_details(run_id=11, db=db, current_user=current_user)
+    payload = await admin.admin_get_import_run_details(
+        run_id=11, db=db, current_user=current_user
+    )
 
     assert payload["id"] == 11
     assert payload["created_by_user"] == "admin@example.com"
@@ -1027,7 +1164,9 @@ async def test_admin_get_import_run_details_returns_404_for_unknown_run():
     current_user = SimpleNamespace(id=1, role="admin", is_active=True)
 
     with pytest.raises(HTTPException) as exc:
-        await admin.admin_get_import_run_details(run_id=404, db=db, current_user=current_user)
+        await admin.admin_get_import_run_details(
+            run_id=404, db=db, current_user=current_user
+        )
 
     assert exc.value.status_code == 404
 
@@ -1133,7 +1272,9 @@ async def test_admin_update_order_status_success(monkeypatch):
     db = _OrderStatusSession(order)
     current_user = SimpleNamespace(id=1, role="admin", is_active=True)
     events = []
-    monkeypatch.setattr(admin, "notify_event", lambda event, payload: events.append((event, payload)))
+    monkeypatch.setattr(
+        admin, "notify_event", lambda event, payload: events.append((event, payload))
+    )
 
     payload = admin.OrderStatusUpdate(status="ready", manager_comment="  принято  ")
     updated = await admin.admin_update_order_status(
@@ -1146,7 +1287,10 @@ async def test_admin_update_order_status_success(monkeypatch):
     assert updated.status == "ready"
     assert updated.manager_comment == "принято"
     assert db.commits == 2
-    assert any(isinstance(item, AuditLog) and item.action == "update_order_status" for item in db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.action == "update_order_status"
+        for item in db.added
+    )
     assert events and events[0][0] == "order.status_changed"
     assert events[0][1]["old_status"] == "in_progress"
     assert events[0][1]["new_status"] == "ready"
@@ -1282,7 +1426,10 @@ async def test_admin_update_product_updates_scalar_fields(monkeypatch):
     assert updated.price == 25.5
     assert updated.stock_quantity == 9
     assert db.commits == 2
-    assert any(isinstance(item, AuditLog) and item.entity_type == "product" for item in db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "product"
+        for item in db.added
+    )
     assert not any(isinstance(item, admin.ProductCompatibility) for item in db.added)
 
 
@@ -1300,22 +1447,36 @@ async def test_admin_update_product_replaces_compatibilities(monkeypatch):
         price=100.0,
         stock_quantity=1,
         compatibilities=[
-            SimpleNamespace(make="GAZ", model="Next", year_from=2019, year_to=2022, engine="2.8")
+            SimpleNamespace(
+                make="GAZ", model="Next", year_from=2019, year_to=2022, engine="2.8"
+            )
         ],
         images=[],
     )
     db = _QueuedSession(
         [
             _ExecResult(scalar=product),  # select product by id
-            _ExecResult(scalar=None),     # delete compatibilities
+            _ExecResult(scalar=None),  # delete compatibilities
             _ExecResult(scalar=product),  # select updated product
         ]
     )
     current_user = SimpleNamespace(id=1, role="manager", is_active=True)
     payload = admin.ProductUpdate(
         compatibilities=[
-            {"make": "KAMAZ", "model": "6520", "year_from": 2018, "year_to": 2024, "engine": "diesel"},
-            {"make": "URAL", "model": "4320", "year_from": 2015, "year_to": None, "engine": None},
+            {
+                "make": "KAMAZ",
+                "model": "6520",
+                "year_from": 2018,
+                "year_to": 2024,
+                "engine": "diesel",
+            },
+            {
+                "make": "URAL",
+                "model": "4320",
+                "year_from": 2015,
+                "year_to": None,
+                "engine": None,
+            },
         ]
     )
 
@@ -1326,7 +1487,9 @@ async def test_admin_update_product_replaces_compatibilities(monkeypatch):
         current_user=current_user,
     )
 
-    compatibility_adds = [item for item in db.added if isinstance(item, admin.ProductCompatibility)]
+    compatibility_adds = [
+        item for item in db.added if isinstance(item, admin.ProductCompatibility)
+    ]
     assert len(compatibility_adds) == 2
     assert {item.make for item in compatibility_adds} == {"KAMAZ", "URAL"}
 
@@ -1394,8 +1557,12 @@ async def test_admin_update_service_request_status_success(monkeypatch):
     db = _SingleFetchSession(service_request)
     current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
     events = []
-    monkeypatch.setattr(admin, "notify_event", lambda event, payload: events.append((event, payload)))
-    payload = admin.ServiceRequestStatusUpdate(status="in_progress", operator_comment="  взяли в работу  ")
+    monkeypatch.setattr(
+        admin, "notify_event", lambda event, payload: events.append((event, payload))
+    )
+    payload = admin.ServiceRequestStatusUpdate(
+        status="in_progress", operator_comment="  взяли в работу  "
+    )
 
     updated = await admin.admin_update_service_request_status(
         request_id=81,
@@ -1407,8 +1574,51 @@ async def test_admin_update_service_request_status_success(monkeypatch):
     assert updated.status == "in_progress"
     assert updated.operator_comment == "взяли в работу"
     assert db.commits == 2
-    assert any(isinstance(item, AuditLog) and item.entity_type == "service_request" for item in db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "service_request"
+        for item in db.added
+    )
     assert events and events[0][0] == "service_request.status_changed"
+
+
+@pytest.mark.asyncio
+async def test_admin_update_service_request_status_blocks_unpaid_when_enabled(
+    monkeypatch,
+):
+    service_request = SimpleNamespace(
+        id=810,
+        uuid="sr-810",
+        status="new",
+        operator_comment=None,
+        phone="+79991112233",
+        payment_required=True,
+        payment_status="pending",
+        updated_at=None,
+    )
+    db = _SingleFetchSession(service_request)
+    current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
+
+    async def _payment_flags(_db):
+        return {
+            "prepayment_enabled": True,
+            "payment_flow_enabled": True,
+            "payment_block_unpaid_enabled": True,
+            "provider_name": "test",
+            "default_currency": "RUB",
+        }
+
+    monkeypatch.setattr(admin, "_get_service_payment_flags", _payment_flags)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin.admin_update_service_request_status(
+            request_id=810,
+            payload=admin.ServiceRequestStatusUpdate(status="in_progress"),
+            db=db,
+            current_user=current_user,
+        )
+
+    assert exc.value.status_code == 409
+    assert "Payment is required" in str(exc.value.detail)
 
 
 @pytest.mark.asyncio
@@ -1423,7 +1633,9 @@ async def test_admin_update_service_request_status_rejects_invalid_transition():
     )
     db = _SingleFetchSession(service_request)
     current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
-    payload = admin.ServiceRequestStatusUpdate(status="in_progress", operator_comment=None)
+    payload = admin.ServiceRequestStatusUpdate(
+        status="in_progress", operator_comment=None
+    )
 
     with pytest.raises(HTTPException) as exc:
         await admin.admin_update_service_request_status(
@@ -1441,7 +1653,9 @@ async def test_admin_update_service_request_status_rejects_invalid_transition():
 async def test_admin_update_service_request_status_returns_404_when_missing():
     db = _SingleFetchSession(entity=None)
     current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
-    payload = admin.ServiceRequestStatusUpdate(status="in_progress", operator_comment=None)
+    payload = admin.ServiceRequestStatusUpdate(
+        status="in_progress", operator_comment=None
+    )
 
     with pytest.raises(HTTPException) as exc:
         await admin.admin_update_service_request_status(
@@ -1468,8 +1682,12 @@ async def test_admin_update_vin_request_status_success(monkeypatch):
     db = _SingleFetchSession(vin_request)
     current_user = SimpleNamespace(id=1, role="manager", is_active=True)
     events = []
-    monkeypatch.setattr(admin, "notify_event", lambda event, payload: events.append((event, payload)))
-    payload = admin.VinRequestStatusUpdate(status="in_progress", operator_comment="  проверяем  ")
+    monkeypatch.setattr(
+        admin, "notify_event", lambda event, payload: events.append((event, payload))
+    )
+    payload = admin.VinRequestStatusUpdate(
+        status="in_progress", operator_comment="  проверяем  "
+    )
 
     updated = await admin.admin_update_vin_request_status(
         request_id=91,
@@ -1481,7 +1699,10 @@ async def test_admin_update_vin_request_status_success(monkeypatch):
     assert updated.status == "in_progress"
     assert updated.operator_comment == "проверяем"
     assert db.commits == 2
-    assert any(isinstance(item, AuditLog) and item.entity_type == "vin_request" for item in db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "vin_request"
+        for item in db.added
+    )
     assert events and events[0][0] == "vin_request.status_changed"
 
 
@@ -1535,12 +1756,16 @@ async def test_admin_get_order_success_and_not_found():
 
     existing_order = SimpleNamespace(id=301, status="new", items=[])
     found_db = _SingleFetchSession(entity=existing_order)
-    found = await admin.admin_get_order(order_id=301, db=found_db, current_user=current_user)
+    found = await admin.admin_get_order(
+        order_id=301, db=found_db, current_user=current_user
+    )
     assert found.id == 301
 
     missing_db = _SingleFetchSession(entity=None)
     with pytest.raises(HTTPException) as exc:
-        await admin.admin_get_order(order_id=404, db=missing_db, current_user=current_user)
+        await admin.admin_get_order(
+            order_id=404, db=missing_db, current_user=current_user
+        )
     assert exc.value.status_code == 404
 
 
@@ -1550,12 +1775,16 @@ async def test_admin_get_service_request_success_and_not_found():
 
     existing_request = SimpleNamespace(id=401, status="new")
     found_db = _SingleFetchSession(entity=existing_request)
-    found = await admin.admin_get_service_request(request_id=401, db=found_db, current_user=current_user)
+    found = await admin.admin_get_service_request(
+        request_id=401, db=found_db, current_user=current_user
+    )
     assert found.id == 401
 
     missing_db = _SingleFetchSession(entity=None)
     with pytest.raises(HTTPException) as exc:
-        await admin.admin_get_service_request(request_id=404, db=missing_db, current_user=current_user)
+        await admin.admin_get_service_request(
+            request_id=404, db=missing_db, current_user=current_user
+        )
     assert exc.value.status_code == 404
 
 
@@ -1564,7 +1793,9 @@ async def test_admin_get_service_requests_returns_rows_with_optional_name():
     current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
     rows = [
         SimpleNamespace(id=601, status="new", phone="+79990000001", name=None),
-        SimpleNamespace(id=602, status="in_progress", phone="+79990000002", name="Иван"),
+        SimpleNamespace(
+            id=602, status="in_progress", phone="+79990000002", name="Иван"
+        ),
     ]
     db = _CaptureQuerySession(scalars=rows)
 
@@ -1610,28 +1841,38 @@ async def test_admin_get_vin_request_success_and_not_found():
 
     existing_request = SimpleNamespace(id=501, status="new")
     found_db = _SingleFetchSession(entity=existing_request)
-    found = await admin.admin_get_vin_request(request_id=501, db=found_db, current_user=current_user)
+    found = await admin.admin_get_vin_request(
+        request_id=501, db=found_db, current_user=current_user
+    )
     assert found.id == 501
 
     missing_db = _SingleFetchSession(entity=None)
     with pytest.raises(HTTPException) as exc:
-        await admin.admin_get_vin_request(request_id=404, db=missing_db, current_user=current_user)
+        await admin.admin_get_vin_request(
+            request_id=404, db=missing_db, current_user=current_user
+        )
     assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_admin_get_status_reference_endpoints():
-    assert admin.ORDER_STATUSES == await admin.admin_get_order_statuses(current_user=SimpleNamespace())
-    assert ["new", "in_progress", "closed"] == await admin.admin_get_vin_request_statuses(
+    assert admin.ORDER_STATUSES == await admin.admin_get_order_statuses(
         current_user=SimpleNamespace()
     )
+    assert [
+        "new",
+        "in_progress",
+        "closed",
+    ] == await admin.admin_get_vin_request_statuses(current_user=SimpleNamespace())
 
 
 @pytest.mark.asyncio
 async def test_admin_categories_crud_paths():
     current_user = SimpleNamespace(id=1, role="manager", is_active=True)
 
-    list_db = _QueuedSession([_ExecResult(scalars=[SimpleNamespace(id=1, name="Категория")])])
+    list_db = _QueuedSession(
+        [_ExecResult(scalars=[SimpleNamespace(id=1, name="Категория")])]
+    )
     categories = await admin.admin_get_categories(db=list_db, current_user=current_user)
     assert len(categories) == 1
 
@@ -1651,16 +1892,25 @@ async def test_admin_categories_crud_paths():
         current_user=current_user,
     )
     assert created.id is not None
-    assert any(isinstance(item, AuditLog) and item.entity_type == "category" for item in create_db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "category"
+        for item in create_db.added
+    )
 
-    existing_category = SimpleNamespace(id=11, name="Старая", slug="old", is_active=True)
+    existing_category = SimpleNamespace(
+        id=11, name="Старая", slug="old", is_active=True
+    )
     get_db = _QueuedSession([_ExecResult(scalar=existing_category)])
-    found = await admin.admin_get_category(category_id=11, db=get_db, current_user=current_user)
+    found = await admin.admin_get_category(
+        category_id=11, db=get_db, current_user=current_user
+    )
     assert found.id == 11
 
     missing_get_db = _QueuedSession([_ExecResult(scalar=None)])
     with pytest.raises(HTTPException) as not_found_exc:
-        await admin.admin_get_category(category_id=404, db=missing_get_db, current_user=current_user)
+        await admin.admin_get_category(
+            category_id=404, db=missing_get_db, current_user=current_user
+        )
     assert not_found_exc.value.status_code == 404
 
     update_category = SimpleNamespace(id=12, name="Старая", slug="old", is_active=True)
@@ -1686,15 +1936,21 @@ async def test_admin_categories_crud_paths():
     assert missing_update_exc.value.status_code == 404
 
     delete_user = SimpleNamespace(id=1, role="admin", is_active=True)
-    delete_category = SimpleNamespace(id=13, name="Удалить", slug="remove", is_active=True)
+    delete_category = SimpleNamespace(
+        id=13, name="Удалить", slug="remove", is_active=True
+    )
     delete_db = _QueuedSession([_ExecResult(scalar=delete_category)])
-    deleted_result = await admin.admin_delete_category(category_id=13, db=delete_db, current_user=delete_user)
+    deleted_result = await admin.admin_delete_category(
+        category_id=13, db=delete_db, current_user=delete_user
+    )
     assert deleted_result is None
     assert delete_db.deleted and delete_db.deleted[0].id == 13
 
     missing_delete_db = _QueuedSession([_ExecResult(scalar=None)])
     with pytest.raises(HTTPException) as missing_delete_exc:
-        await admin.admin_delete_category(category_id=404, db=missing_delete_db, current_user=delete_user)
+        await admin.admin_delete_category(
+            category_id=404, db=missing_delete_db, current_user=delete_user
+        )
     assert missing_delete_exc.value.status_code == 404
 
 
@@ -1702,7 +1958,9 @@ async def test_admin_categories_crud_paths():
 async def test_admin_service_catalog_crud_and_validation_paths():
     current_user = SimpleNamespace(id=1, role="service_manager", is_active=True)
 
-    list_db = _QueuedSession([_ExecResult(scalars=[SimpleNamespace(id=1, name="Диагностика")])])
+    list_db = _QueuedSession(
+        [_ExecResult(scalars=[SimpleNamespace(id=1, name="Диагностика")])]
+    )
     payload = await admin.admin_get_service_catalog(
         include_inactive=False,
         vehicle_type=None,
@@ -1746,7 +2004,10 @@ async def test_admin_service_catalog_crud_and_validation_paths():
     )
     assert created_item.id is not None
     assert created_item.prepayment_amount is None
-    assert any(isinstance(item, AuditLog) and item.entity_type == "service_catalog_item" for item in create_db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "service_catalog_item"
+        for item in create_db.added
+    )
 
     missing_update_db = _QueuedSession([_ExecResult(scalar=None)])
     with pytest.raises(HTTPException) as missing_update_exc:
@@ -1774,7 +2035,9 @@ async def test_admin_service_catalog_crud_and_validation_paths():
     with pytest.raises(HTTPException) as invalid_update_exc:
         await admin.admin_update_service_catalog_item(
             item_id=31,
-            payload=admin.ServiceCatalogItemUpdate(prepayment_required=True, prepayment_amount=None),
+            payload=admin.ServiceCatalogItemUpdate(
+                prepayment_required=True, prepayment_amount=None
+            ),
             db=invalid_update_db,
             current_user=current_user,
         )
@@ -1795,7 +2058,9 @@ async def test_admin_service_catalog_crud_and_validation_paths():
     update_db = _QueuedSession([_ExecResult(scalar=update_item)])
     updated_item = await admin.admin_update_service_catalog_item(
         item_id=32,
-        payload=admin.ServiceCatalogItemUpdate(prepayment_required=False, prepayment_amount=1000),
+        payload=admin.ServiceCatalogItemUpdate(
+            prepayment_required=False, prepayment_amount=1000
+        ),
         db=update_db,
         current_user=current_user,
     )
@@ -1825,18 +2090,26 @@ async def test_admin_service_catalog_crud_and_validation_paths():
 async def test_admin_content_crud_paths():
     current_user = SimpleNamespace(id=1, role="admin", is_active=True)
 
-    list_db = _QueuedSession([_ExecResult(scalars=[SimpleNamespace(id=1, key="hero_title", value="x")])])
+    list_db = _QueuedSession(
+        [_ExecResult(scalars=[SimpleNamespace(id=1, key="hero_title", value="x")])]
+    )
     content_rows = await admin.admin_get_content(db=list_db, current_user=current_user)
     assert len(content_rows) == 1
 
-    existing_content = SimpleNamespace(id=41, key="hero_title", value="Old", type="text")
+    existing_content = SimpleNamespace(
+        id=41, key="hero_title", value="Old", type="text"
+    )
     get_db = _QueuedSession([_ExecResult(scalar=existing_content)])
-    found = await admin.admin_get_content_by_key(key="hero_title", db=get_db, current_user=current_user)
+    found = await admin.admin_get_content_by_key(
+        key="hero_title", db=get_db, current_user=current_user
+    )
     assert found.id == 41
 
     missing_get_db = _QueuedSession([_ExecResult(scalar=None)])
     with pytest.raises(HTTPException) as missing_get_exc:
-        await admin.admin_get_content_by_key(key="missing", db=missing_get_db, current_user=current_user)
+        await admin.admin_get_content_by_key(
+            key="missing", db=missing_get_db, current_user=current_user
+        )
     assert missing_get_exc.value.status_code == 404
 
     duplicate_create_db = _QueuedSession([_ExecResult(scalar=SimpleNamespace(id=99))])
@@ -1855,9 +2128,14 @@ async def test_admin_content_crud_paths():
         current_user=current_user,
     )
     assert created.id is not None
-    assert any(isinstance(item, AuditLog) and item.entity_type == "content" for item in create_db.added)
+    assert any(
+        isinstance(item, AuditLog) and item.entity_type == "content"
+        for item in create_db.added
+    )
 
-    update_content = SimpleNamespace(id=42, key="hero_subtitle", value="old", type="text")
+    update_content = SimpleNamespace(
+        id=42, key="hero_subtitle", value="old", type="text"
+    )
     update_db = _QueuedSession([_ExecResult(scalar=update_content)])
     updated = await admin.admin_update_content(
         key="hero_subtitle",
@@ -1879,13 +2157,17 @@ async def test_admin_content_crud_paths():
 
     delete_content = SimpleNamespace(id=43, key="hero_subtitle", value="x", type="text")
     delete_db = _QueuedSession([_ExecResult(scalar=delete_content)])
-    deleted = await admin.admin_delete_content(key="hero_subtitle", db=delete_db, current_user=current_user)
+    deleted = await admin.admin_delete_content(
+        key="hero_subtitle", db=delete_db, current_user=current_user
+    )
     assert deleted is None
     assert delete_db.deleted and delete_db.deleted[0].id == 43
 
     missing_delete_db = _QueuedSession([_ExecResult(scalar=None)])
     with pytest.raises(HTTPException) as missing_delete_exc:
-        await admin.admin_delete_content(key="missing", db=missing_delete_db, current_user=current_user)
+        await admin.admin_delete_content(
+            key="missing", db=missing_delete_db, current_user=current_user
+        )
     assert missing_delete_exc.value.status_code == 404
 
 
@@ -1922,7 +2204,9 @@ async def test_public_rate_limit_redis_and_fallback_paths(monkeypatch):
 
     monkeypatch.setattr(public, "_get_redis_rate_limit_client", _get_redis_limited)
     with pytest.raises(HTTPException) as limited_exc:
-        await public._enforce_form_rate_limit(_make_request("/api/public/leads"), "leads")
+        await public._enforce_form_rate_limit(
+            _make_request("/api/public/leads"), "leads"
+        )
     assert limited_exc.value.status_code == 429
 
     class _RedisBroken:
@@ -1953,10 +2237,15 @@ async def test_public_rate_limit_redis_and_fallback_paths(monkeypatch):
 
     await public._enforce_form_rate_limit(_make_request("/api/public/leads"), "leads")
     with pytest.raises(HTTPException) as fallback_limit_exc:
-        await public._enforce_form_rate_limit(_make_request("/api/public/leads"), "leads")
+        await public._enforce_form_rate_limit(
+            _make_request("/api/public/leads"), "leads"
+        )
     assert fallback_limit_exc.value.status_code == 429
     assert warnings
-    assert warnings[0]["message"] == "rate-limit redis unavailable; using in-memory fallback"
+    assert (
+        warnings[0]["message"]
+        == "rate-limit redis unavailable; using in-memory fallback"
+    )
 
 
 @pytest.mark.asyncio
@@ -1990,7 +2279,9 @@ async def test_public_redis_client_and_env_helpers(monkeypatch):
 
 
 def test_public_helper_validation_and_normalization_paths():
-    assert public._extract_client_ip(_make_request("/api/public/content")) == "127.0.0.1"
+    assert (
+        public._extract_client_ip(_make_request("/api/public/content")) == "127.0.0.1"
+    )
 
     request_without_client = Request(
         {
@@ -2022,7 +2313,13 @@ def test_public_helper_validation_and_normalization_paths():
 async def test_public_snapshot_loading_and_product_endpoints(monkeypatch):
     run = SimpleNamespace(
         snapshot_data=[
-            {"id": 1, "category_id": 2, "sku": "SKU-1", "name": "Масло", "is_active": True},
+            {
+                "id": 1,
+                "category_id": 2,
+                "sku": "SKU-1",
+                "name": "Масло",
+                "is_active": True,
+            },
             {"id": 0, "category_id": 2, "sku": "BAD", "name": "bad"},
         ]
     )
@@ -2039,8 +2336,22 @@ async def test_public_snapshot_loading_and_product_endpoints(monkeypatch):
 
     async def _snapshot_products(_db):
         return [
-            {"id": 1, "category_id": 2, "sku": "SKU-1", "name": "Масло", "is_active": True, "stock_quantity": 5},
-            {"id": 2, "category_id": 2, "sku": "SKU-2", "name": "Фильтр", "is_active": False, "stock_quantity": 10},
+            {
+                "id": 1,
+                "category_id": 2,
+                "sku": "SKU-1",
+                "name": "Масло",
+                "is_active": True,
+                "stock_quantity": 5,
+            },
+            {
+                "id": 2,
+                "category_id": 2,
+                "sku": "SKU-2",
+                "name": "Фильтр",
+                "is_active": False,
+                "stock_quantity": 10,
+            },
         ]
 
     monkeypatch.setattr(public, "_load_latest_products_snapshot", _snapshot_products)
@@ -2118,18 +2429,515 @@ async def test_public_db_mode_product_and_read_endpoints(monkeypatch):
         await public.get_order_history(phone="12345", limit=5, db=_QueuedSession([]))
     assert bad_phone_exc.value.status_code == 400
 
-    history_db = _QueuedSession([_ExecResult(scalars=[SimpleNamespace(id=1, status="new", items=[])])])
-    history = await public.get_order_history(phone="+7 (999) 111-22-33", limit=5, db=history_db)
+    history_db = _QueuedSession(
+        [_ExecResult(scalars=[SimpleNamespace(id=1, status="new", items=[])])]
+    )
+    history = await public.get_order_history(
+        phone="+7 (999) 111-22-33", limit=5, db=history_db
+    )
     assert len(history) == 1
 
     with pytest.raises(HTTPException) as invalid_vehicle_type_exc:
         await public.get_service_catalog(vehicle_type="plane", db=_QueuedSession([]))
     assert invalid_vehicle_type_exc.value.status_code == 400
 
-    service_catalog_db = _QueuedSession([_ExecResult(scalars=[SimpleNamespace(id=1, name="Диагностика")])])
-    catalog = await public.get_service_catalog(vehicle_type="truck", db=service_catalog_db)
+    service_catalog_db = _QueuedSession(
+        [_ExecResult(scalars=[SimpleNamespace(id=1, name="Диагностика")])]
+    )
+    catalog = await public.get_service_catalog(
+        vehicle_type="truck", db=service_catalog_db
+    )
     assert len(catalog) == 1
 
-    content_db = _QueuedSession([_ExecResult(scalars=[SimpleNamespace(key="hero", value="value")])])
+    content_db = _QueuedSession(
+        [_ExecResult(scalars=[SimpleNamespace(key="hero", value="value")])]
+    )
     content = await public.get_public_content(db=content_db)
     assert content == [{"key": "hero", "value": "value"}]
+
+
+@pytest.mark.asyncio
+async def test_admin_import_from_source_blocked_by_feature_flag(monkeypatch):
+    async def _settings(_db, keys):
+        return {
+            key: (
+                "0" if key == admin.FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY else None
+            )
+            for key in keys
+        }
+
+    monkeypatch.setattr(admin, "_get_site_content_values", _settings)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin.admin_import_products_from_source(
+            db=FakeAsyncSession(),
+            current_user=SimpleNamespace(id=1, role="admin", is_active=True),
+        )
+
+    assert exc.value.status_code == 409
+    assert "disabled" in str(exc.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_public_service_catalog_hides_prepayment_when_feature_disabled(
+    monkeypatch,
+):
+    async def _prepayment_disabled(_db):
+        return False
+
+    monkeypatch.setattr(public, "_is_service_prepayment_enabled", _prepayment_disabled)
+
+    item = SimpleNamespace(
+        id=201,
+        name="Замена масла",
+        vehicle_type="truck",
+        duration_minutes=45,
+        price=2000.0,
+        prepayment_required=True,
+        prepayment_amount=500.0,
+        sort_order=1,
+        is_active=True,
+        created_at=public._utcnow(),
+        updated_at=public._utcnow(),
+    )
+    db = _QueuedSession([_ExecResult(scalars=[item])])
+
+    catalog = await public.get_service_catalog(vehicle_type="truck", db=db)
+
+    assert len(catalog) == 1
+    first = catalog[0]
+    assert isinstance(first, dict)
+    assert first["prepayment_required"] is False
+    assert first["prepayment_amount"] is None
+
+
+def test_build_source_sync_url_with_delta_appends_params():
+    delta_since = datetime(2026, 3, 9, 12, 34, 56)
+    result = admin._build_source_sync_url_with_delta(
+        "https://erp.example/export/products.xlsx?token=abc",
+        delta_since=delta_since,
+    )
+
+    assert "token=abc" in result
+    assert "updated_since=" in result
+    assert "delta=1" in result
+
+
+@pytest.mark.asyncio
+async def test_import_products_from_source_internal_uses_delta_and_tagged_filename(
+    monkeypatch,
+):
+    async def _settings(_db, _keys):
+        return {
+            admin.FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY: "1",
+            admin.FEATURE_ERP_SYNC_DELTA_ENABLED_KEY: "1",
+            admin.INTEGRATION_ERP_SOURCE_URL_KEY: "https://erp.example/export.xlsx",
+            admin.INTEGRATION_ERP_ALLOWED_HOSTS_KEY: "erp.example",
+        }
+
+    captured: dict[str, object] = {}
+
+    async def _download(
+        *,
+        source_url: str,
+        source_allowed_hosts_raw: str,
+        source_auth_header: str,
+        source_username: str,
+        source_password: str,
+    ) -> tuple[str, bytes]:
+        captured["source_url"] = source_url
+        assert source_allowed_hosts_raw == "erp.example"
+        assert source_auth_header == ""
+        assert source_username == ""
+        assert source_password == ""
+        return "products.xlsx", b"sku,name\nSKU-1,Item 1\n"
+
+    async def _latest(_db, *, status: str | None = None):
+        assert status == "finished"
+        return SimpleNamespace(finished_at=datetime(2026, 3, 8, 10, 0, 0))
+
+    async def _import_products(
+        *,
+        file,
+        default_category_id,
+        skip_invalid,
+        trigger_mode,
+        db,
+        current_user,
+    ):
+        captured["filename"] = file.filename
+        captured["default_category_id"] = default_category_id
+        captured["skip_invalid"] = skip_invalid
+        captured["trigger_mode"] = trigger_mode
+        captured["user_id"] = current_user.id
+        return {"run_id": 77, "created": 1, "updated": 0, "failed": 0}
+
+    monkeypatch.setattr(admin, "_get_site_content_values", _settings)
+    monkeypatch.setattr(admin, "_download_import_source_payload", _download)
+    monkeypatch.setattr(admin, "_load_latest_source_import_run", _latest)
+    monkeypatch.setattr(admin, "admin_import_products", _import_products)
+
+    result = await admin._import_products_from_source_internal(
+        db=FakeAsyncSession(),
+        initiated_by=42,
+        default_category_id=5,
+        skip_invalid=True,
+        trigger_mode="event",
+        run_context="sync-manual",
+    )
+
+    assert captured["filename"] == "source__sync-manual__products.xlsx"
+    assert "updated_since=" in str(captured["source_url"])
+    assert captured["default_category_id"] == 5
+    assert captured["skip_invalid"] is True
+    assert captured["trigger_mode"] == "event"
+    assert captured["user_id"] == 42
+    assert result["run_id"] == 77
+    assert result["delta_since"] == "2026-03-08T10:00:00Z"
+
+
+@pytest.mark.asyncio
+async def test_run_erp_sync_scheduler_tick_skips_when_not_due(monkeypatch):
+    async def _runtime(_db):
+        return {
+            "online_sync_enabled": True,
+            "source_import_enabled": True,
+            "update_mode": "hourly",
+            "schedule_minutes": 60,
+            "retry_enabled": True,
+            "retry_attempt": 0,
+            "next_retry_at": None,
+            "retry_max_attempts": 5,
+            "retry_delay_seconds": 300,
+        }
+
+    async def _latest(_db, *, status: str | None = None):
+        assert status is None
+        return SimpleNamespace(started_at=admin._utcnow())
+
+    monkeypatch.setattr(admin, "_load_erp_sync_runtime_settings", _runtime)
+    monkeypatch.setattr(admin, "_load_latest_source_import_run", _latest)
+
+    class _Session(FakeAsyncSession):
+        async def execute(self, _query):
+            return _ExecResult(scalar=None)
+
+    result = await admin.run_erp_sync_scheduler_tick(_Session())
+
+    assert result["action"] == "skip"
+    assert result["reason"] == "not_due"
+
+
+@pytest.mark.asyncio
+async def test_run_erp_sync_scheduler_tick_starts_due_run(monkeypatch):
+    async def _runtime(_db):
+        return {
+            "online_sync_enabled": True,
+            "source_import_enabled": True,
+            "update_mode": "hourly",
+            "schedule_minutes": 60,
+            "retry_enabled": True,
+            "retry_attempt": 0,
+            "next_retry_at": None,
+            "retry_max_attempts": 5,
+            "retry_delay_seconds": 300,
+        }
+
+    async def _latest(_db, *, status: str | None = None):
+        assert status is None
+        return SimpleNamespace(started_at=admin._utcnow() - timedelta(minutes=120))
+
+    async def _execute(
+        _db,
+        *,
+        initiated_by,
+        default_category_id,
+        skip_invalid,
+        trigger_mode,
+        run_context,
+        retry_enabled,
+        retry_max_attempts,
+        retry_delay_seconds,
+        previous_retry_attempt,
+    ):
+        assert initiated_by is None
+        assert default_category_id is None
+        assert skip_invalid is True
+        assert trigger_mode == "hourly"
+        assert run_context == "sync-scheduled"
+        assert retry_enabled is True
+        assert retry_max_attempts == 5
+        assert retry_delay_seconds == 300
+        assert previous_retry_attempt == 0
+        return {"run_id": 33}
+
+    monkeypatch.setattr(admin, "_load_erp_sync_runtime_settings", _runtime)
+    monkeypatch.setattr(admin, "_load_latest_source_import_run", _latest)
+    monkeypatch.setattr(admin, "_execute_erp_sync_run", _execute)
+
+    class _Session(FakeAsyncSession):
+        async def execute(self, _query):
+            return _ExecResult(scalar=None)
+
+    result = await admin.run_erp_sync_scheduler_tick(_Session())
+
+    assert result["action"] == "started"
+    assert result["reason"] == "sync-scheduled"
+    assert result["run_id"] == 33
+
+
+@pytest.mark.asyncio
+async def test_admin_get_notifications_health_returns_flags_and_runtime(monkeypatch):
+    async def _flags(_db):
+        return {
+            "enabled": True,
+            "email": True,
+            "sms": False,
+            "messenger": True,
+            "queue_enabled": True,
+            "retry_max_attempts": 7,
+            "retry_delay_seconds": 120,
+        }
+
+    monkeypatch.setattr(admin, "_get_notification_flags", _flags)
+    monkeypatch.setattr(
+        admin,
+        "get_notification_channels_health",
+        lambda: {
+            "queue": {"enabled": True, "pending": 2, "done": 1, "failed": 0, "due": 1},
+            "email": {"enabled": True, "ready": True, "reason": "ok"},
+            "sms": {"enabled": True, "ready": False, "reason": "missing webhook"},
+            "messenger": {"enabled": True, "ready": True, "reason": "ok"},
+        },
+    )
+
+    response = await admin.admin_get_notifications_health(
+        db=FakeAsyncSession(),
+        current_user=SimpleNamespace(id=1, role="admin", is_active=True),
+    )
+
+    assert response["queue"]["pending"] == 2
+    assert response["features"]["enabled"] is True
+    assert response["features"]["sms"] is False
+    assert response["features"]["queue_enabled"] is True
+    assert response["features"]["retry_max_attempts"] == 7
+    assert response["features"]["retry_delay_seconds"] == 120
+
+
+@pytest.mark.asyncio
+async def test_admin_get_payments_health_returns_flags(monkeypatch):
+    async def _payment_flags(_db):
+        return {
+            "prepayment_enabled": True,
+            "payment_flow_enabled": True,
+            "payment_block_unpaid_enabled": False,
+            "provider_name": "test-provider",
+            "default_currency": "RUB",
+        }
+
+    monkeypatch.setattr(admin, "_get_service_payment_flags", _payment_flags)
+    monkeypatch.setenv("PAYMENTS_WEBHOOK_TOKEN", "secret-token")
+
+    response = await admin.admin_get_payments_health(
+        db=FakeAsyncSession(),
+        current_user=SimpleNamespace(id=1, role="admin", is_active=True),
+    )
+
+    assert response["features"]["payment_flow_enabled"] is True
+    assert response["provider_name"] == "test-provider"
+    assert response["default_currency"] == "RUB"
+    assert response["webhook_token_configured"] is True
+
+
+@pytest.mark.asyncio
+async def test_admin_send_test_notification_queue_flow(monkeypatch):
+    async def _flags(_db):
+        return {
+            "enabled": True,
+            "email": True,
+            "sms": True,
+            "messenger": True,
+            "queue_enabled": True,
+            "retry_max_attempts": 5,
+            "retry_delay_seconds": 300,
+        }
+
+    captured: dict[str, Any] = {}
+
+    def _notify(event, payload, flags):
+        captured["event"] = event
+        captured["payload"] = payload
+        captured["flags"] = dict(flags)
+
+    monkeypatch.setattr(admin, "_get_notification_flags", _flags)
+    monkeypatch.setattr(admin, "_notify_with_flags", _notify)
+    monkeypatch.setattr(
+        admin,
+        "process_notification_queue",
+        lambda *, limit: {"processed": 1, "sent": 1, "retried": 0, "failed": 0},
+    )
+
+    response = await admin.admin_send_test_notification(
+        channel="email",
+        flush_queue=True,
+        db=FakeAsyncSession(),
+        current_user=SimpleNamespace(id=7, role="admin", is_active=True),
+    )
+
+    assert response["status"] == "ok"
+    assert response["channel"] == "email"
+    assert response["queue_enabled"] is True
+    assert response["queue_processed"]["processed"] == 1
+    assert captured["event"] == "admin.notifications.test"
+    assert captured["flags"]["email"] is True
+    assert captured["flags"]["sms"] is False
+    assert captured["flags"]["messenger"] is False
+
+
+@pytest.mark.asyncio
+async def test_public_apply_payment_webhook_updates_service_request(monkeypatch):
+    service_request = SimpleNamespace(
+        id=910,
+        payment_status="pending",
+        payment_required=True,
+        payment_amount=None,
+        payment_currency="RUB",
+        payment_provider=None,
+        payment_reference=None,
+        payment_error=None,
+        payment_updated_at=None,
+        updated_at=None,
+    )
+    db = _SingleFetchSession(service_request)
+
+    async def _payment_settings(_db):
+        return {
+            "prepayment_enabled": True,
+            "payment_flow_enabled": True,
+            "payment_block_unpaid_enabled": True,
+            "provider_name": "test-provider",
+            "default_currency": "RUB",
+        }
+
+    monkeypatch.setattr(public, "_get_service_payment_settings", _payment_settings)
+    monkeypatch.delenv("PAYMENTS_WEBHOOK_TOKEN", raising=False)
+
+    response = await public.apply_payment_webhook(
+        payload=PaymentWebhookPayload(
+            entity_type="service_request",
+            entity_id=910,
+            status="paid",
+            payment_reference="pay-910",
+            provider="test-provider",
+            amount=1200.0,
+            currency="RUB",
+            event="payment.succeeded",
+        ),
+        request=_make_request_with_headers(
+            "/api/public/payments/webhook", "POST", {}
+        ),
+        db=db,
+    )
+
+    assert response["status"] == "ok"
+    assert response["payment_status"] == "paid"
+    assert service_request.payment_status == "paid"
+    assert service_request.payment_reference == "pay-910"
+    assert service_request.payment_amount == 1200.0
+    assert service_request.payment_provider == "test-provider"
+    assert service_request.payment_updated_at is not None
+
+
+@pytest.mark.asyncio
+async def test_public_apply_payment_webhook_rejects_invalid_token(monkeypatch):
+    async def _payment_settings(_db):
+        return {
+            "prepayment_enabled": True,
+            "payment_flow_enabled": True,
+            "payment_block_unpaid_enabled": True,
+            "provider_name": "test-provider",
+            "default_currency": "RUB",
+        }
+
+    monkeypatch.setattr(public, "_get_service_payment_settings", _payment_settings)
+    monkeypatch.setenv("PAYMENTS_WEBHOOK_TOKEN", "expected-token")
+
+    with pytest.raises(HTTPException) as exc:
+        await public.apply_payment_webhook(
+            payload=PaymentWebhookPayload(
+                entity_type="service_request",
+                entity_id=1,
+                status="paid",
+            ),
+            request=_make_request_with_headers(
+                "/api/public/payments/webhook", "POST", {}
+            ),
+            db=_SingleFetchSession(
+                SimpleNamespace(
+                    id=1,
+                    payment_status="pending",
+                    payment_required=True,
+                    payment_amount=100.0,
+                    payment_currency="RUB",
+                    payment_provider=None,
+                    payment_reference=None,
+                    payment_error=None,
+                    payment_updated_at=None,
+                    updated_at=None,
+                )
+            ),
+        )
+
+    assert exc.value.status_code == 403
+
+
+def test_notifications_build_notification_message_templates(monkeypatch):
+    monkeypatch.setenv(
+        "NOTIFY_TEMPLATE_EMAIL_SUBJECT_ADMIN_NOTIFICATIONS_TEST",
+        "[{project}] test by {triggered_by_user_id}",
+    )
+    monkeypatch.setenv(
+        "NOTIFY_TEMPLATE_EMAIL_BODY_ADMIN_NOTIFICATIONS_TEST",
+        "event={event}\\nuser={triggered_by_user_id}",
+    )
+    monkeypatch.setenv(
+        "NOTIFY_TEMPLATE_SHORT_ADMIN_NOTIFICATIONS_TEST",
+        "test:{triggered_by_user_id}",
+    )
+
+    message = notifications._build_notification_message(
+        "admin.notifications.test",
+        {"triggered_by_user_id": 77},
+    )
+
+    assert message["subject"] == "[vse-zapchasti] test by 77"
+    assert "event=admin.notifications.test" in message["body"]
+    assert "user=77" in message["body"]
+    assert message["short"] == "test:77"
+
+
+def test_notifications_queue_flow_persists_and_processes(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOTIFY_QUEUE_DIR", str(tmp_path / "notify-queue"))
+
+    notifications.notify_event(
+        "admin.notifications.test",
+        {"k": "v"},
+        enable_email=True,
+        enable_sms=False,
+        enable_messenger=False,
+        queue_enabled=True,
+        retry_max_attempts=3,
+        retry_delay_seconds=30,
+    )
+
+    queue_stats_before = notifications.get_notification_queue_stats()
+    assert queue_stats_before["pending"] == 1
+    assert queue_stats_before["done"] == 0
+
+    processed = notifications.process_notification_queue(limit=10)
+    assert processed["processed"] == 1
+    assert processed["sent"] == 1
+
+    queue_stats_after = notifications.get_notification_queue_stats()
+    assert queue_stats_after["pending"] == 0
+    assert queue_stats_after["done"] == 1

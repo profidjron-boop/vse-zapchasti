@@ -1,10 +1,16 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { AdminTotalPagesFooter } from "@/components/admin/table-pagination-shared";
+import { useAdminSearchPageState } from "@/components/admin/use-admin-search-page-state";
 
 type Category = {
   id: number;
@@ -16,14 +22,6 @@ type Category = {
 
 const PAGE_SIZE = 50;
 
-function normalizePage(value: string | null): number {
-  const parsed = Number.parseInt(value || "1", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-  return 1;
-}
-
 export default function AdminCategoriesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,56 +30,52 @@ export default function AdminCategoriesPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
-  const [search, setSearch] = useState(() => (searchParams.get("q") || "").trim());
-  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
-  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
+  const { search, setSearch, page, setPage, pageInput, setPageInput } =
+    useAdminSearchPageState({
+      searchParams,
+      router,
+      basePath: "/admin/categories",
+    });
 
-  const fetchCategories = useCallback(async (showRefreshing = false) => {
-    setError("");
-    if (showRefreshing) {
-      setIsRefreshing(true);
-    }
-    try {
-      const apiBaseUrl = getClientApiBaseUrl();
-      const data = await fetchJsonWithTimeout<Category[]>(
-        withApiBase(apiBaseUrl, "/api/admin/categories"),
-        {},
-        12000
-      );
-      setCategories(data);
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        router.push("/admin/login");
-        return;
+  const fetchCategories = useCallback(
+    async (showRefreshing = false) => {
+      setError("");
+      if (showRefreshing) {
+        setIsRefreshing(true);
       }
-      if (fetchError instanceof ApiRequestError) {
-        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
-      } else {
-        setError("Ошибка загрузки категорий");
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const data = await fetchJsonWithTimeout<Category[]>(
+          withApiBase(apiBaseUrl, "/api/admin/categories"),
+          {},
+          12000,
+        );
+        setCategories(data);
+        setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+      } catch (fetchError) {
+        if (redirectIfAdminUnauthorized(fetchError, router)) {
+          return;
+        }
+        setError(toAdminErrorMessage(fetchError, "Ошибка загрузки категорий"));
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
       }
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [router]);
+    },
+    [router],
+  );
 
   useEffect(() => {
     void fetchCategories();
   }, [fetchCategories]);
 
-  useEffect(() => {
-    const nextSearch = (searchParams.get("q") || "").trim();
-    const nextPage = normalizePage(searchParams.get("page"));
-    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-    setPage((prev) => (prev === nextPage ? prev : nextPage));
-  }, [searchParams]);
-
   const filteredCategories = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return categories;
     return categories.filter((category) =>
-      `${category.name} ${category.slug}`.toLowerCase().includes(normalizedSearch)
+      `${category.name} ${category.slug}`
+        .toLowerCase()
+        .includes(normalizedSearch),
     );
   }, [categories, search]);
 
@@ -99,24 +93,7 @@ export default function AdminCategoriesPage() {
     if (page > totalPages) {
       setPage(totalPages);
     }
-  }, [page, totalPages]);
-
-  useEffect(() => {
-    setPageInput(String(page));
-  }, [page]);
-
-  useEffect(() => {
-    const query = new URLSearchParams();
-    const normalizedSearch = search.trim();
-    if (normalizedSearch) {
-      query.set("q", normalizedSearch);
-    }
-    if (page > 1) {
-      query.set("page", String(page));
-    }
-    const target = query.toString() ? `/admin/categories?${query.toString()}` : "/admin/categories";
-    router.replace(target, { scroll: false });
-  }, [page, router, search]);
+  }, [page, setPage, totalPages]);
 
   function handlePageJump(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -141,7 +118,9 @@ export default function AdminCategoriesPage() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-[#1F3B73]">Управление категориями</h1>
+        <h1 className="text-2xl font-bold text-[#1F3B73]">
+          Управление категориями
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -160,11 +139,15 @@ export default function AdminCategoriesPage() {
         </div>
       </div>
       {lastUpdated && (
-        <div className="mb-4 text-xs text-neutral-500">Обновлено: {lastUpdated}</div>
+        <div className="mb-4 text-xs text-neutral-500">
+          Обновлено: {lastUpdated}
+        </div>
       )}
 
       <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Поиск
+        </label>
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
@@ -191,7 +174,11 @@ export default function AdminCategoriesPage() {
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
@@ -202,7 +189,9 @@ export default function AdminCategoriesPage() {
           {categories.length === 0 ? (
             <>
               <p>Категорий пока нет</p>
-              <p className="mt-2 text-sm">Добавьте первую категорию через кнопку выше</p>
+              <p className="mt-2 text-sm">
+                Добавьте первую категорию через кнопку выше
+              </p>
             </>
           ) : (
             <>
@@ -214,7 +203,8 @@ export default function AdminCategoriesPage() {
       ) : (
         <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
-            Показано: {pagedCategories.length} из {filteredCategories.length} · Страница {page} из {totalPages}
+            Показано: {pagedCategories.length} из {filteredCategories.length} ·
+            Страница {page} из {totalPages}
           </div>
 
           <div className="divide-y divide-neutral-200 md:hidden">
@@ -222,19 +212,29 @@ export default function AdminCategoriesPage() {
               <article key={category.id} className="space-y-2 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm text-neutral-500">ID: {category.id}</p>
-                    <p className="mt-1 font-medium text-neutral-900">{category.name}</p>
+                    <p className="text-sm text-neutral-500">
+                      ID: {category.id}
+                    </p>
+                    <p className="mt-1 font-medium text-neutral-900">
+                      {category.name}
+                    </p>
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2 py-1 text-xs ${
-                      category.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      category.is_active
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
                     }`}
                   >
                     {category.is_active ? "Да" : "Нет"}
                   </span>
                 </div>
-                <p className="break-all font-mono text-sm text-neutral-700">{category.slug}</p>
-                <p className="text-sm text-neutral-700">Сортировка: {category.sort_order}</p>
+                <p className="break-all font-mono text-sm text-neutral-700">
+                  {category.slug}
+                </p>
+                <p className="text-sm text-neutral-700">
+                  Сортировка: {category.sort_order}
+                </p>
               </article>
             ))}
           </div>
@@ -243,24 +243,44 @@ export default function AdminCategoriesPage() {
             <table className="w-full min-w-[760px]">
               <thead className="border-b border-neutral-200 bg-neutral-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Название</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Slug</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Сортировка</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Активна</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Название
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Slug
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Сортировка
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Активна
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
                 {pagedCategories.map((category) => (
                   <tr key={category.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{category.id}</td>
-                    <td className="px-4 py-3 text-sm font-medium">{category.name}</td>
-                    <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">{category.slug}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{category.sort_order}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {category.id}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium">
+                      {category.name}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-sm whitespace-nowrap">
+                      {category.slug}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {category.sort_order}
+                    </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
                       <span
                         className={`rounded-full px-2 py-1 text-xs ${
-                          category.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          category.is_active
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
                         }`}
                       >
                         {category.is_active ? "Да" : "Нет"}
@@ -272,50 +292,19 @@ export default function AdminCategoriesPage() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
-            <div className="text-neutral-500">
-              Поиск выполняется по всем категориям.
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Назад
-              </button>
-              <span className="min-w-[7rem] text-center text-neutral-600">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={page >= totalPages}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Вперёд
-              </button>
-              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
-                <label htmlFor="categories-page-jump" className="text-xs text-neutral-500">Стр.</label>
-                <input
-                  id="categories-page-jump"
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  value={pageInput}
-                  onChange={(event) => setPageInput(event.target.value)}
-                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
-                >
-                  Перейти
-                </button>
-              </form>
-            </div>
-          </div>
+          <AdminTotalPagesFooter
+            summary="Поиск выполняется по всем категориям."
+            page={page}
+            totalPages={totalPages}
+            pageInput={pageInput}
+            jumpInputId="categories-page-jump"
+            onPageInputChange={setPageInput}
+            onPrevPage={() => setPage((prev) => Math.max(1, prev - 1))}
+            onNextPage={() =>
+              setPage((prev) => Math.min(totalPages, prev + 1))
+            }
+            onJumpToPage={handlePageJump}
+          />
         </div>
       )}
     </div>

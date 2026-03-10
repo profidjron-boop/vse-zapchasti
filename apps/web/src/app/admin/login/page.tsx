@@ -1,57 +1,61 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getClientApiBaseUrl, withApiBase } from '@/lib/api-base-url';
-import { ApiRequestError, fetchJsonWithTimeout } from '@/lib/fetch-json';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (isLoading) return;
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const formData = new URLSearchParams();
-      formData.append('username', email);
-      formData.append('password', password);
+      formData.append("username", email);
+      formData.append("password", password);
 
       const apiBaseUrl = getClientApiBaseUrl();
       await fetchJsonWithTimeout<{ access_token?: string }>(
-        withApiBase(apiBaseUrl, '/api/admin/auth/token'),
+        withApiBase(apiBaseUrl, "/api/admin/auth/token"),
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            "Content-Type": "application/x-www-form-urlencoded",
           },
           body: formData,
         },
-        10000
+        10000,
       );
-      
-      router.push('/admin');
+
+      router.push("/admin");
       router.refresh();
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.status === 401) {
-          setError('Неверный email или пароль');
+          setError("Неверный email или пароль");
         } else {
-          setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
+          setError(
+            err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message,
+          );
         }
       } else if (
         err instanceof TypeError ||
-        (err instanceof Error && err.message.toLowerCase().includes('fetch'))
+        (err instanceof Error && err.message.toLowerCase().includes("fetch"))
       ) {
-        setError('Не удалось подключиться к API. Проверьте, что backend запущен и API_BASE_URL настроен корректно.');
+        setError(
+          "Не удалось подключиться к API. Проверьте, что backend запущен и API_BASE_URL настроен корректно.",
+        );
       } else {
-        setError(err instanceof Error ? err.message : 'Ошибка входа');
+        setError(err instanceof Error ? err.message : "Ошибка входа");
       }
     } finally {
       setIsLoading(false);
@@ -69,7 +73,11 @@ export default function LoginPage() {
         <div className="bg-white rounded-3xl shadow-xl p-8">
           <div className="mb-6 min-h-[4.5rem]">
             {error ? (
-              <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+              >
                 {error}
               </div>
             ) : null}
@@ -109,7 +117,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full rounded-2xl bg-[#FF7A00] py-4 font-medium text-white shadow-lg shadow-[#FF7A00]/20 disabled:opacity-50 hover:bg-[#e66e00] transition"
             >
-              {isLoading ? 'Вход...' : 'Войти'}
+              {isLoading ? "Вход..." : "Войти"}
             </button>
           </form>
         </div>

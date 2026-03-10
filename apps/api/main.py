@@ -1,25 +1,39 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 import json
 import logging
 import os
 from time import perf_counter
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from database import engine
+from database import AsyncSessionLocal, engine
 from models import Base
+from notifications import process_notification_queue
 from routers import public
 from routers import admin
 
 load_dotenv()
 logger = logging.getLogger("api.request")
+
+HTTP_REQUESTS_TOTAL = Counter(
+    "http_requests_total",
+    "Total number of HTTP requests handled by API",
+    ["method", "path", "status"],
+)
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request duration in seconds",
+    ["method", "path"],
+)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -29,17 +43,109 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 AUTO_CREATE_SCHEMA_ON_START = _env_bool("AUTO_CREATE_SCHEMA_ON_START", default=False)
+ERP_SYNC_BACKGROUND_ENABLED = _env_bool("ERP_SYNC_BACKGROUND_ENABLED", default=True)
+ERP_SYNC_POLL_SECONDS = _env_positive_int("ERP_SYNC_POLL_SECONDS", default=30)
+NOTIFICATION_QUEUE_BACKGROUND_ENABLED = _env_bool(
+    "NOTIFICATION_QUEUE_BACKGROUND_ENABLED", default=True
+)
+NOTIFICATION_QUEUE_POLL_SECONDS = _env_positive_int(
+    "NOTIFICATION_QUEUE_POLL_SECONDS", default=20
+)
+
+
+async def _erp_sync_scheduler_loop(stop_event: asyncio.Event) -> None:
+    while not stop_event.is_set():
+        try:
+            async with AsyncSessionLocal() as db:
+                tick_result = await admin.run_erp_sync_scheduler_tick(db)
+            if tick_result.get("action") in {"started", "error"}:
+                logger.info(
+                    json.dumps(
+                        {
+                            "event": "erp_sync_tick",
+                            **tick_result,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+        except Exception as exc:
+            logger.error(
+                json.dumps(
+                    {
+                        "event": "erp_sync_scheduler_error",
+                        "error_type": exc.__class__.__name__,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=ERP_SYNC_POLL_SECONDS)
+        except asyncio.TimeoutError:
+            continue
+
+
+async def _notification_queue_loop(stop_event: asyncio.Event) -> None:
+    while not stop_event.is_set():
+        try:
+            result = process_notification_queue(limit=50)
+            if result.get("processed", 0) > 0:
+                logger.info(
+                    json.dumps(
+                        {
+                            "event": "notifications_queue_tick",
+                            **result,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+        except Exception as exc:
+            logger.error(
+                json.dumps(
+                    {
+                        "event": "notifications_queue_worker_error",
+                        "error_type": exc.__class__.__name__,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+
+        try:
+            await asyncio.wait_for(
+                stop_event.wait(),
+                timeout=NOTIFICATION_QUEUE_POLL_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            continue
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    stop_event = asyncio.Event()
+    sync_task: asyncio.Task[None] | None = None
+    notifications_task: asyncio.Task[None] | None = None
     # Startup
     logger.info(
         json.dumps(
             {
                 "event": "app_startup",
                 "auto_create_schema_on_start": AUTO_CREATE_SCHEMA_ON_START,
+                "erp_sync_background_enabled": ERP_SYNC_BACKGROUND_ENABLED,
+                "notification_queue_background_enabled": (
+                    NOTIFICATION_QUEUE_BACKGROUND_ENABLED
+                ),
             },
             ensure_ascii=False,
         )
@@ -48,16 +154,39 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             # Explicitly opt-in only (development fallback), production uses Alembic migrations.
             await conn.run_sync(Base.metadata.create_all)
+    if ERP_SYNC_BACKGROUND_ENABLED:
+        sync_task = asyncio.create_task(_erp_sync_scheduler_loop(stop_event))
+    if NOTIFICATION_QUEUE_BACKGROUND_ENABLED:
+        notifications_task = asyncio.create_task(_notification_queue_loop(stop_event))
     yield
     # Shutdown
+    stop_event.set()
+    if sync_task is not None:
+        try:
+            await asyncio.wait_for(sync_task, timeout=ERP_SYNC_POLL_SECONDS + 5)
+        except asyncio.TimeoutError:
+            sync_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await sync_task
+    if notifications_task is not None:
+        try:
+            await asyncio.wait_for(
+                notifications_task,
+                timeout=NOTIFICATION_QUEUE_POLL_SECONDS + 5,
+            )
+        except asyncio.TimeoutError:
+            notifications_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await notifications_task
     logger.info(json.dumps({"event": "app_shutdown"}, ensure_ascii=False))
     await engine.dispose()
+
 
 app = FastAPI(
     title="Все запчасти API",
     description="API for auto parts store and service",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -117,7 +246,9 @@ def _error_detail_with_trace(detail: str, trace_id: str) -> str:
     return f"{normalized} Код: {trace_id}"
 
 
-def _error_response(status_code: int, code: str, message: str, trace_id: str) -> JSONResponse:
+def _error_response(
+    status_code: int, code: str, message: str, trace_id: str
+) -> JSONResponse:
     normalized_message = message.strip() if message else "Ошибка запроса"
     return JSONResponse(
         status_code=status_code,
@@ -132,6 +263,14 @@ def _error_response(status_code: int, code: str, message: str, trace_id: str) ->
         },
         headers={"X-Request-Id": trace_id},
     )
+
+
+def _resolve_route_label(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None)
+    if isinstance(route_path, str) and route_path.strip():
+        return route_path
+    return request.url.path
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -202,19 +341,35 @@ async def add_security_headers(request: Request, call_next):
     started_at = perf_counter()
     response = await call_next(request)
 
-    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    forwarded_proto = (
+        request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    )
     is_https = request.url.scheme == "https" or forwarded_proto == "https"
     if is_https:
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
 
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    )
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+    )
     response.headers["X-Request-Id"] = trace_id
 
     duration_ms = round((perf_counter() - started_at) * 1000, 2)
+    route_label = _resolve_route_label(request)
+    HTTP_REQUESTS_TOTAL.labels(
+        request.method, route_label, str(response.status_code)
+    ).inc()
+    HTTP_REQUEST_DURATION_SECONDS.labels(request.method, route_label).observe(
+        duration_ms / 1000
+    )
+
     logger.info(
         json.dumps(
             {
@@ -266,15 +421,18 @@ async def api_ready_check():
     """Readiness endpoint for orchestrators."""
     db_ready = await _is_database_ready()
     if not db_ready:
-        return JSONResponse(status_code=503, content={"ok": False, "ready": False, "database": "down"})
+        return JSONResponse(
+            status_code=503, content={"ok": False, "ready": False, "database": "down"}
+        )
     return {"ok": True, "ready": True, "database": "ok"}
 
 
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint"""
-    return {
-        "name": "Все запчасти API",
-        "version": "0.1.0",
-        "docs": "/docs"
-    }
+    return {"name": "Все запчасти API", "version": "0.1.0", "docs": "/docs"}
+
+
+@app.get("/metrics", tags=["monitoring"])
+async def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

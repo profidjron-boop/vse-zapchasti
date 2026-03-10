@@ -5,11 +5,11 @@ Revises: 4e8b0b5b6b3c
 Create Date: 2026-03-05 16:10:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = "5d2f4d8f7f1a"
@@ -26,7 +26,9 @@ def upgrade() -> None:
     index_id = op.f("ix_import_runs_id")
 
     if inspector.has_table(table_name):
-        existing_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+        existing_indexes = {
+            index["name"] for index in inspector.get_indexes(table_name)
+        }
         if index_id not in existing_indexes:
             op.create_index(index_id, table_name, ["id"], unique=False)
         return

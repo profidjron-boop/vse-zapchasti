@@ -1,9 +1,22 @@
-'use client';
+"use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { AdminTotalPagesFooter } from "@/components/admin/table-pagination-shared";
 
 type VehicleType = "passenger" | "truck" | "both";
 
@@ -34,16 +47,203 @@ function toDraft(item: ServiceCatalogItem): ServiceCatalogDraft {
   return {
     name: item.name,
     vehicle_type: item.vehicle_type,
-    duration_minutes: item.duration_minutes !== null ? String(item.duration_minutes) : "",
+    duration_minutes:
+      item.duration_minutes !== null ? String(item.duration_minutes) : "",
     price: item.price !== null ? String(item.price) : "",
     prepayment_required: item.prepayment_required,
-    prepayment_amount: item.prepayment_amount !== null ? String(item.prepayment_amount) : "",
+    prepayment_amount:
+      item.prepayment_amount !== null ? String(item.prepayment_amount) : "",
     sort_order: String(item.sort_order),
     is_active: item.is_active,
   };
 }
 
 const PAGE_SIZE = 25;
+const VEHICLE_TYPE_OPTIONS: Array<{ value: VehicleType; label: string }> = [
+  { value: "passenger", label: "Легковые" },
+  { value: "truck", label: "Грузовые" },
+  { value: "both", label: "Оба типа" },
+];
+const MOBILE_INPUT_CLASS =
+  "w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm";
+const DESKTOP_INPUT_CLASS =
+  "w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm";
+const MOBILE_CHECKBOX_LABEL_CLASS =
+  "flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700";
+const DESKTOP_CHECKBOX_LABEL_CLASS =
+  "flex items-center gap-2 text-sm text-neutral-700";
+
+type BindDraftFieldHandler = (
+  id: number,
+  key: keyof ServiceCatalogDraft,
+) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+type DraftRenderMode = "mobile" | "desktop";
+
+type ServiceCatalogDraftControls = {
+  nameInput: ReactNode;
+  vehicleTypeSelect: ReactNode;
+  durationInput: ReactNode;
+  priceInput: ReactNode;
+  prepaymentToggle: ReactNode;
+  prepaymentAmountInput: ReactNode;
+  sortOrderInput: ReactNode;
+  activeToggle: ReactNode;
+};
+
+type ServiceCatalogDraftControlsOptions = {
+  itemId: number;
+  draft: ServiceCatalogDraft;
+  mode: DraftRenderMode;
+  bindDraftField: BindDraftFieldHandler;
+};
+
+function createServiceCatalogDraftControls({
+  itemId,
+  draft,
+  mode,
+  bindDraftField,
+}: ServiceCatalogDraftControlsOptions): ServiceCatalogDraftControls {
+  const inputClass = mode === "mobile" ? MOBILE_INPUT_CLASS : DESKTOP_INPUT_CLASS;
+  const checkboxLabelClass =
+    mode === "mobile" ? MOBILE_CHECKBOX_LABEL_CLASS : DESKTOP_CHECKBOX_LABEL_CLASS;
+  const prepaymentText =
+    mode === "mobile"
+      ? "Нужна предоплата"
+      : draft.prepayment_required
+        ? "Да"
+        : "Нет";
+  const activeText = mode === "mobile" ? "Активна" : draft.is_active ? "Да" : "Нет";
+
+  return {
+    nameInput: (
+      <input
+        type="text"
+        value={draft.name}
+        onChange={bindDraftField(itemId, "name")}
+        className={inputClass}
+      />
+    ),
+    vehicleTypeSelect: (
+      <select
+        value={draft.vehicle_type}
+        onChange={bindDraftField(itemId, "vehicle_type")}
+        className={inputClass}
+      >
+        {VEHICLE_TYPE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    ),
+    durationInput: (
+      <input
+        type="number"
+        min={1}
+        value={draft.duration_minutes}
+        onChange={bindDraftField(itemId, "duration_minutes")}
+        className={inputClass}
+      />
+    ),
+    priceInput: (
+      <input
+        type="number"
+        min={0}
+        step="0.01"
+        value={draft.price}
+        onChange={bindDraftField(itemId, "price")}
+        className={inputClass}
+      />
+    ),
+    prepaymentToggle: (
+      <label className={checkboxLabelClass}>
+        <input
+          type="checkbox"
+          checked={draft.prepayment_required}
+          onChange={bindDraftField(itemId, "prepayment_required")}
+        />
+        {prepaymentText}
+      </label>
+    ),
+    prepaymentAmountInput: (
+      <input
+        type="number"
+        min={0}
+        step="0.01"
+        value={draft.prepayment_amount}
+        onChange={bindDraftField(itemId, "prepayment_amount")}
+        disabled={!draft.prepayment_required}
+        className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
+      />
+    ),
+    sortOrderInput: (
+      <input
+        type="number"
+        value={draft.sort_order}
+        onChange={bindDraftField(itemId, "sort_order")}
+        className={inputClass}
+      />
+    ),
+    activeToggle: (
+      <label className={checkboxLabelClass}>
+        <input
+          type="checkbox"
+          checked={draft.is_active}
+          onChange={bindDraftField(itemId, "is_active")}
+        />
+        {activeText}
+      </label>
+    ),
+  };
+}
+
+type ServiceCatalogActionButtonsOptions = {
+  itemId: number;
+  mode: DraftRenderMode;
+  savingId: number | null;
+  deletingId: number | null;
+  onSave: (id: number) => Promise<void>;
+  onDeactivate: (id: number) => Promise<void>;
+};
+
+function renderServiceCatalogActionButtons({
+  itemId,
+  mode,
+  savingId,
+  deletingId,
+  onSave,
+  onDeactivate,
+}: ServiceCatalogActionButtonsOptions): ReactNode {
+  const isMobile = mode === "mobile";
+  const containerClass = isMobile ? "mt-3 flex flex-col gap-2" : "flex flex-wrap gap-2";
+  const saveClass = isMobile
+    ? "w-full rounded-lg border border-[#1F3B73]/20 bg-white px-3 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-60"
+    : "rounded-lg border border-[#1F3B73]/20 bg-white px-2 py-1 text-xs font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-60";
+  const deactivateClass = isMobile
+    ? "w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+    : "rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60";
+
+  return (
+    <div className={containerClass}>
+      <button
+        type="button"
+        onClick={() => void onSave(itemId)}
+        disabled={savingId === itemId}
+        className={saveClass}
+      >
+        {savingId === itemId ? "Сохранение..." : "Сохранить"}
+      </button>
+      <button
+        type="button"
+        onClick={() => void onDeactivate(itemId)}
+        disabled={deletingId === itemId}
+        className={deactivateClass}
+      >
+        {deletingId === itemId ? "..." : "Деактивировать"}
+      </button>
+    </div>
+  );
+}
 
 export default function AdminServiceCatalogPage() {
   const router = useRouter();
@@ -60,38 +260,39 @@ export default function AdminServiceCatalogPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const fetchCatalog = useCallback(async (showRefreshing = false) => {
-    setError("");
-    if (showRefreshing) setIsRefreshing(true);
+  const fetchCatalog = useCallback(
+    async (showRefreshing = false) => {
+      setError("");
+      if (showRefreshing) setIsRefreshing(true);
 
-    try {
-      const apiBaseUrl = getClientApiBaseUrl();
-      const payload = await fetchJsonWithTimeout<ServiceCatalogItem[]>(
-        withApiBase(apiBaseUrl, "/api/admin/service-catalog?include_inactive=true"),
-        {},
-        12000
-      );
-      setItems(payload);
-      setDrafts(
-        Object.fromEntries(
-          payload.map((item) => [item.id, toDraft(item)])
-        )
-      );
-    } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        router.push("/admin/login");
-        return;
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const payload = await fetchJsonWithTimeout<ServiceCatalogItem[]>(
+          withApiBase(
+            apiBaseUrl,
+            "/api/admin/service-catalog?include_inactive=true",
+          ),
+          {},
+          12000,
+        );
+        setItems(payload);
+        setDrafts(
+          Object.fromEntries(payload.map((item) => [item.id, toDraft(item)])),
+        );
+      } catch (fetchError) {
+        if (redirectIfAdminUnauthorized(fetchError, router)) {
+          return;
+        }
+        setError(
+          toAdminErrorMessage(fetchError, "Не удалось загрузить справочник услуг"),
+        );
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
       }
-      if (fetchError instanceof ApiRequestError) {
-        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
-      } else {
-        setError("Не удалось загрузить справочник услуг");
-      }
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [router]);
+    },
+    [router],
+  );
 
   useEffect(() => {
     void fetchCatalog();
@@ -101,7 +302,9 @@ export default function AdminServiceCatalogPage() {
     const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return items;
     return items.filter((item) =>
-      `${item.name} ${item.vehicle_type}`.toLowerCase().includes(normalizedSearch)
+      `${item.name} ${item.vehicle_type}`
+        .toLowerCase()
+        .includes(normalizedSearch),
     );
   }, [items, search]);
 
@@ -137,7 +340,11 @@ export default function AdminServiceCatalogPage() {
     setPageInput(String(nextPage));
   }
 
-  function updateDraft(id: number, key: keyof ServiceCatalogDraft, value: string | boolean) {
+  function updateDraft(
+    id: number,
+    key: keyof ServiceCatalogDraft,
+    value: string | boolean,
+  ) {
     setDrafts((current) => {
       const existing = current[id];
       if (!existing) return current;
@@ -149,6 +356,17 @@ export default function AdminServiceCatalogPage() {
         },
       };
     });
+  }
+
+  function bindDraftField(id: number, key: keyof ServiceCatalogDraft) {
+    return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const nextValue =
+        event.target instanceof HTMLInputElement &&
+        event.target.type === "checkbox"
+          ? event.target.checked
+          : event.target.value;
+      updateDraft(id, key, nextValue);
+    };
   }
 
   async function handleSave(id: number) {
@@ -170,30 +388,29 @@ export default function AdminServiceCatalogPage() {
           body: JSON.stringify({
             name: draft.name.trim(),
             vehicle_type: draft.vehicle_type,
-            duration_minutes: draft.duration_minutes ? Number(draft.duration_minutes) : null,
+            duration_minutes: draft.duration_minutes
+              ? Number(draft.duration_minutes)
+              : null,
             price: draft.price ? Number(draft.price) : null,
             prepayment_required: draft.prepayment_required,
             prepayment_amount:
-              draft.prepayment_required && draft.prepayment_amount ? Number(draft.prepayment_amount) : null,
+              draft.prepayment_required && draft.prepayment_amount
+                ? Number(draft.prepayment_amount)
+                : null,
             sort_order: Number(draft.sort_order || 0),
             is_active: draft.is_active,
           }),
         },
-        12000
+        12000,
       );
 
       setSuccess(`Услуга #${id} сохранена`);
       await fetchCatalog();
     } catch (saveError) {
-      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(saveError, router)) {
         return;
       }
-      if (saveError instanceof ApiRequestError) {
-        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
-      } else {
-        setError("Не удалось сохранить услугу");
-      }
+      setError(toAdminErrorMessage(saveError, "Не удалось сохранить услугу"));
     } finally {
       setSavingId(null);
     }
@@ -210,21 +427,16 @@ export default function AdminServiceCatalogPage() {
         {
           method: "DELETE",
         },
-        12000
+        12000,
       );
 
       setSuccess(`Услуга #${id} деактивирована`);
       await fetchCatalog();
     } catch (deleteError) {
-      if (deleteError instanceof ApiRequestError && (deleteError.status === 401 || deleteError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(deleteError, router)) {
         return;
       }
-      if (deleteError instanceof ApiRequestError) {
-        setError(deleteError.traceId ? `${deleteError.message}. Код: ${deleteError.traceId}` : deleteError.message);
-      } else {
-        setError("Не удалось деактивировать услугу");
-      }
+      setError(toAdminErrorMessage(deleteError, "Не удалось деактивировать услугу"));
     } finally {
       setDeletingId(null);
     }
@@ -242,11 +454,14 @@ export default function AdminServiceCatalogPage() {
       const payload = {
         name: String(formData.get("name") || "").trim(),
         vehicle_type: String(formData.get("vehicle_type") || "passenger"),
-        duration_minutes: formData.get("duration_minutes") ? Number(formData.get("duration_minutes")) : null,
+        duration_minutes: formData.get("duration_minutes")
+          ? Number(formData.get("duration_minutes"))
+          : null,
         price: formData.get("price") ? Number(formData.get("price")) : null,
         prepayment_required: formData.get("prepayment_required") === "on",
         prepayment_amount:
-          formData.get("prepayment_required") === "on" && formData.get("prepayment_amount")
+          formData.get("prepayment_required") === "on" &&
+          formData.get("prepayment_amount")
             ? Number(formData.get("prepayment_amount"))
             : null,
         sort_order: Number(formData.get("sort_order") || 0),
@@ -263,22 +478,17 @@ export default function AdminServiceCatalogPage() {
           },
           body: JSON.stringify(payload),
         },
-        12000
+        12000,
       );
 
       event.currentTarget.reset();
       setSuccess("Услуга добавлена");
       await fetchCatalog();
     } catch (createError) {
-      if (createError instanceof ApiRequestError && (createError.status === 401 || createError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(createError, router)) {
         return;
       }
-      if (createError instanceof ApiRequestError) {
-        setError(createError.traceId ? `${createError.message}. Код: ${createError.traceId}` : createError.message);
-      } else {
-        setError("Не удалось создать услугу");
-      }
+      setError(toAdminErrorMessage(createError, "Не удалось создать услугу"));
     } finally {
       setIsCreating(false);
     }
@@ -308,15 +518,29 @@ export default function AdminServiceCatalogPage() {
 
       <div className="mb-4 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </div>
         ) : null}
         {!error && success ? (
-          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700"
+          >
+            {success}
+          </div>
         ) : null}
       </div>
 
       <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4">
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск услуги</label>
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Поиск услуги
+        </label>
         <input
           type="text"
           value={search}
@@ -329,8 +553,13 @@ export default function AdminServiceCatalogPage() {
         />
       </div>
 
-      <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-[#1F3B73]">Новая услуга</h2>
+      <form
+        onSubmit={handleCreate}
+        className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4"
+      >
+        <h2 className="mb-3 text-sm font-semibold text-[#1F3B73]">
+          Новая услуга
+        </h2>
         <div className="grid gap-3 md:grid-cols-2">
           <input
             type="text"
@@ -398,132 +627,98 @@ export default function AdminServiceCatalogPage() {
 
       {filteredItems.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center text-neutral-500">
-          {items.length === 0 ? "Услуг пока нет" : "По выбранному фильтру услуги не найдены"}
+          {items.length === 0
+            ? "Услуг пока нет"
+            : "По выбранному фильтру услуги не найдены"}
         </div>
       ) : (
         <div className="space-y-3">
           <div className="text-sm text-neutral-500">
-            Показано: {pagedItems.length} из {filteredItems.length} · Страница {page} из {totalPages}
+            Показано: {pagedItems.length} из {filteredItems.length} · Страница{" "}
+            {page} из {totalPages}
           </div>
           <div className="space-y-3 md:hidden">
             {pagedItems.map((item) => {
               const draft = drafts[item.id] ?? toDraft(item);
+              const controls = createServiceCatalogDraftControls({
+                itemId: item.id,
+                draft,
+                mode: "mobile",
+                bindDraftField,
+              });
+
               return (
-                <div key={item.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-neutral-200 bg-white p-4"
+                >
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-[#1F3B73]">Услуга #{item.id}</span>
-                    <span className="text-xs text-neutral-600">{draft.is_active ? "Активна" : "Неактивна"}</span>
+                    <span className="text-sm font-semibold text-[#1F3B73]">
+                      Услуга #{item.id}
+                    </span>
+                    <span className="text-xs text-neutral-600">
+                      {draft.is_active ? "Активна" : "Неактивна"}
+                    </span>
                   </div>
 
                   <div className="space-y-3">
                     <div>
-                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Название</label>
-                      <input
-                        type="text"
-                        value={draft.name}
-                        onChange={(event) => updateDraft(item.id, "name", event.target.value)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-                      />
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                        Название
+                      </label>
+                      {controls.nameInput}
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Тип</label>
-                      <select
-                        value={draft.vehicle_type}
-                        onChange={(event) => updateDraft(item.id, "vehicle_type", event.target.value as VehicleType)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-                      >
-                        <option value="passenger">Легковые</option>
-                        <option value="truck">Грузовые</option>
-                        <option value="both">Оба типа</option>
-                      </select>
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                        Тип
+                      </label>
+                      {controls.vehicleTypeSelect}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Минут</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={draft.duration_minutes}
-                          onChange={(event) => updateDraft(item.id, "duration_minutes", event.target.value)}
-                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                          Минут
+                        </label>
+                        {controls.durationInput}
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Цена</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={draft.price}
-                          onChange={(event) => updateDraft(item.id, "price", event.target.value)}
-                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                          Цена
+                        </label>
+                        {controls.priceInput}
                       </div>
                     </div>
 
-                    <label className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
-                      <input
-                        type="checkbox"
-                        checked={draft.prepayment_required}
-                        onChange={(event) => updateDraft(item.id, "prepayment_required", event.target.checked)}
-                      />
-                      Нужна предоплата
-                    </label>
+                    {controls.prepaymentToggle}
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Сумма</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={draft.prepayment_amount}
-                          onChange={(event) => updateDraft(item.id, "prepayment_amount", event.target.value)}
-                          disabled={!draft.prepayment_required}
-                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                          Сумма
+                        </label>
+                        {controls.prepaymentAmountInput}
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Сорт.</label>
-                        <input
-                          type="number"
-                          value={draft.sort_order}
-                          onChange={(event) => updateDraft(item.id, "sort_order", event.target.value)}
-                          className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                          Сорт.
+                        </label>
+                        {controls.sortOrderInput}
                       </div>
                     </div>
 
-                    <label className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
-                      <input
-                        type="checkbox"
-                        checked={draft.is_active}
-                        onChange={(event) => updateDraft(item.id, "is_active", event.target.checked)}
-                      />
-                      Активна
-                    </label>
+                    {controls.activeToggle}
                   </div>
 
-                  <div className="mt-3 flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleSave(item.id)}
-                      disabled={savingId === item.id}
-                      className="w-full rounded-lg border border-[#1F3B73]/20 bg-white px-3 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-60"
-                    >
-                      {savingId === item.id ? "Сохранение..." : "Сохранить"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeactivate(item.id)}
-                      disabled={deletingId === item.id}
-                      className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
-                    >
-                      {deletingId === item.id ? "..." : "Деактивировать"}
-                    </button>
-                  </div>
+                  {renderServiceCatalogActionButtons({
+                    itemId: item.id,
+                    mode: "mobile",
+                    savingId,
+                    deletingId,
+                    onSave: handleSave,
+                    onDeactivate: handleDeactivate,
+                  })}
                 </div>
               );
             })}
@@ -531,171 +726,93 @@ export default function AdminServiceCatalogPage() {
 
           <div className="hidden overflow-x-auto rounded-2xl border border-neutral-200 bg-white md:block">
             <table className="w-full min-w-[980px]">
-            <thead className="border-b border-neutral-200 bg-neutral-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">ID</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Название</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Тип</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Минут</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Цена</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Предоплата</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Сумма</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Сорт.</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Активна</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Действия</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {pagedItems.map((item) => {
-                const draft = drafts[item.id] ?? toDraft(item);
-                return (
-                  <tr key={item.id} className="align-top">
-                    <td className="px-3 py-2 text-sm text-neutral-600">{item.id}</td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={draft.name}
-                        onChange={(event) => updateDraft(item.id, "name", event.target.value)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={draft.vehicle_type}
-                        onChange={(event) => updateDraft(item.id, "vehicle_type", event.target.value as VehicleType)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
-                      >
-                        <option value="passenger">Легковые</option>
-                        <option value="truck">Грузовые</option>
-                        <option value="both">Оба типа</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={1}
-                        value={draft.duration_minutes}
-                        onChange={(event) => updateDraft(item.id, "duration_minutes", event.target.value)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={draft.price}
-                        onChange={(event) => updateDraft(item.id, "price", event.target.value)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <label className="flex items-center gap-2 text-sm text-neutral-700">
-                        <input
-                          type="checkbox"
-                          checked={draft.prepayment_required}
-                          onChange={(event) => updateDraft(item.id, "prepayment_required", event.target.checked)}
-                        />
-                        {draft.prepayment_required ? "Да" : "Нет"}
-                      </label>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={draft.prepayment_amount}
-                        onChange={(event) => updateDraft(item.id, "prepayment_amount", event.target.value)}
-                        disabled={!draft.prepayment_required}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        value={draft.sort_order}
-                        onChange={(event) => updateDraft(item.id, "sort_order", event.target.value)}
-                        className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <label className="flex items-center gap-2 text-sm text-neutral-700">
-                        <input
-                          type="checkbox"
-                          checked={draft.is_active}
-                          onChange={(event) => updateDraft(item.id, "is_active", event.target.checked)}
-                        />
-                        {draft.is_active ? "Да" : "Нет"}
-                      </label>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleSave(item.id)}
-                          disabled={savingId === item.id}
-                          className="rounded-lg border border-[#1F3B73]/20 bg-white px-2 py-1 text-xs font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-60"
-                        >
-                          {savingId === item.id ? "Сохранение..." : "Сохранить"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeactivate(item.id)}
-                          disabled={deletingId === item.id}
-                          className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
-                        >
-                          {deletingId === item.id ? "..." : "Деактивировать"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+              <thead className="border-b border-neutral-200 bg-neutral-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    ID
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Название
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Тип
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Минут
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Цена
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Предоплата
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Сумма
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Сорт.
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Активна
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    Действия
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {pagedItems.map((item) => {
+                  const draft = drafts[item.id] ?? toDraft(item);
+                  const controls = createServiceCatalogDraftControls({
+                    itemId: item.id,
+                    draft,
+                    mode: "desktop",
+                    bindDraftField,
+                  });
+
+                  return (
+                    <tr key={item.id} className="align-top">
+                      <td className="px-3 py-2 text-sm text-neutral-600">
+                        {item.id}
+                      </td>
+                      <td className="px-3 py-2">{controls.nameInput}</td>
+                      <td className="px-3 py-2">{controls.vehicleTypeSelect}</td>
+                      <td className="px-3 py-2">{controls.durationInput}</td>
+                      <td className="px-3 py-2">{controls.priceInput}</td>
+                      <td className="px-3 py-2">{controls.prepaymentToggle}</td>
+                      <td className="px-3 py-2">{controls.prepaymentAmountInput}</td>
+                      <td className="px-3 py-2">{controls.sortOrderInput}</td>
+                      <td className="px-3 py-2">{controls.activeToggle}</td>
+                      <td className="px-3 py-2">
+                        {renderServiceCatalogActionButtons({
+                          itemId: item.id,
+                          mode: "desktop",
+                          savingId,
+                          deletingId,
+                          onSave: handleSave,
+                          onDeactivate: handleDeactivate,
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-1 pt-3 text-sm">
-            <div className="text-neutral-500">Поиск выполняется по всему справочнику услуг.</div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Назад
-              </button>
-              <span className="min-w-[7rem] text-center text-neutral-600">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={page >= totalPages}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Вперёд
-              </button>
-              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
-                <label htmlFor="service-catalog-page-jump" className="text-xs text-neutral-500">Стр.</label>
-                <input
-                  id="service-catalog-page-jump"
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  value={pageInput}
-                  onChange={(event) => setPageInput(event.target.value)}
-                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
-                >
-                  Перейти
-                </button>
-              </form>
-            </div>
-          </div>
+          <AdminTotalPagesFooter
+            summary="Поиск выполняется по всему справочнику услуг."
+            page={page}
+            totalPages={totalPages}
+            pageInput={pageInput}
+            jumpInputId="service-catalog-page-jump"
+            onPageInputChange={setPageInput}
+            onPrevPage={() => setPage((prev) => Math.max(1, prev - 1))}
+            onNextPage={() =>
+              setPage((prev) => Math.min(totalPages, prev + 1))
+            }
+            onJumpToPage={handlePageJump}
+            containerClassName="px-1 pt-3"
+          />
         </div>
       )}
     </div>

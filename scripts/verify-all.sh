@@ -19,7 +19,7 @@ check_no_remote_assets() {
   local search_paths=(
     "apps/web/src"
     "apps/web/public"
-    "apps/web/next.config.ts"
+    "apps/web/next.config.mjs"
   )
 
   local -a patterns=(

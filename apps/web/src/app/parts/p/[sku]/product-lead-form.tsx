@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
@@ -30,7 +30,8 @@ export default function ProductLeadForm({
   function normalizePhone(value: string): string | null {
     const digits = value.replace(/\D/g, "");
     let normalized = digits;
-    if (normalized.length === 11 && normalized.startsWith("8")) normalized = `7${normalized.slice(1)}`;
+    if (normalized.length === 11 && normalized.startsWith("8"))
+      normalized = `7${normalized.slice(1)}`;
     if (normalized.length === 10) normalized = `7${normalized}`;
     if (normalized.length !== 11 || !normalized.startsWith("7")) return null;
     return `+${normalized}`;
@@ -45,7 +46,8 @@ export default function ProductLeadForm({
     setOrderId(null);
     setPhoneHint("");
     setIsSubmitting(true);
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
     const submitMode = submitter?.value || "lead";
 
     const form = event.currentTarget;
@@ -64,15 +66,19 @@ export default function ProductLeadForm({
     try {
       const apiBaseUrl = getClientApiBaseUrl();
       const commonMessage =
-        formData.get("message")?.toString().trim()
-        || `Запрос по товару: ${productName} (${productSku}, id:${productId})`;
+        formData.get("message")?.toString().trim() ||
+        `Запрос по товару: ${productName} (${productSku}, id:${productId})`;
 
-      const endpoint = submitMode === "quick_order" ? "/api/public/orders" : "/api/public/leads";
+      const endpoint =
+        submitMode === "quick_order"
+          ? "/api/public/orders"
+          : "/api/public/leads";
       const payload =
         submitMode === "quick_order"
           ? {
               source: "one_click",
-              customer_name: formData.get("name")?.toString().trim() || undefined,
+              customer_name:
+                formData.get("name")?.toString().trim() || undefined,
               customer_phone: normalizedPhone,
               comment: commonMessage,
               consent_given: consentGiven,
@@ -105,19 +111,27 @@ export default function ProductLeadForm({
           },
           body: JSON.stringify(payload),
         },
-        12000
+        12000,
       );
       form.reset();
       if (submitMode === "quick_order") {
         setOrderId(result.id ?? null);
-        setSuccess("Быстрый заказ отправлен. Менеджер свяжется с вами в рабочее время.");
+        setSuccess(
+          "Быстрый заказ отправлен. Менеджер свяжется с вами в рабочее время.",
+        );
       } else {
         setLeadId(result.id ?? null);
-        setSuccess("Заявка отправлена. Менеджер свяжется с вами в рабочее время.");
+        setSuccess(
+          "Заявка отправлена. Менеджер свяжется с вами в рабочее время.",
+        );
       }
     } catch (submitError) {
       if (submitError instanceof ApiRequestError) {
-        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
+        setError(
+          submitError.traceId
+            ? `${submitError.message}. Код: ${submitError.traceId}`
+            : submitError.message,
+        );
       } else {
         setError("Не удалось отправить заявку. Попробуйте позже.");
       }
@@ -134,28 +148,46 @@ export default function ProductLeadForm({
         name: productName,
         price: productPrice,
       },
-      1
+      1,
     );
     const totals = getCartTotals(items);
-    const amountLabel = totals.amount !== null ? `, сумма ~ ${Math.round(totals.amount).toLocaleString("ru-RU")} ₽` : "";
-    setCartNotice(`Товар добавлен в корзину. Позиций: ${totals.count}${amountLabel}.`);
+    const amountLabel =
+      totals.amount !== null
+        ? `, сумма ~ ${Math.round(totals.amount).toLocaleString("ru-RU")} ₽`
+        : "";
+    setCartNotice(
+      `Товар добавлен в корзину. Позиций: ${totals.count}${amountLabel}.`,
+    );
   }
 
   return (
-    <div id="product-lead-form" className="mt-6 scroll-mt-32 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-      <h2 className="text-sm font-semibold text-[#1F3B73]">Уточнить/Заказать</h2>
+    <div
+      id="product-lead-form"
+      className="mt-6 scroll-mt-32 rounded-2xl border border-neutral-200 bg-neutral-50 p-4"
+    >
+      <h2 className="text-sm font-semibold text-[#1F3B73]">
+        Уточнить/Заказать
+      </h2>
       <p className="mt-1 text-xs text-neutral-600">
         Оставьте телефон, и менеджер уточнит наличие и условия заказа.
       </p>
 
       <div className="mt-3 min-h-[5.25rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
             {error}
           </div>
         ) : null}
         {!error && success ? (
-          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700"
+          >
             {success}
             {leadId ? (
               <span className="mt-1 block text-xs text-green-800">
@@ -184,7 +216,11 @@ export default function ProductLeadForm({
           </div>
         ) : null}
         {!error && !success && cartNotice ? (
-          <div role="status" aria-live="polite" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+          >
             {cartNotice}{" "}
             <Link href="/cart" className="underline">
               Перейти в корзину
@@ -195,7 +231,9 @@ export default function ProductLeadForm({
 
       <form onSubmit={handleSubmit} className="mt-3 space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-700">Имя (опционально)</label>
+          <label className="mb-1 block text-xs font-medium text-neutral-700">
+            Имя (опционально)
+          </label>
           <input
             type="text"
             name="name"
@@ -206,7 +244,9 @@ export default function ProductLeadForm({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-700">Телефон *</label>
+          <label className="mb-1 block text-xs font-medium text-neutral-700">
+            Телефон *
+          </label>
           <input
             type="tel"
             name="phone"
@@ -216,11 +256,15 @@ export default function ProductLeadForm({
             placeholder="+7 (___) ___-__-__"
             className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
           />
-          <p className="mt-1 text-xs text-neutral-500">{phoneHint || "Формат РФ: +7XXXXXXXXXX"}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {phoneHint || "Формат РФ: +7XXXXXXXXXX"}
+          </p>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-700">Комментарий (опционально)</label>
+          <label className="mb-1 block text-xs font-medium text-neutral-700">
+            Комментарий (опционально)
+          </label>
           <textarea
             name="message"
             rows={3}
@@ -238,7 +282,9 @@ export default function ProductLeadForm({
 
         <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2">
           <p className="text-xs text-neutral-500">Товар</p>
-          <p className="text-sm text-neutral-700">{productName} · {productSku}</p>
+          <p className="text-sm text-neutral-700">
+            {productName} · {productSku}
+          </p>
         </div>
         <button
           type="button"
@@ -250,7 +296,10 @@ export default function ProductLeadForm({
 
         <label className="flex items-start gap-2 text-xs text-neutral-600">
           <input type="checkbox" name="consent" className="mt-0.5" required />
-          <span>Согласен на обработку персональных данных (152-ФЗ) и условия политики конфиденциальности</span>
+          <span>
+            Согласен на обработку персональных данных (152-ФЗ) и условия
+            политики конфиденциальности
+          </span>
         </label>
 
         <div className="grid gap-2 sm:grid-cols-2">

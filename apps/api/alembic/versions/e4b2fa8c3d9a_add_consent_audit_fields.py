@@ -5,11 +5,11 @@ Revises: 29581caf54af
 Create Date: 2026-03-05 12:30:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = "e4b2fa8c3d9a"
@@ -22,8 +22,12 @@ def upgrade() -> None:
     """Upgrade schema."""
     op.add_column("leads", sa.Column("consent_text", sa.Text(), nullable=True))
     op.add_column("leads", sa.Column("consent_at", sa.DateTime(), nullable=True))
-    op.add_column("service_requests", sa.Column("consent_text", sa.Text(), nullable=True))
-    op.add_column("service_requests", sa.Column("consent_at", sa.DateTime(), nullable=True))
+    op.add_column(
+        "service_requests", sa.Column("consent_text", sa.Text(), nullable=True)
+    )
+    op.add_column(
+        "service_requests", sa.Column("consent_at", sa.DateTime(), nullable=True)
+    )
 
 
 def downgrade() -> None:

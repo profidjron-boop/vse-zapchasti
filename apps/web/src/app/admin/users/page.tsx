@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { useAdminSearchPageState } from "@/components/admin/use-admin-search-page-state";
+import { AdminHasNextFooter } from "@/components/admin/table-pagination-shared";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
 
 type UserRole = "admin" | "manager" | "service_manager";
 
@@ -24,6 +30,14 @@ type UserDraft = {
   password: string;
 };
 
+type CreateUserForm = {
+  email: string;
+  name: string;
+  role: UserRole;
+  is_active: boolean;
+  password: string;
+};
+
 const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: "admin", label: "Администратор" },
   { value: "manager", label: "Менеджер запчастей" },
@@ -31,38 +45,65 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
 ];
 
 const PAGE_SIZE = 50;
-
-function normalizePage(value: string | null): number {
-  const parsed = Number.parseInt(value || "1", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-  return 1;
-}
+const INITIAL_CREATE_FORM: CreateUserForm = {
+  email: "",
+  name: "",
+  role: "manager",
+  is_active: true,
+  password: "",
+};
 
 export default function AdminUsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [drafts, setDrafts] = useState<Record<number, UserDraft>>({});
-  const [search, setSearch] = useState(() => (searchParams.get("q") || "").trim());
-  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
+  const {
+    search,
+    setSearch,
+    page,
+    setPage,
+    pageInput,
+    setPageInput,
+    handlePageJump,
+  } = useAdminSearchPageState({
+    searchParams,
+    router,
+    basePath: "/admin/users",
+  });
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [createForm, setCreateForm] = useState({
-    email: "",
-    name: "",
-    role: "manager" as UserRole,
-    is_active: true,
-    password: "",
-  });
+  const [createForm, setCreateForm] = useState<CreateUserForm>(
+    INITIAL_CREATE_FORM,
+  );
 
   const apiBaseUrl = useMemo(() => getClientApiBaseUrl(), []);
+  const updateCreateFormField = useCallback(
+    <K extends keyof CreateUserForm>(field: K, value: CreateUserForm[K]) => {
+      setCreateForm((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
+  const updateDraftField = useCallback(
+    <K extends keyof UserDraft>(userId: number, field: K, value: UserDraft[K]) => {
+      setDrafts((prev) => {
+        const currentDraft = prev[userId];
+        if (!currentDraft) return prev;
+        return {
+          ...prev,
+          [userId]: {
+            ...currentDraft,
+            [field]: value,
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const loadUsers = useCallback(async () => {
     setError("");
@@ -75,12 +116,14 @@ export default function AdminUsersPage() {
       if (search.trim().length >= 2) query.set("search", search.trim());
       query.set("skip", String((page - 1) * PAGE_SIZE));
       query.set("limit", String(PAGE_SIZE + 1));
-      const endpoint = query.toString() ? `/api/admin/users?${query.toString()}` : "/api/admin/users";
+      const endpoint = query.toString()
+        ? `/api/admin/users?${query.toString()}`
+        : "/api/admin/users";
 
       const data = await fetchJsonWithTimeout<AdminUser[]>(
         withApiBase(apiBaseUrl, endpoint),
         {},
-        12000
+        12000,
       );
       const nextPageAvailable = data.length > PAGE_SIZE;
       const pageRows = nextPageAvailable ? data.slice(0, PAGE_SIZE) : data;
@@ -95,18 +138,13 @@ export default function AdminUsersPage() {
             password: "",
           };
           return acc;
-        }, {})
+        }, {}),
       );
     } catch (loadError) {
-      if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(loadError, router)) {
         return;
       }
-      if (loadError instanceof ApiRequestError) {
-        setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
-      } else {
-        setError("Ошибка загрузки пользователей.");
-      }
+      setError(toAdminErrorMessage(loadError, "Ошибка загрузки пользователей."));
     } finally {
       setIsLoading(false);
     }
@@ -115,42 +153,6 @@ export default function AdminUsersPage() {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
-
-  useEffect(() => {
-    const nextSearch = (searchParams.get("q") || "").trim();
-    const nextPage = normalizePage(searchParams.get("page"));
-    setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-    setPage((prev) => (prev === nextPage ? prev : nextPage));
-  }, [searchParams]);
-
-  useEffect(() => {
-    const query = new URLSearchParams();
-    const normalizedSearch = search.trim();
-    if (normalizedSearch) {
-      query.set("q", normalizedSearch);
-    }
-    if (page > 1) {
-      query.set("page", String(page));
-    }
-    const target = query.toString() ? `/admin/users?${query.toString()}` : "/admin/users";
-    router.replace(target, { scroll: false });
-  }, [page, router, search]);
-
-  useEffect(() => {
-    setPageInput(String(page));
-  }, [page]);
-
-  function handlePageJump(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsed = Number.parseInt(pageInput, 10);
-    if (!Number.isFinite(parsed)) {
-      setPageInput(String(page));
-      return;
-    }
-    const nextPage = Math.max(1, parsed);
-    setPage(nextPage);
-    setPageInput(String(nextPage));
-  }
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -177,28 +179,17 @@ export default function AdminUsersPage() {
           },
           body: JSON.stringify(payload),
         },
-        12000
+        12000,
       );
 
-      setCreateForm({
-        email: "",
-        name: "",
-        role: "manager",
-        is_active: true,
-        password: "",
-      });
+      setCreateForm(INITIAL_CREATE_FORM);
       setSuccess("Пользователь создан.");
       await loadUsers();
     } catch (createError) {
-      if (createError instanceof ApiRequestError && (createError.status === 401 || createError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(createError, router)) {
         return;
       }
-      if (createError instanceof ApiRequestError) {
-        setError(createError.traceId ? `${createError.message}. Код: ${createError.traceId}` : createError.message);
-      } else {
-        setError("Ошибка создания пользователя.");
-      }
+      setError(toAdminErrorMessage(createError, "Ошибка создания пользователя."));
     } finally {
       setIsCreating(false);
     }
@@ -235,21 +226,16 @@ export default function AdminUsersPage() {
           },
           body: JSON.stringify(payload),
         },
-        12000
+        12000,
       );
 
       setSuccess(`Пользователь #${userId} обновлён.`);
       await loadUsers();
     } catch (updateError) {
-      if (updateError instanceof ApiRequestError && (updateError.status === 401 || updateError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(updateError, router)) {
         return;
       }
-      if (updateError instanceof ApiRequestError) {
-        setError(updateError.traceId ? `${updateError.message}. Код: ${updateError.traceId}` : updateError.message);
-      } else {
-        setError("Ошибка обновления пользователя.");
-      }
+      setError(toAdminErrorMessage(updateError, "Ошибка обновления пользователя."));
     } finally {
       setSavingUserId(null);
     }
@@ -267,20 +253,39 @@ export default function AdminUsersPage() {
 
       <div className="min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {error}
+          </div>
         ) : null}
         {!error && success ? (
-          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+          >
+            {success}
+          </div>
         ) : null}
       </div>
 
       <div className="rounded-2xl border border-neutral-200 p-4">
-        <h2 className="text-sm font-semibold text-neutral-700">Создать пользователя</h2>
-        <form onSubmit={handleCreateUser} className="mt-3 grid gap-3 md:grid-cols-2">
+        <h2 className="text-sm font-semibold text-neutral-700">
+          Создать пользователя
+        </h2>
+        <form
+          onSubmit={handleCreateUser}
+          className="mt-3 grid gap-3 md:grid-cols-2"
+        >
           <input
             type="email"
             value={createForm.email}
-            onChange={(event) => setCreateForm((prev) => ({ ...prev, email: event.target.value }))}
+            onChange={(event) =>
+              updateCreateFormField("email", event.target.value)
+            }
             placeholder="Email *"
             required
             className="rounded-xl border border-neutral-300 px-3 py-2 text-sm"
@@ -288,14 +293,18 @@ export default function AdminUsersPage() {
           <input
             type="text"
             value={createForm.name}
-            onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))}
+            onChange={(event) =>
+              updateCreateFormField("name", event.target.value)
+            }
             placeholder="Имя"
             className="rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
           <input
             type="password"
             value={createForm.password}
-            onChange={(event) => setCreateForm((prev) => ({ ...prev, password: event.target.value }))}
+            onChange={(event) =>
+              updateCreateFormField("password", event.target.value)
+            }
             placeholder="Пароль (мин. 8)"
             minLength={8}
             required
@@ -303,7 +312,9 @@ export default function AdminUsersPage() {
           />
           <select
             value={createForm.role}
-            onChange={(event) => setCreateForm((prev) => ({ ...prev, role: event.target.value as UserRole }))}
+            onChange={(event) =>
+              updateCreateFormField("role", event.target.value as UserRole)
+            }
             className="rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           >
             {roleOptions.map((option) => (
@@ -316,7 +327,9 @@ export default function AdminUsersPage() {
             <input
               type="checkbox"
               checked={createForm.is_active}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, is_active: event.target.checked }))}
+              onChange={(event) =>
+                updateCreateFormField("is_active", event.target.checked)
+              }
             />
             Активен
           </label>
@@ -356,7 +369,9 @@ export default function AdminUsersPage() {
         </div>
 
         {users.length === 0 ? (
-          <p className="mt-4 text-sm text-neutral-500">Пользователи не найдены.</p>
+          <p className="mt-4 text-sm text-neutral-500">
+            Пользователи не найдены.
+          </p>
         ) : (
           <div className="mt-4">
             <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 md:hidden">
@@ -365,37 +380,46 @@ export default function AdminUsersPage() {
                 if (!draft) return null;
 
                 return (
-                  <article key={user.id} className="space-y-3 px-3 py-4 text-sm">
+                  <article
+                    key={user.id}
+                    className="space-y-3 px-3 py-4 text-sm"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-xs text-neutral-500">ID: {user.id}</p>
-                        <p className="break-all font-medium text-neutral-900">{user.email}</p>
+                        <p className="text-xs text-neutral-500">
+                          ID: {user.id}
+                        </p>
+                        <p className="break-all font-medium text-neutral-900">
+                          {user.email}
+                        </p>
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs text-neutral-500">Имя</label>
+                      <label className="mb-1 block text-xs text-neutral-500">
+                        Имя
+                      </label>
                       <input
                         value={draft.name}
                         onChange={(event) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [user.id]: { ...prev[user.id], name: event.target.value },
-                          }))
+                          updateDraftField(user.id, "name", event.target.value)
                         }
                         className="w-full rounded-lg border border-neutral-300 px-2 py-1"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs text-neutral-500">Роль</label>
+                      <label className="mb-1 block text-xs text-neutral-500">
+                        Роль
+                      </label>
                       <select
                         value={draft.role}
                         onChange={(event) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [user.id]: { ...prev[user.id], role: event.target.value as UserRole },
-                          }))
+                          updateDraftField(
+                            user.id,
+                            "role",
+                            event.target.value as UserRole,
+                          )
                         }
                         className="w-full rounded-lg border border-neutral-300 px-2 py-1"
                       >
@@ -412,25 +436,29 @@ export default function AdminUsersPage() {
                         type="checkbox"
                         checked={draft.is_active}
                         onChange={(event) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [user.id]: { ...prev[user.id], is_active: event.target.checked },
-                          }))
+                          updateDraftField(
+                            user.id,
+                            "is_active",
+                            event.target.checked,
+                          )
                         }
                       />
                       <span>{draft.is_active ? "Активен" : "Неактивен"}</span>
                     </label>
 
                     <div>
-                      <label className="mb-1 block text-xs text-neutral-500">Новый пароль</label>
+                      <label className="mb-1 block text-xs text-neutral-500">
+                        Новый пароль
+                      </label>
                       <input
                         type="password"
                         value={draft.password}
                         onChange={(event) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [user.id]: { ...prev[user.id], password: event.target.value },
-                          }))
+                          updateDraftField(
+                            user.id,
+                            "password",
+                            event.target.value,
+                          )
                         }
                         placeholder="мин. 8"
                         className="w-full rounded-lg border border-neutral-300 px-2 py-1"
@@ -452,143 +480,123 @@ export default function AdminUsersPage() {
 
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px]">
-              <thead className="border-b border-neutral-200 text-left text-xs uppercase text-neutral-500">
-                <tr>
-                  <th className="px-3 py-2">ID</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Имя</th>
-                  <th className="px-3 py-2">Роль</th>
-                  <th className="px-3 py-2">Активен</th>
-                  <th className="px-3 py-2">Новый пароль</th>
-                  <th className="px-3 py-2">Действие</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => {
-                  const draft = drafts[user.id];
-                  if (!draft) return null;
+                <thead className="border-b border-neutral-200 text-left text-xs uppercase text-neutral-500">
+                  <tr>
+                    <th className="px-3 py-2">ID</th>
+                    <th className="px-3 py-2">Email</th>
+                    <th className="px-3 py-2">Имя</th>
+                    <th className="px-3 py-2">Роль</th>
+                    <th className="px-3 py-2">Активен</th>
+                    <th className="px-3 py-2">Новый пароль</th>
+                    <th className="px-3 py-2">Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => {
+                    const draft = drafts[user.id];
+                    if (!draft) return null;
 
-                  return (
-                    <tr key={user.id} className="border-b border-neutral-100 text-sm">
-                      <td className="px-3 py-2">{user.id}</td>
-                      <td className="px-3 py-2">{user.email}</td>
-                      <td className="px-3 py-2">
-                        <input
-                          value={draft.name}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [user.id]: { ...prev[user.id], name: event.target.value },
-                            }))
-                          }
-                          className="w-full rounded-lg border border-neutral-300 px-2 py-1"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={draft.role}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [user.id]: { ...prev[user.id], role: event.target.value as UserRole },
-                            }))
-                          }
-                          className="w-full rounded-lg border border-neutral-300 px-2 py-1"
-                        >
-                          {roleOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <label className="inline-flex items-center gap-2">
+                    return (
+                      <tr
+                        key={user.id}
+                        className="border-b border-neutral-100 text-sm"
+                      >
+                        <td className="px-3 py-2">{user.id}</td>
+                        <td className="px-3 py-2">{user.email}</td>
+                        <td className="px-3 py-2">
                           <input
-                            type="checkbox"
-                            checked={draft.is_active}
+                            value={draft.name}
                             onChange={(event) =>
-                              setDrafts((prev) => ({
-                                ...prev,
-                                [user.id]: { ...prev[user.id], is_active: event.target.checked },
-                              }))
+                              updateDraftField(
+                                user.id,
+                                "name",
+                                event.target.value,
+                              )
                             }
+                            className="w-full rounded-lg border border-neutral-300 px-2 py-1"
                           />
-                          <span>{draft.is_active ? "Да" : "Нет"}</span>
-                        </label>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="password"
-                          value={draft.password}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [user.id]: { ...prev[user.id], password: event.target.value },
-                            }))
-                          }
-                          placeholder="мин. 8"
-                          className="w-full rounded-lg border border-neutral-300 px-2 py-1"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => handleSaveUser(user.id)}
-                          disabled={savingUserId === user.id}
-                          className="rounded-lg bg-[#1F3B73] px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-                        >
-                          {savingUserId === user.id ? "Сохранение..." : "Сохранить"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={draft.role}
+                            onChange={(event) =>
+                              updateDraftField(
+                                user.id,
+                                "role",
+                                event.target.value as UserRole,
+                              )
+                            }
+                            className="w-full rounded-lg border border-neutral-300 px-2 py-1"
+                          >
+                            {roleOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <label className="inline-flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={draft.is_active}
+                              onChange={(event) =>
+                                updateDraftField(
+                                  user.id,
+                                  "is_active",
+                                  event.target.checked,
+                                )
+                              }
+                            />
+                            <span>{draft.is_active ? "Да" : "Нет"}</span>
+                          </label>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="password"
+                            value={draft.password}
+                            onChange={(event) =>
+                              updateDraftField(
+                                user.id,
+                                "password",
+                                event.target.value,
+                              )
+                            }
+                            placeholder="мин. 8"
+                            className="w-full rounded-lg border border-neutral-300 px-2 py-1"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveUser(user.id)}
+                            disabled={savingUserId === user.id}
+                            className="rounded-lg bg-[#1F3B73] px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
+                          >
+                            {savingUserId === user.id
+                              ? "Сохранение..."
+                              : "Сохранить"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
               </table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-200 pt-4 text-sm">
-              <div className="text-neutral-500">
-                Поиск и пагинация работают по всей базе пользователей.
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={page <= 1}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-                >
-                  Назад
-                </button>
-                <span className="min-w-[5rem] text-center text-neutral-600">Стр. {page}</span>
-                <button
-                  type="button"
-                  onClick={() => setPage((prev) => prev + 1)}
-                  disabled={!hasNextPage}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-                >
-                  Вперёд
-                </button>
-                <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
-                  <label htmlFor="users-page-jump" className="text-xs text-neutral-500">Стр.</label>
-                  <input
-                    id="users-page-jump"
-                    type="number"
-                    min={1}
-                    value={pageInput}
-                    onChange={(event) => setPageInput(event.target.value)}
-                    className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
-                  >
-                    Перейти
-                  </button>
-                </form>
-              </div>
-            </div>
+            <AdminHasNextFooter
+              summary="Поиск и пагинация работают по всей базе пользователей."
+              page={page}
+              hasNextPage={hasNextPage}
+              pageInput={pageInput}
+              jumpInputId="users-page-jump"
+              onPageInputChange={setPageInput}
+              onPrevPage={() => setPage((prev) => Math.max(1, prev - 1))}
+              onNextPage={() => setPage((prev) => prev + 1)}
+              onJumpToPage={handlePageJump}
+              containerClassName="mt-4 pt-4"
+            />
           </div>
         )}
       </div>

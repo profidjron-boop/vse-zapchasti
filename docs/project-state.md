@@ -1,44 +1,40 @@
 # Project State — vse-zapchasti
 
 Версия: v1.1
-Дата: 2026-03-09
+Дата: 2026-03-10
 Ответственный: Сергей (CTO)
 
 ## 1) Project Identity
 - Project: Все запчасти
 - Client: internal
 - Project type: existing repo / e-commerce + service booking
-- Stage: handoff
+- Stage: pre-prod release candidate
 - Status: active
 - Owner: Сергей
-- Current date: 2026-03-09
-- Last updated: 2026-03-09 17:40 (Asia/Krasnoyarsk)
+- Current date: 2026-03-10
+- Last updated: 2026-03-10 15:48 (Asia/Krasnoyarsk)
 
 ## 2) Source Of Truth Now
-- Current governing artifact: handoff pack + release evidence + repo state
-- Artifact version: handoff draft 2026-03-09
+- Current governing artifact: repo truth + requirements v1.1 + handoff pack + release evidence
+- Artifact version: handoff pack 2026-03-10
 - Approved by: Сергей
-- Approval date: pending explicit sign-off
+- Approval date: pending formal customer sign-off
 - Precedence: repo truth + approved scope
 
 ## 3) Approved Artifacts
-- Brief: partial
-- TZ: partial
-- Build Plan: partial
-- Estimate: partial
+- Brief: scope-fixed in `docs/requirements.md`
+- TZ: covered by `docs/tz-implementation-matrix-2026-03-09.md`
+- Build Plan: execution trace in repo + gates docs
+- Estimate: partial (финальная коммерческая оценка вне репозитория)
 - Repo execution scope: yes
 - Release evidence: yes
-- Handoff pack: yes (draft)
+- Handoff pack: yes (ready for sign-off)
 - Artifacts list:
   - `docs/audit-closure-2026-03-09.md` — audit closure recorded
   - `docs/tz-gap-report-2026-03-09.md` — фактический gap-check по ТЗ v1.1
   - `docs/tz-implementation-matrix-2026-03-09.md` — детальная матрица соответствия ТЗ по разделам 1–15
-  - `docs/production-metadata-template-2026-03-09.md` — шаблон закрытия операционных данных перед финальным handoff
-  - `docs/production-metadata-draft-2026-03-09.md` — рабочий драфт с авто-заполненными repo-facts и TBD полями
-  - `docs/customer-production-metadata-form-2026-03-09.md` — анкета для заказчика на недостающие production данные
   - `docs/verify-gates.md` — current verify/release gates
-  - `docs/project-handoff-2026-03-09.md` — handoff pack draft
-  - `scripts/release-check.sh` logs (2026-03-09) — full green path
+  - `docs/project-handoff-2026-03-09.md` — handoff pack (metadata strict gate passes)
 
 ## 4) Approved Scope
 - In scope:
@@ -59,50 +55,51 @@
 ## 5) Current Delivery Shape
 - Current slice: hardening + TZ conformance evidence
 - Slice objective: подтвердить фактическое соответствие v1.1 и закрытие audit-tail пунктов
-- Current milestone: verify/runtime/release green + gap report актуализирован
-- Next milestone: заполнить production access metadata и подписать акт передачи
+- Current milestone: verify/runtime/release strict gates green
+- Next milestone: внедренческий этап по интеграционно-зависимым пунктам
 
 ## 6) Blocking Open Questions
-- none
+- none for current code/release scope
 
 ## 7) Current Risks
-- Risk level: MEDIUM
+- Risk level: LOW-MEDIUM
 - Risks:
-  - в handoff отсутствуют production адреса/доступы/владельцы — containment: заполнить разделы 3.1–3.4 в handoff перед подписью
-  - нет зафиксированной production даты deploy/tag policy — containment: утвердить tagging/deploy journal до финальной приёмки
+  - 1С/ERP online sync adapter не включён (только import-first + source trigger)
+  - провайдеры уведомлений (Email/SMS/мессенджер) требуют прод-подключения
+  - предоплата сервиса требует отдельного платёжного контура (54-ФЗ/возвраты/провайдер)
 
 ## 8) Last Gate Result
 - Result: pass
 - Gate checked:
-  - release readiness
-  - handoff readiness (draft completeness)
+  - release readiness (strict)
+  - runtime readiness (public + admin)
+  - handoff metadata strict check
 - What was checked:
   - `bash scripts/verify-all.sh`
-  - `bash scripts/runtime-audit-local.sh`
-  - `bash scripts/release-check.sh`
-  - `RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh`
-  - `RELEASE_REQUIRE_HANDOFF_METADATA=1 bash scripts/release-check.sh --skip-write-smoke`
-  - full smoke path with bootstrap admin and write checks
-  - handoff artifact completeness against `PROMPT_PROJECT_HANDOFF_RU_v1.0`
+  - `SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit-local.sh`
+  - `bash scripts/ci-local.sh --mode main`
+  - `RELEASE_REQUIRE_HANDOFF_METADATA=1 RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh --skip-write-smoke`
 - What passed:
   - verify-all green
-  - runtime-audit-local green
+  - runtime-audit-local green (включая admin endpoints)
   - pip-audit green
   - pnpm audit green
   - backup + restore-check green
   - smoke read/write green
+  - strict metadata gate green
+  - mandatory admin smoke green
 - What failed or remains unverified:
-  - `RELEASE_REQUIRE_HANDOFF_METADATA=1` currently fails as expected because production access metadata is not filled
-  - signed acceptance is still pending
+  - none in automated release scope
 - Evidence:
-  - strict release-check run at 2026-03-09 17:25–17:26 (Asia/Krasnoyarsk): `✅ RELEASE CHECK GREEN` with mandatory admin smoke
-  - strict handoff metadata gate run at 2026-03-09 17:37 (Asia/Krasnoyarsk): `expected fail` on unresolved production placeholders
-  - latest verify-all at 2026-03-09 17:37–17:38 (Asia/Krasnoyarsk): `✅ ALL GREEN`, `70 passed`, total coverage `70.27%`
-  - latest release backup artifact: `backups/postgres/release_20260309_172501.dump`
+  - strict release-check (metadata + admin smoke): `✅ RELEASE CHECK GREEN` (2026-03-10 15:47–15:48)
+  - runtime-audit-local (with admin credentials): `✅ all checks passed` (2026-03-10 15:42)
+  - ci-local main: `✅ RELEASE CHECK GREEN` (2026-03-10 15:42–15:44)
+  - latest backup artifact: `backups/postgres/release_20260310_154701.dump`
+  - coverage: `70.70%`, tests: `86 passed`
 
 ## 9) Release / Operational Signals
 - Prod-impacting flow: public leads/orders/service + admin management routes
-- Primary health signal: `/health`, `/api/ready`, smoke read/write checks
+- Primary health signal: `/health`, `/api/ready`, smoke read/write/admin checks
 - Rollback trigger: failed smoke or failed post-deploy health checks
 - Observation point: release-check + runtime-audit outputs
 - Operational risk introduced by current change: low

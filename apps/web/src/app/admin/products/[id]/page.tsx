@@ -1,9 +1,13 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
 type Category = {
@@ -78,7 +82,9 @@ const emptyFormState: FormState = {
 
 function normalizeAnalogs(value: unknown): string {
   if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string").join(", ");
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .join(", ");
   }
   if (typeof value === "string") return value;
   return "";
@@ -98,7 +104,10 @@ export default function AdminProductEditPage() {
   const [formState, setFormState] = useState<FormState>(emptyFormState);
   const [lastUpdated, setLastUpdated] = useState("");
 
-  const isValidProductId = useMemo(() => Number.isInteger(productId) && productId > 0, [productId]);
+  const isValidProductId = useMemo(
+    () => Number.isInteger(productId) && productId > 0,
+    [productId],
+  );
 
   const loadData = useCallback(async () => {
     if (!isValidProductId) {
@@ -117,12 +126,12 @@ export default function AdminProductEditPage() {
         fetchJsonWithTimeout<ProductPayload>(
           withApiBase(apiBaseUrl, `/api/admin/products/${productId}`),
           {},
-          12000
+          12000,
         ),
         fetchJsonWithTimeout<Category[]>(
           withApiBase(apiBaseUrl, "/api/admin/categories"),
           {},
-          12000
+          12000,
         ),
       ]);
 
@@ -137,10 +146,13 @@ export default function AdminProductEditPage() {
             ? oldPriceRaw
             : "";
       const discountLabelRaw = product.attributes?.discount_label;
-      const discountLabel = typeof discountLabelRaw === "string" ? discountLabelRaw : "";
+      const discountLabel =
+        typeof discountLabelRaw === "string" ? discountLabelRaw : "";
       const priceOnRequestRaw = product.attributes?.price_on_request;
       const priceOnRequest =
-        typeof priceOnRequestRaw === "boolean" ? priceOnRequestRaw : product.price === null;
+        typeof priceOnRequestRaw === "boolean"
+          ? priceOnRequestRaw
+          : product.price === null;
 
       setFormState({
         category_id: String(product.category_id),
@@ -158,23 +170,26 @@ export default function AdminProductEditPage() {
         analogs: normalizeAnalogs(product.attributes?.analogs),
         compat_make: compatibility?.make ?? "",
         compat_model: compatibility?.model ?? "",
-        compat_year_from: compatibility?.year_from ? String(compatibility.year_from) : "",
-        compat_year_to: compatibility?.year_to ? String(compatibility.year_to) : "",
+        compat_year_from: compatibility?.year_from
+          ? String(compatibility.year_from)
+          : "",
+        compat_year_to: compatibility?.year_to
+          ? String(compatibility.year_to)
+          : "",
         compat_engine: compatibility?.engine ?? "",
       });
       setProductNotFound(false);
     } catch (loadError) {
-      if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(loadError, router)) {
         return;
       }
       if (loadError instanceof ApiRequestError && loadError.status === 404) {
         setProductNotFound(true);
         setError("");
-      } else if (loadError instanceof ApiRequestError) {
-        setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
       } else {
-        setError("Не удалось загрузить данные товара");
+        setError(
+          toAdminErrorMessage(loadError, "Не удалось загрузить данные товара"),
+        );
       }
     } finally {
       setLoading(false);
@@ -223,8 +238,12 @@ export default function AdminProductEditPage() {
               {
                 make: formState.compat_make.trim(),
                 model: formState.compat_model.trim(),
-                year_from: formState.compat_year_from.trim() ? Number(formState.compat_year_from) : undefined,
-                year_to: formState.compat_year_to.trim() ? Number(formState.compat_year_to) : undefined,
+                year_from: formState.compat_year_from.trim()
+                  ? Number(formState.compat_year_from)
+                  : undefined,
+                year_to: formState.compat_year_to.trim()
+                  ? Number(formState.compat_year_to)
+                  : undefined,
                 engine: formState.compat_engine.trim() || undefined,
               },
             ]
@@ -237,7 +256,11 @@ export default function AdminProductEditPage() {
         brand: formState.brand.trim() || null,
         name: formState.name.trim(),
         description: formState.description.trim() || null,
-        price: formState.price_on_request ? null : formState.price.trim() ? Number(formState.price) : null,
+        price: formState.price_on_request
+          ? null
+          : formState.price.trim()
+            ? Number(formState.price)
+            : null,
         stock_quantity: Number(formState.stock_quantity || "0"),
         is_active: formState.is_active,
         attributes,
@@ -254,21 +277,16 @@ export default function AdminProductEditPage() {
           },
           body: JSON.stringify(payload),
         },
-        12000
+        12000,
       );
 
       setSuccess("Товар сохранён");
       setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
     } catch (submitError) {
-      if (submitError instanceof ApiRequestError && (submitError.status === 401 || submitError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(submitError, router)) {
         return;
       }
-      if (submitError instanceof ApiRequestError) {
-        setError(submitError.traceId ? `${submitError.message}. Код: ${submitError.traceId}` : submitError.message);
-      } else {
-        setError("Не удалось сохранить товар");
-      }
+      setError(toAdminErrorMessage(submitError, "Не удалось сохранить товар"));
     } finally {
       setIsSubmitting(false);
     }
@@ -286,7 +304,10 @@ export default function AdminProductEditPage() {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-white p-6">
         <p className="text-neutral-700">Товар не найден</p>
-        <Link href="/admin/products" className="mt-3 inline-block text-sm text-[#1F3B73] hover:underline">
+        <Link
+          href="/admin/products"
+          className="mt-3 inline-block text-sm text-[#1F3B73] hover:underline"
+        >
           ← Назад к товарам
         </Link>
       </div>
@@ -296,20 +317,39 @@ export default function AdminProductEditPage() {
   return (
     <div>
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        <Link href="/admin/products" className="text-sm text-[#1F3B73] hover:underline">
+        <Link
+          href="/admin/products"
+          className="text-sm text-[#1F3B73] hover:underline"
+        >
           ← Назад к товарам
         </Link>
-        <h1 className="break-words text-xl font-bold text-[#1F3B73] sm:text-2xl">Редактирование товара #{productId}</h1>
+        <h1 className="break-words text-xl font-bold text-[#1F3B73] sm:text-2xl">
+          Редактирование товара #{productId}
+        </h1>
       </div>
 
       <div className="mb-4 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </div>
         ) : null}
         {!error && success ? (
-          <div role="status" aria-live="polite" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700"
+          >
             {success}
-            {lastUpdated ? <span className="ml-2 text-xs text-green-800">({lastUpdated})</span> : null}
+            {lastUpdated ? (
+              <span className="ml-2 text-xs text-green-800">
+                ({lastUpdated})
+              </span>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -317,7 +357,9 @@ export default function AdminProductEditPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Название *</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Название *
+            </label>
             <input
               type="text"
               value={formState.name}
@@ -327,10 +369,14 @@ export default function AdminProductEditPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Категория *</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Категория *
+            </label>
             <select
               value={formState.category_id}
-              onChange={(event) => updateField("category_id", event.target.value)}
+              onChange={(event) =>
+                updateField("category_id", event.target.value)
+              }
               required
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
             >
@@ -346,7 +392,9 @@ export default function AdminProductEditPage() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">SKU *</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              SKU *
+            </label>
             <input
               type="text"
               value={formState.sku}
@@ -356,7 +404,9 @@ export default function AdminProductEditPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">OEM</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              OEM
+            </label>
             <input
               type="text"
               value={formState.oem}
@@ -365,7 +415,9 @@ export default function AdminProductEditPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Бренд</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Бренд
+            </label>
             <input
               type="text"
               value={formState.brand}
@@ -381,14 +433,18 @@ export default function AdminProductEditPage() {
               <input
                 type="checkbox"
                 checked={formState.price_on_request}
-                onChange={(event) => updateField("price_on_request", event.target.checked)}
+                onChange={(event) =>
+                  updateField("price_on_request", event.target.checked)
+                }
                 className="rounded border-neutral-300 text-[#1F3B73] focus:ring-[#1F3B73]"
               />
               Цена по запросу
             </label>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Цена</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Цена
+            </label>
             <input
               type="number"
               step="0.01"
@@ -400,7 +456,9 @@ export default function AdminProductEditPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Старая цена</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Старая цена
+            </label>
             <input
               type="number"
               step="0.01"
@@ -412,11 +470,15 @@ export default function AdminProductEditPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Остаток</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Остаток
+            </label>
             <input
               type="number"
               value={formState.stock_quantity}
-              onChange={(event) => updateField("stock_quantity", event.target.value)}
+              onChange={(event) =>
+                updateField("stock_quantity", event.target.value)
+              }
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
             />
           </div>
@@ -424,16 +486,22 @@ export default function AdminProductEditPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Бейдж акции</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Бейдж акции
+            </label>
             <input
               type="text"
               value={formState.discount_label}
-              onChange={(event) => updateField("discount_label", event.target.value)}
+              onChange={(event) =>
+                updateField("discount_label", event.target.value)
+              }
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Аналоги / кроссы</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Аналоги / кроссы
+            </label>
             <input
               type="text"
               value={formState.analogs}
@@ -445,40 +513,52 @@ export default function AdminProductEditPage() {
         </div>
 
         <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-          <p className="text-sm font-medium text-neutral-700">Совместимость (1 запись)</p>
+          <p className="text-sm font-medium text-neutral-700">
+            Совместимость (1 запись)
+          </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <input
               type="text"
               value={formState.compat_make}
-              onChange={(event) => updateField("compat_make", event.target.value)}
+              onChange={(event) =>
+                updateField("compat_make", event.target.value)
+              }
               placeholder="Марка"
               className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
             />
             <input
               type="text"
               value={formState.compat_model}
-              onChange={(event) => updateField("compat_model", event.target.value)}
+              onChange={(event) =>
+                updateField("compat_model", event.target.value)
+              }
               placeholder="Модель"
               className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
             />
             <input
               type="number"
               value={formState.compat_year_from}
-              onChange={(event) => updateField("compat_year_from", event.target.value)}
+              onChange={(event) =>
+                updateField("compat_year_from", event.target.value)
+              }
               placeholder="Год от"
               className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
             />
             <input
               type="number"
               value={formState.compat_year_to}
-              onChange={(event) => updateField("compat_year_to", event.target.value)}
+              onChange={(event) =>
+                updateField("compat_year_to", event.target.value)
+              }
               placeholder="Год до"
               className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
             />
             <input
               type="text"
               value={formState.compat_engine}
-              onChange={(event) => updateField("compat_engine", event.target.value)}
+              onChange={(event) =>
+                updateField("compat_engine", event.target.value)
+              }
               placeholder="Двигатель"
               className="md:col-span-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
             />
@@ -486,7 +566,9 @@ export default function AdminProductEditPage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-neutral-700">Описание</label>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Описание
+          </label>
           <textarea
             value={formState.description}
             onChange={(event) => updateField("description", event.target.value)}

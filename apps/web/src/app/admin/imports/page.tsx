@@ -1,10 +1,16 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { normalizePage } from "@/components/admin/pagination-utils";
+import { AdminHasNextFooter } from "@/components/admin/table-pagination-shared";
 
 type ImportRun = {
   id: number;
@@ -32,18 +38,21 @@ const PAGE_SIZE = 25;
 
 function normalizeUpdateMode(value: string | null | undefined): UpdateMode {
   const normalized = (value || "").trim().toLowerCase();
-  if (normalized === "hourly" || normalized === "daily" || normalized === "event") {
+  if (
+    normalized === "hourly" ||
+    normalized === "daily" ||
+    normalized === "event"
+  ) {
     return normalized;
   }
   return "manual";
 }
 
-function normalizePage(value: string | null): number {
-  const parsed = Number.parseInt(value || "1", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
+function parseFeatureFlag(value: string | null | undefined, fallback = true): boolean {
+  if (value === null || value === undefined) {
+    return fallback;
   }
-  return 1;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 export default function AdminImportsPage() {
@@ -60,15 +69,22 @@ export default function AdminImportsPage() {
   const [uploadResult, setUploadResult] = useState<ImportResponse | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [defaultCategoryId, setDefaultCategoryId] = useState("");
-  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "");
-  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
+  const [statusFilter, setStatusFilter] = useState(
+    () => searchParams.get("status") || "",
+  );
+  const [page, setPage] = useState(() =>
+    normalizePage(searchParams.get("page")),
+  );
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
+  const [pageInput, setPageInput] = useState(() =>
+    String(normalizePage(searchParams.get("page"))),
+  );
   const [updateMode, setUpdateMode] = useState<UpdateMode>("manual");
   const [savedUpdateMode, setSavedUpdateMode] = useState<UpdateMode>("manual");
   const [isSavingMode, setIsSavingMode] = useState(false);
   const [modeMessage, setModeMessage] = useState("");
   const [showTechnicalCommand, setShowTechnicalCommand] = useState(false);
+  const [sourceImportEnabled, setSourceImportEnabled] = useState(true);
 
   const createdLabel = useMemo(() => {
     if (!uploadResult) return "";
@@ -80,22 +96,26 @@ export default function AdminImportsPage() {
       case "hourly":
         return {
           text: "Для режима «раз в час» настройте cron/systemd timer и вызывайте скрипт с hourly.",
-          command: "IMPORT_MODE=hourly IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
+          command:
+            "IMPORT_MODE=hourly IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
         };
       case "daily":
         return {
           text: "Для режима «раз в сутки» запускайте тот же скрипт один раз в день через scheduler.",
-          command: "IMPORT_MODE=daily IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
+          command:
+            "IMPORT_MODE=daily IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
         };
       case "event":
         return {
           text: "Для режима «по событию» внешний триггер должен явно передать флаг --event.",
-          command: "IMPORT_MODE=event IMPORT_SOURCE_URL=https://erp.example/export.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --event",
+          command:
+            "IMPORT_MODE=event IMPORT_SOURCE_URL=https://erp.example/export.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh --event",
         };
       default:
         return {
           text: "В ручном режиме импорт запускается только из этой страницы или прямым вызовом скрипта.",
-          command: "IMPORT_MODE=manual IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
+          command:
+            "IMPORT_MODE=manual IMPORT_FILE_PATH=./imports/products.xlsx ADMIN_TOKEN=... bash scripts/import-products.sh",
         };
     }
   }, [updateMode]);
@@ -113,65 +133,90 @@ export default function AdminImportsPage() {
     }
   };
 
-  const fetchRuns = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) {
-      setIsRefreshing(true);
-    }
-
-    try {
-      setError("");
-      const apiBaseUrl = getClientApiBaseUrl();
-      const query = new URLSearchParams({
-        skip: String((page - 1) * PAGE_SIZE),
-        limit: String(PAGE_SIZE + 1),
-      });
-      if (statusFilter) {
-        query.set("status", statusFilter);
+  const fetchRuns = useCallback(
+    async (showRefreshing = false) => {
+      if (showRefreshing) {
+        setIsRefreshing(true);
       }
-      const data = await fetchJsonWithTimeout<ImportRun[]>(
-        withApiBase(apiBaseUrl, `/api/admin/imports?${query.toString()}`),
-        {},
-        12000
-      );
-      const nextPageAvailable = data.length > PAGE_SIZE;
-      const pageRows = nextPageAvailable ? data.slice(0, PAGE_SIZE) : data;
-      setRuns(pageRows);
-      setHasNextPage(nextPageAvailable);
 
       try {
-        const modePayload = await fetchJsonWithTimeout<{ value?: string }>(
-          withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"),
-          {},
-          12000
-        );
-        const normalizedMode = normalizeUpdateMode(modePayload.value);
-        setUpdateMode(normalizedMode);
-        setSavedUpdateMode(normalizedMode);
-      } catch (modeError) {
-        if (modeError instanceof ApiRequestError && modeError.status === 404) {
-          setUpdateMode("manual");
-          setSavedUpdateMode("manual");
-        } else if (modeError instanceof ApiRequestError && (modeError.status === 401 || modeError.status === 403)) {
-          throw modeError;
+        setError("");
+        const apiBaseUrl = getClientApiBaseUrl();
+        const query = new URLSearchParams({
+          skip: String((page - 1) * PAGE_SIZE),
+          limit: String(PAGE_SIZE + 1),
+        });
+        if (statusFilter) {
+          query.set("status", statusFilter);
         }
-      }
+        const data = await fetchJsonWithTimeout<ImportRun[]>(
+          withApiBase(apiBaseUrl, `/api/admin/imports?${query.toString()}`),
+          {},
+          12000,
+        );
+        const nextPageAvailable = data.length > PAGE_SIZE;
+        const pageRows = nextPageAvailable ? data.slice(0, PAGE_SIZE) : data;
+        setRuns(pageRows);
+        setHasNextPage(nextPageAvailable);
 
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (err) {
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        router.push("/admin/login");
-        return;
+        try {
+          const modePayload = await fetchJsonWithTimeout<{ value?: string }>(
+            withApiBase(
+              apiBaseUrl,
+              "/api/admin/content/import_products_update_mode",
+            ),
+            {},
+            12000,
+          );
+          const normalizedMode = normalizeUpdateMode(modePayload.value);
+          setUpdateMode(normalizedMode);
+          setSavedUpdateMode(normalizedMode);
+        } catch (modeError) {
+          if (
+            modeError instanceof ApiRequestError &&
+            modeError.status === 404
+          ) {
+            setUpdateMode("manual");
+            setSavedUpdateMode("manual");
+          } else if (redirectIfAdminUnauthorized(modeError, router)) {
+            throw modeError;
+          }
+        }
+
+        try {
+          const sourceFeaturePayload = await fetchJsonWithTimeout<{ value?: string }>(
+            withApiBase(
+              apiBaseUrl,
+              "/api/admin/content/feature_erp_source_import_enabled",
+            ),
+            {},
+            12000,
+          );
+          setSourceImportEnabled(parseFeatureFlag(sourceFeaturePayload.value, true));
+        } catch (featureError) {
+          if (
+            featureError instanceof ApiRequestError &&
+            featureError.status === 404
+          ) {
+            setSourceImportEnabled(true);
+          } else if (redirectIfAdminUnauthorized(featureError, router)) {
+            throw featureError;
+          }
+        }
+
+        setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+      } catch (err) {
+        if (redirectIfAdminUnauthorized(err, router)) {
+          return;
+        }
+        setError(toAdminErrorMessage(err, "Не удалось загрузить список импортов"));
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-      if (err instanceof ApiRequestError) {
-        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
-      } else {
-        setError("Не удалось загрузить список импортов");
-      }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [page, router, statusFilter]);
+    },
+    [page, router, statusFilter],
+  );
 
   useEffect(() => {
     void fetchRuns();
@@ -180,7 +225,9 @@ export default function AdminImportsPage() {
   useEffect(() => {
     const nextStatusFilter = searchParams.get("status") || "";
     const nextPage = normalizePage(searchParams.get("page"));
-    setStatusFilter((prev) => (prev === nextStatusFilter ? prev : nextStatusFilter));
+    setStatusFilter((prev) =>
+      prev === nextStatusFilter ? prev : nextStatusFilter,
+    );
     setPage((prev) => (prev === nextPage ? prev : nextPage));
   }, [searchParams]);
 
@@ -192,7 +239,9 @@ export default function AdminImportsPage() {
     if (page > 1) {
       query.set("page", String(page));
     }
-    const target = query.toString() ? `/admin/imports?${query.toString()}` : "/admin/imports";
+    const target = query.toString()
+      ? `/admin/imports?${query.toString()}`
+      : "/admin/imports";
     router.replace(target, { scroll: false });
   }, [page, router, statusFilter]);
 
@@ -239,21 +288,16 @@ export default function AdminImportsPage() {
           method: "POST",
           body: formData,
         },
-        12000
+        12000,
       );
       setUploadResult(result);
       setFile(null);
       await refreshRunsAfterMutation();
     } catch (err) {
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(err, router)) {
         return;
       }
-      if (err instanceof ApiRequestError) {
-        setUploadError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
-      } else {
-        setUploadError("Ошибка при загрузке файла");
-      }
+      setUploadError(toAdminErrorMessage(err, "Ошибка при загрузке файла"));
     } finally {
       setIsUploading(false);
     }
@@ -262,6 +306,13 @@ export default function AdminImportsPage() {
   async function handleSourceTrigger() {
     setUploadError("");
     setUploadResult(null);
+
+    if (!sourceImportEnabled) {
+      setUploadError(
+        "Импорт из источника выключен. Включите функцию в разделе «Интеграции».",
+      );
+      return;
+    }
 
     try {
       setIsTriggeringSource(true);
@@ -278,20 +329,17 @@ export default function AdminImportsPage() {
         {
           method: "POST",
         },
-        12000
+        12000,
       );
       setUploadResult(result);
       await refreshRunsAfterMutation();
     } catch (err) {
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(err, router)) {
         return;
       }
-      if (err instanceof ApiRequestError) {
-        setUploadError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
-      } else {
-        setUploadError("Ошибка запуска импорта из источника");
-      }
+      setUploadError(
+        toAdminErrorMessage(err, "Ошибка запуска импорта из источника"),
+      );
     } finally {
       setIsTriggeringSource(false);
     }
@@ -313,7 +361,10 @@ export default function AdminImportsPage() {
 
       try {
         await fetchJsonWithTimeout<{ key: string; value: string }>(
-          withApiBase(apiBaseUrl, "/api/admin/content/import_products_update_mode"),
+          withApiBase(
+            apiBaseUrl,
+            "/api/admin/content/import_products_update_mode",
+          ),
           {
             method: "PUT",
             headers: {
@@ -325,10 +376,13 @@ export default function AdminImportsPage() {
               description: payload.description,
             }),
           },
-          12000
+          12000,
         );
       } catch (updateError) {
-        if (!(updateError instanceof ApiRequestError) || updateError.status !== 404) {
+        if (
+          !(updateError instanceof ApiRequestError) ||
+          updateError.status !== 404
+        ) {
           throw updateError;
         }
         await fetchJsonWithTimeout<{ key: string; value: string }>(
@@ -340,22 +394,19 @@ export default function AdminImportsPage() {
             },
             body: JSON.stringify(payload),
           },
-          12000
+          12000,
         );
       }
 
       setModeMessage("Режим обновления сохранён");
       setSavedUpdateMode(updateMode);
     } catch (saveError) {
-      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(saveError, router)) {
         return;
       }
-      if (saveError instanceof ApiRequestError) {
-        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
-      } else {
-        setError("Не удалось сохранить режим обновления");
-      }
+      setError(
+        toAdminErrorMessage(saveError, "Не удалось сохранить режим обновления"),
+      );
     } finally {
       setIsSavingMode(false);
     }
@@ -378,7 +429,9 @@ export default function AdminImportsPage() {
       <div className="mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-[#1F3B73]">Импорты каталога</h1>
+            <h1 className="text-2xl font-bold text-[#1F3B73]">
+              Импорты каталога
+            </h1>
             <p className="mt-2 text-sm text-neutral-600">
               История запусков импорта и загрузка нового CSV/XLSX файла.
             </p>
@@ -392,14 +445,23 @@ export default function AdminImportsPage() {
             {isRefreshing ? "Обновление..." : "Обновить"}
           </button>
         </div>
-        {lastUpdated && <div className="mt-2 text-xs text-neutral-500">Обновлено: {lastUpdated}</div>}
+        {lastUpdated && (
+          <div className="mt-2 text-xs text-neutral-500">
+            Обновлено: {lastUpdated}
+          </div>
+        )}
       </div>
 
-      <form onSubmit={handleUpload} className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+      <form
+        onSubmit={handleUpload}
+        className="mb-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4"
+      >
         <div className="mb-4 rounded-xl border border-neutral-200 bg-white p-3">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Режим обновления</label>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">
+                Режим обновления
+              </label>
               <select
                 value={updateMode}
                 onChange={(event) => {
@@ -422,7 +484,15 @@ export default function AdminImportsPage() {
             >
               {isSavingMode ? "Сохранение..." : "Сохранить режим"}
             </button>
-            {modeMessage ? <p role="status" aria-live="polite" className="text-sm text-green-700">{modeMessage}</p> : null}
+            {modeMessage ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-sm text-green-700"
+              >
+                {modeMessage}
+              </p>
+            ) : null}
           </div>
           <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
             <p className="text-sm text-neutral-700">{modeHint.text}</p>
@@ -433,9 +503,13 @@ export default function AdminImportsPage() {
                 aria-expanded={showTechnicalCommand}
                 className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
               >
-                {showTechnicalCommand ? "Скрыть техкоманду" : "Показать техкоманду для интегратора"}
+                {showTechnicalCommand
+                  ? "Скрыть техкоманду"
+                  : "Показать техкоманду для интегратора"}
               </button>
-              <span className="text-xs text-neutral-500">Нужно только техническому специалисту.</span>
+              <span className="text-xs text-neutral-500">
+                Нужно только техническому специалисту.
+              </span>
             </div>
             {showTechnicalCommand ? (
               <code className="mt-2 block overflow-x-auto rounded-lg bg-neutral-900/95 px-3 py-2 text-xs text-neutral-100">
@@ -447,7 +521,9 @@ export default function AdminImportsPage() {
 
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto_auto] md:items-end">
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">Файл импорта</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Файл импорта
+            </label>
             <input
               type="file"
               accept=".csv,.xlsx"
@@ -456,7 +532,9 @@ export default function AdminImportsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-neutral-700">ID категории по умолчанию</label>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              ID категории по умолчанию
+            </label>
             <input
               type="number"
               min={1}
@@ -476,19 +554,44 @@ export default function AdminImportsPage() {
           <button
             type="button"
             onClick={() => void handleSourceTrigger()}
-            disabled={isTriggeringSource}
+            disabled={isTriggeringSource || !sourceImportEnabled}
             className="rounded-xl border border-[#1F3B73]/20 bg-white px-4 py-2 text-sm font-medium text-[#1F3B73] hover:bg-[#1F3B73]/5 disabled:opacity-50"
           >
             {isTriggeringSource ? "Запуск..." : "Запустить из источника"}
           </button>
         </div>
 
+        {!sourceImportEnabled ? (
+          <p className="mt-3 text-xs text-amber-700">
+            Импорт из источника сейчас выключен.{" "}
+            <Link href="/admin/integrations" className="font-medium underline">
+              Включить в «Интеграциях»
+            </Link>
+            .
+          </p>
+        ) : null}
+
         <div className="mt-3 min-h-[3.25rem]">
-          {uploadError ? <p role="alert" aria-live="assertive" className="text-sm text-red-600">{uploadError}</p> : null}
+          {uploadError ? (
+            <p
+              role="alert"
+              aria-live="assertive"
+              className="text-sm text-red-600"
+            >
+              {uploadError}
+            </p>
+          ) : null}
           {!uploadError && uploadResult ? (
-            <p role="status" aria-live="polite" className="text-sm text-green-700">
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-sm text-green-700"
+            >
               {createdLabel}{" "}
-              <Link href={`/admin/imports/${uploadResult.run_id}`} className="font-medium underline">
+              <Link
+                href={`/admin/imports/${uploadResult.run_id}`}
+                className="font-medium underline"
+              >
                 Открыть детали
               </Link>
             </p>
@@ -498,7 +601,11 @@ export default function AdminImportsPage() {
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
@@ -510,10 +617,14 @@ export default function AdminImportsPage() {
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-neutral-500">
-              {statusFilter ? "По выбранному статусу запусков нет" : "Запусков импорта пока нет"}
+              {statusFilter
+                ? "По выбранному статусу запусков нет"
+                : "Запусков импорта пока нет"}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs uppercase tracking-wide text-neutral-500">Статус</label>
+              <label className="text-xs uppercase tracking-wide text-neutral-500">
+                Статус
+              </label>
               <select
                 value={statusFilter}
                 onChange={(event) => {
@@ -542,15 +653,21 @@ export default function AdminImportsPage() {
             </div>
           </div>
           <div className="py-12 text-center text-neutral-500">
-            {statusFilter ? "По выбранному статусу запусков нет" : "Запусков импорта пока нет"}
+            {statusFilter
+              ? "По выбранному статусу запусков нет"
+              : "Запусков импорта пока нет"}
           </div>
         </div>
       ) : (
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-neutral-500">Показано запусков: {runs.length}</div>
+            <div className="text-sm text-neutral-500">
+              Показано запусков: {runs.length}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs uppercase tracking-wide text-neutral-500">Статус</label>
+              <label className="text-xs uppercase tracking-wide text-neutral-500">
+                Статус
+              </label>
               <select
                 value={statusFilter}
                 onChange={(event) => {
@@ -572,9 +689,13 @@ export default function AdminImportsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs text-neutral-500">
-                      {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
+                      {run.started_at
+                        ? new Date(run.started_at).toLocaleString("ru-RU")
+                        : "—"}
                     </p>
-                    <p className="mt-1 break-all text-sm text-neutral-700">Источник: {run.source || "—"}</p>
+                    <p className="mt-1 break-all text-sm text-neutral-700">
+                      Источник: {run.source || "—"}
+                    </p>
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2 py-1 text-xs ${
@@ -590,11 +711,21 @@ export default function AdminImportsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-1 text-sm text-neutral-700">
-                  <p>Кто запустил: {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}</p>
-                  <p>Создано/Обновлено/Ошибок: {run.created}/{run.updated}/{run.failed}</p>
+                  <p>
+                    Кто запустил:{" "}
+                    {run.created_by_user ||
+                      (run.created_by ? `#${run.created_by}` : "—")}
+                  </p>
+                  <p>
+                    Создано/Обновлено/Ошибок: {run.created}/{run.updated}/
+                    {run.failed}
+                  </p>
                 </div>
 
-                <Link href={`/admin/imports/${run.id}`} className="text-sm font-medium text-[#1F3B73] hover:underline">
+                <Link
+                  href={`/admin/imports/${run.id}`}
+                  className="text-sm font-medium text-[#1F3B73] hover:underline"
+                >
                   Открыть детали
                 </Link>
               </article>
@@ -605,19 +736,33 @@ export default function AdminImportsPage() {
             <table className="w-full min-w-[900px]">
               <thead className="border-b border-neutral-200 bg-neutral-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Кто запустил</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Создано/Обновлено/Ошибок</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Детали</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Дата
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Статус
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Источник
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Кто запустил
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Создано/Обновлено/Ошибок
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Детали
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
                 {runs.map((run) => (
                   <tr key={run.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "—"}
+                      {run.started_at
+                        ? new Date(run.started_at).toLocaleString("ru-RU")
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span
@@ -632,15 +777,21 @@ export default function AdminImportsPage() {
                         {getStatusLabel(run.status)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{run.source || "—"}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      {run.created_by_user || (run.created_by ? `#${run.created_by}` : "—")}
+                      {run.source || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {run.created_by_user ||
+                        (run.created_by ? `#${run.created_by}` : "—")}
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
                       {run.created}/{run.updated}/{run.failed}
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      <Link href={`/admin/imports/${run.id}`} className="text-[#1F3B73] hover:underline">
+                      <Link
+                        href={`/admin/imports/${run.id}`}
+                        className="text-[#1F3B73] hover:underline"
+                      >
                         Открыть
                       </Link>
                     </td>
@@ -649,47 +800,18 @@ export default function AdminImportsPage() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
-            <div className="text-neutral-500">
-              Показано запусков: {runs.length} · Страница {page}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1 || isRefreshing}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Назад
-              </button>
-              <span className="min-w-[5rem] text-center text-neutral-600">Стр. {page}</span>
-              <button
-                type="button"
-                onClick={() => setPage((prev) => prev + 1)}
-                disabled={!hasNextPage || isRefreshing}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Вперёд
-              </button>
-              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
-                <label htmlFor="imports-page-jump" className="text-xs text-neutral-500">Стр.</label>
-                <input
-                  id="imports-page-jump"
-                  type="number"
-                  min={1}
-                  value={pageInput}
-                  onChange={(event) => setPageInput(event.target.value)}
-                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
-                >
-                  Перейти
-                </button>
-              </form>
-            </div>
-          </div>
+          <AdminHasNextFooter
+            summary={`Показано запусков: ${runs.length} · Страница ${page}`}
+            page={page}
+            hasNextPage={hasNextPage}
+            pageInput={pageInput}
+            jumpInputId="imports-page-jump"
+            onPageInputChange={setPageInput}
+            onPrevPage={() => setPage((prev) => Math.max(1, prev - 1))}
+            onNextPage={() => setPage((prev) => prev + 1)}
+            onJumpToPage={handlePageJump}
+            disabled={isRefreshing}
+          />
         </div>
       )}
     </div>

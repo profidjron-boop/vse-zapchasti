@@ -5,11 +5,11 @@ Revises: 6c1f229dd1d7
 Create Date: 2026-03-05 14:35:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = "b9d82df0af11"
@@ -27,7 +27,9 @@ def upgrade() -> None:
     index_uuid = op.f("ix_vin_requests_uuid")
 
     if inspector.has_table(table_name):
-        existing_indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+        existing_indexes = {
+            index["name"] for index in inspector.get_indexes(table_name)
+        }
         if index_id not in existing_indexes:
             op.create_index(index_id, table_name, ["id"], unique=False)
         if index_uuid not in existing_indexes:

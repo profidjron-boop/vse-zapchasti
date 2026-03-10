@@ -5,11 +5,11 @@ Revises: f6e2c1a9b7d3
 Create Date: 2026-03-09 22:05:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 revision: str = "9c7e5a4b2d11"
 down_revision: Union[str, Sequence[str], None] = "f6e2c1a9b7d3"
@@ -43,17 +43,31 @@ def upgrade() -> None:
     if _get_column("service_requests", "install_with_part") is None:
         op.add_column(
             "service_requests",
-            sa.Column("install_with_part", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+            sa.Column(
+                "install_with_part",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("false"),
+            ),
         )
 
     if _get_column("service_requests", "requested_product_sku") is None:
-        op.add_column("service_requests", sa.Column("requested_product_sku", sa.String(length=100), nullable=True))
+        op.add_column(
+            "service_requests",
+            sa.Column("requested_product_sku", sa.String(length=100), nullable=True),
+        )
 
     if _get_column("service_requests", "requested_product_name") is None:
-        op.add_column("service_requests", sa.Column("requested_product_name", sa.String(length=500), nullable=True))
+        op.add_column(
+            "service_requests",
+            sa.Column("requested_product_name", sa.String(length=500), nullable=True),
+        )
 
     if _get_column("service_requests", "estimated_bundle_total") is None:
-        op.add_column("service_requests", sa.Column("estimated_bundle_total", sa.Float(), nullable=True))
+        op.add_column(
+            "service_requests",
+            sa.Column("estimated_bundle_total", sa.Float(), nullable=True),
+        )
 
     if not _has_index("service_requests", "ix_service_requests_requested_product_sku"):
         op.create_index(
@@ -66,7 +80,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     if _has_index("service_requests", "ix_service_requests_requested_product_sku"):
-        op.drop_index("ix_service_requests_requested_product_sku", table_name="service_requests")
+        op.drop_index(
+            "ix_service_requests_requested_product_sku", table_name="service_requests"
+        )
 
     if _get_column("service_requests", "estimated_bundle_total") is not None:
         op.drop_column("service_requests", "estimated_bundle_total")

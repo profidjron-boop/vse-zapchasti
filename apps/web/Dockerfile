@@ -1,4 +1,4 @@
-FROM node:20.20.0-bookworm-slim AS builder
+FROM node:20-alpine AS builder
 
 ENV PNPM_HOME="/pnpm" \
     PATH="/pnpm:$PATH"
@@ -21,19 +21,25 @@ ENV API_BASE_URL=${API_BASE_URL} \
     NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 
 RUN pnpm run build
+RUN CI=true pnpm prune --prod
 
-FROM node:20.20.0-bookworm-slim AS runner
+FROM node:20-alpine AS runner
 
 ENV NODE_ENV=production
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/next.config.ts ./next.config.ts
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    && apk add --no-cache --upgrade zlib
+
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/.next ./.next
+COPY --from=builder --chown=node:node /app/next.config.mjs ./next.config.mjs
 
 EXPOSE 3000
+
+USER node
 
 CMD ["node_modules/.bin/next", "start", "--hostname", "0.0.0.0", "--port", "3000"]

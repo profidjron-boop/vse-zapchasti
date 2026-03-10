@@ -18,12 +18,16 @@ function clampQuantity(value: number): number {
 }
 
 function canUseStorage(): boolean {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  return (
+    typeof window !== "undefined" && typeof window.localStorage !== "undefined"
+  );
 }
 
 function notifyCartUpdated(items: CartItem[]): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent<CartItem[]>(CART_UPDATED_EVENT, { detail: items }));
+  window.dispatchEvent(
+    new CustomEvent<CartItem[]>(CART_UPDATED_EVENT, { detail: items }),
+  );
 }
 
 export function loadCart(): CartItem[] {
@@ -40,9 +44,14 @@ export function loadCart(): CartItem[] {
         const productId = Number((item as { productId?: unknown }).productId);
         const sku = String((item as { sku?: unknown }).sku ?? "").trim();
         const name = String((item as { name?: unknown }).name ?? "").trim();
-        const quantity = clampQuantity(Number((item as { quantity?: unknown }).quantity ?? 1));
+        const quantity = clampQuantity(
+          Number((item as { quantity?: unknown }).quantity ?? 1),
+        );
         const rawPrice = (item as { price?: unknown }).price;
-        const price = typeof rawPrice === "number" && Number.isFinite(rawPrice) ? rawPrice : null;
+        const price =
+          typeof rawPrice === "number" && Number.isFinite(rawPrice)
+            ? rawPrice
+            : null;
 
         if (!Number.isInteger(productId) || productId <= 0) return null;
         if (!sku || !name) return null;
@@ -61,10 +70,15 @@ export function saveCart(items: CartItem[]): void {
   notifyCartUpdated(items);
 }
 
-export function addToCart(item: Omit<CartItem, "quantity">, quantity = 1): CartItem[] {
+export function addToCart(
+  item: Omit<CartItem, "quantity">,
+  quantity = 1,
+): CartItem[] {
   const items = loadCart();
   const nextQuantity = clampQuantity(quantity);
-  const existingIndex = items.findIndex((entry) => entry.productId === item.productId);
+  const existingIndex = items.findIndex(
+    (entry) => entry.productId === item.productId,
+  );
 
   if (existingIndex >= 0) {
     const existing = items[existingIndex];
@@ -78,11 +92,16 @@ export function addToCart(item: Omit<CartItem, "quantity">, quantity = 1): CartI
   return items;
 }
 
-export function updateCartItemQuantity(productId: number, quantity: number): CartItem[] {
+export function updateCartItemQuantity(
+  productId: number,
+  quantity: number,
+): CartItem[] {
   const items = loadCart();
   const normalizedQuantity = clampQuantity(quantity);
   const nextItems = items.map((item) =>
-    item.productId === productId ? { ...item, quantity: normalizedQuantity } : item
+    item.productId === productId
+      ? { ...item, quantity: normalizedQuantity }
+      : item,
   );
   saveCart(nextItems);
   return nextItems;
@@ -101,7 +120,10 @@ export function clearCart(): void {
   notifyCartUpdated([]);
 }
 
-export function getCartTotals(items: CartItem[]): { count: number; amount: number | null } {
+export function getCartTotals(items: CartItem[]): {
+  count: number;
+  amount: number | null;
+} {
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
 
   let amount = 0;

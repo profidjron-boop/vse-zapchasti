@@ -4,7 +4,9 @@ export default function NotFoundPage() {
   return (
     <main className="min-h-dvh bg-[#F5F7FA] px-6 py-16 text-neutral-900">
       <section className="mx-auto max-w-3xl rounded-3xl border border-neutral-200 bg-white p-8 text-center">
-        <h1 className="text-xl font-semibold text-[#1F3B73]">Страница не найдена</h1>
+        <h1 className="text-xl font-semibold text-[#1F3B73]">
+          Страница не найдена
+        </h1>
         <p className="mt-2 text-sm text-neutral-600">
           Возможно, ссылка устарела или страница была перемещена.
         </p>

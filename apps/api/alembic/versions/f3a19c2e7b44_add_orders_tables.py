@@ -5,11 +5,11 @@ Revises: 1e6d6fcf131e
 Create Date: 2026-03-05 19:45:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = "f3a19c2e7b44"
@@ -18,7 +18,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _ensure_index(table_name: str, index_name: str, columns: list[str], *, unique: bool = False) -> None:
+def _ensure_index(
+    table_name: str, index_name: str, columns: list[str], *, unique: bool = False
+) -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if not inspector.has_table(table_name):

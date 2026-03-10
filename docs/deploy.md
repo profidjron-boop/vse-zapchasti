@@ -70,6 +70,23 @@ Recommended prep on server:
   - уведомления по публичным событиям (`lead.created`, `order.created`, `service_request.created`, `vin_request.created`);
   - отправка best-effort: ошибка канала не ломает создание заявки.
 
+## Admin feature flags (операционное включение)
+- Страница: `/admin/integrations`.
+- Назначение: включать/выключать интеграционные функции без изменения кода.
+- Ключи в `site_content`:
+  - `feature_erp_source_import_enabled` — разрешает `POST /api/admin/products/import-from-source`;
+  - `integration_erp_source_url` — URL источника 1С/ERP (fallback после env);
+  - `integration_erp_source_allowed_hosts` — allowlist хостов 1С/ERP (fallback после env);
+  - `feature_notifications_enabled` — глобальный флаг уведомлений;
+  - `feature_notifications_email_enabled`, `feature_notifications_sms_enabled`, `feature_notifications_messenger_enabled` — флаги каналов;
+  - `feature_service_prepayment_enabled` — глобальный флаг отображения предоплаты в публичном сервис-каталоге.
+- Приоритет для 1С source config:
+  1. значения из `site_content` (`integration_erp_*`),
+  2. затем env (`IMPORT_SOURCE_*`).
+- Секреты остаются только в env:
+  - `IMPORT_SOURCE_AUTH_HEADER`, `IMPORT_SOURCE_USERNAME`, `IMPORT_SOURCE_PASSWORD`,
+  - `NOTIFY_SMTP_PASSWORD` и иные чувствительные ключи провайдеров.
+
 ## Admin auth strategy (текущее состояние)
 - Browser auth: cookie-first.
   - `admin_session` (HttpOnly cookie) хранит JWT.
@@ -141,7 +158,7 @@ Recommended prep on server:
 - Скрипт работает через существующий API импортов (`/api/admin/products/import`) и пишет `trigger_mode` в `import_runs` (`manual/hourly/daily/event`).
 - Для server-side source trigger в скрипте поддержан флаг `--server-source` (вызов `POST /api/admin/products/import-from-source`).
 - Для server-side source trigger доступен отдельный endpoint: `POST /api/admin/products/import-from-source`.
-  Он читает `IMPORT_SOURCE_*` из env API и запускает тот же import pipeline с указанным `trigger_mode`.
+  Он учитывает feature flag `feature_erp_source_import_enabled` и запускает тот же import pipeline с указанным `trigger_mode`.
 - Источник режима:
   - `IMPORT_MODE=auto` (по умолчанию) читает `import_products_update_mode` из контента;
   - можно явно задать `IMPORT_MODE=hourly|daily|event|manual`.

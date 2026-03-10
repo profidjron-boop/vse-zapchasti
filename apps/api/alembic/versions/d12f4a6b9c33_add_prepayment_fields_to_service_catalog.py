@@ -5,11 +5,11 @@ Revises: b9f16e3f87aa
 Create Date: 2026-03-06 01:40:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = "d12f4a6b9c33"
@@ -32,7 +32,12 @@ def upgrade() -> None:
     if not _has_column("service_catalog_items", "prepayment_required"):
         op.add_column(
             "service_catalog_items",
-            sa.Column("prepayment_required", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column(
+                "prepayment_required",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.false(),
+            ),
         )
 
     if not _has_column("service_catalog_items", "prepayment_amount"):

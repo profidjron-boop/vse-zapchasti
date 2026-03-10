@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 
@@ -11,9 +11,12 @@ export default function GlobalError({
   return (
     <main className="min-h-dvh bg-[#F5F7FA] px-6 py-16 text-neutral-900">
       <section className="mx-auto max-w-3xl rounded-3xl border border-neutral-200 bg-white p-8 text-center">
-        <h1 className="text-xl font-semibold text-[#1F3B73]">Произошла ошибка</h1>
+        <h1 className="text-xl font-semibold text-[#1F3B73]">
+          Произошла ошибка
+        </h1>
         <p className="mt-2 text-sm text-neutral-600">
-          Страница временно недоступна. Обновите страницу или вернитесь на главную.
+          Страница временно недоступна. Обновите страницу или вернитесь на
+          главную.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button

@@ -1,11 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { AddToCartButton } from "@/components/add-to-cart-button";
 import { getServerApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { PublicHeader } from "@/components/public-header";
-import { ProductImageFallback } from "@/components/product-image-fallback";
+import { SmartProductImage } from "@/components/smart-product-image";
 import ProductLeadForm from "./product-lead-form";
 import FavoriteToggleButton from "./favorite-toggle-button";
 
@@ -36,11 +35,16 @@ type Product = {
   }>;
 };
 
-async function getProductBySku(sku: string): Promise<{ product: Product | null; hasError: boolean }> {
+async function getProductBySku(
+  sku: string,
+): Promise<{ product: Product | null; hasError: boolean }> {
   try {
     const apiBaseUrl = getServerApiBaseUrl();
     const response = await fetch(
-      withApiBase(apiBaseUrl, `/api/public/products/by-sku/${encodeURIComponent(sku)}`),
+      withApiBase(
+        apiBaseUrl,
+        `/api/public/products/by-sku/${encodeURIComponent(sku)}`,
+      ),
       { cache: "no-store" },
     );
 
@@ -68,7 +72,10 @@ async function getCategoryNameById(categoryId: number): Promise<string | null> {
     );
     if (!response.ok) return null;
 
-    const payload = (await response.json()) as Array<{ id?: number; name?: string }>;
+    const payload = (await response.json()) as Array<{
+      id?: number;
+      name?: string;
+    }>;
     if (!Array.isArray(payload)) return null;
 
     const category = payload.find((item) => item?.id === categoryId);
@@ -86,7 +93,10 @@ function getMainImageUrl(product: Product): string | null {
   return main?.url || null;
 }
 
-function getNumericAttribute(attributes: Record<string, unknown> | undefined, key: string): number | null {
+function getNumericAttribute(
+  attributes: Record<string, unknown> | undefined,
+  key: string,
+): number | null {
   if (!attributes) return null;
   const value = attributes[key];
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -97,7 +107,10 @@ function getNumericAttribute(attributes: Record<string, unknown> | undefined, ke
   return null;
 }
 
-function getStringAttribute(attributes: Record<string, unknown> | undefined, key: string): string | null {
+function getStringAttribute(
+  attributes: Record<string, unknown> | undefined,
+  key: string,
+): string | null {
   if (!attributes) return null;
   const value = attributes[key];
   if (typeof value !== "string") return null;
@@ -105,7 +118,10 @@ function getStringAttribute(attributes: Record<string, unknown> | undefined, key
   return normalized || null;
 }
 
-function getStringListAttribute(attributes: Record<string, unknown> | undefined, keys: string[]): string[] {
+function getStringListAttribute(
+  attributes: Record<string, unknown> | undefined,
+  keys: string[],
+): string[] {
   if (!attributes) return [];
 
   for (const key of keys) {
@@ -126,12 +142,18 @@ function getStringListAttribute(attributes: Record<string, unknown> | undefined,
   return [];
 }
 
-function isPriceOnRequest(attributes: Record<string, unknown> | undefined, price: number | null): boolean {
+function isPriceOnRequest(
+  attributes: Record<string, unknown> | undefined,
+  price: number | null,
+): boolean {
   if (price === null) return true;
   return attributes?.price_on_request === true;
 }
 
-function formatPriceLabel(attributes: Record<string, unknown> | undefined, price: number | null): string {
+function formatPriceLabel(
+  attributes: Record<string, unknown> | undefined,
+  price: number | null,
+): string {
   if (typeof price === "number" && !isPriceOnRequest(attributes, price)) {
     return `${price.toLocaleString("ru-RU")} ₽`;
   }
@@ -160,8 +182,8 @@ export async function generateMetadata({
   }
 
   const baseDescription =
-    product.description?.trim()
-    || `${product.name}. Артикул: ${product.sku}${product.brand ? `, бренд: ${product.brand}` : ""}.`;
+    product.description?.trim() ||
+    `${product.name}. Артикул: ${product.sku}${product.brand ? `, бренд: ${product.brand}` : ""}.`;
   const mainImageUrl = getMainImageUrl(product);
   const canonicalPath = `/parts/p/${encodeURIComponent(product.sku)}`;
 
@@ -211,7 +233,9 @@ export default async function ProductBySkuPage({
   const categoryParam = Number.parseInt(queryParams.category || "", 10);
   const categoryNameParam = (queryParams.category_name || "").trim();
   const pageParam = Number.parseInt(queryParams.page || "", 10);
-  const normalizedCategoryName = categoryNameParam.replace(/\s+/g, " ").slice(0, 120);
+  const normalizedCategoryName = categoryNameParam
+    .replace(/\s+/g, " ")
+    .slice(0, 120);
   const catalogRootParams = new URLSearchParams();
   if (directionParam === "parts" || directionParam === "oils") {
     catalogRootParams.set("direction", directionParam);
@@ -242,9 +266,12 @@ export default async function ProductBySkuPage({
       <main className="min-h-dvh bg-[#F3F5F8] text-neutral-900">
         <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 text-center shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
-            <h1 className="text-xl font-semibold text-[#1F3B73]">Товар временно недоступен</h1>
+            <h1 className="text-xl font-semibold text-[#1F3B73]">
+              Товар временно недоступен
+            </h1>
             <p className="mt-2 text-sm text-neutral-600">
-              Не удалось загрузить карточку товара. Повторите попытку чуть позже.
+              Не удалось загрузить карточку товара. Повторите попытку чуть
+              позже.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link
@@ -270,16 +297,28 @@ export default async function ProductBySkuPage({
   const mainImageUrl = getMainImageUrl(currentProduct);
   const oldPrice = getNumericAttribute(currentProduct.attributes, "old_price");
   const discountLabel =
-    getStringAttribute(currentProduct.attributes, "discount_label")
-    || getStringAttribute(currentProduct.attributes, "sale_badge");
-  const analogs = getStringListAttribute(currentProduct.attributes, ["analogs", "crosses", "cross_codes"]);
+    getStringAttribute(currentProduct.attributes, "discount_label") ||
+    getStringAttribute(currentProduct.attributes, "sale_badge");
+  const analogs = getStringListAttribute(currentProduct.attributes, [
+    "analogs",
+    "crosses",
+    "cross_codes",
+  ]);
   const compatibilities = currentProduct.compatibilities ?? [];
-  const requestMode = isPriceOnRequest(currentProduct.attributes, currentProduct.price);
+  const requestMode = isPriceOnRequest(
+    currentProduct.attributes,
+    currentProduct.price,
+  );
   const effectivePrice = requestMode ? null : currentProduct.price;
   const resolvedCategoryId =
-    Number.isInteger(categoryParam) && categoryParam > 0 ? categoryParam : currentProduct.category_id;
+    Number.isInteger(categoryParam) && categoryParam > 0
+      ? categoryParam
+      : currentProduct.category_id;
   const resolvedCategoryName =
-    normalizedCategoryName || (resolvedCategoryId > 0 ? await getCategoryNameById(resolvedCategoryId) : null);
+    normalizedCategoryName ||
+    (resolvedCategoryId > 0
+      ? await getCategoryNameById(resolvedCategoryId)
+      : null);
   const productBackToCatalogParams = new URLSearchParams();
   if (directionParam === "parts" || directionParam === "oils") {
     productBackToCatalogParams.set("direction", directionParam);
@@ -314,13 +353,19 @@ export default async function ProductBySkuPage({
               Главная
             </Link>
             <span>/</span>
-            <Link href={catalogRootHref} className="transition-colors hover:text-[#1F3B73]">
+            <Link
+              href={catalogRootHref}
+              className="transition-colors hover:text-[#1F3B73]"
+            >
               Каталог
             </Link>
             {resolvedCategoryName ? (
               <>
                 <span>/</span>
-                <Link href={productBackToCatalogHref} className="transition-colors hover:text-[#1F3B73]">
+                <Link
+                  href={productBackToCatalogHref}
+                  className="transition-colors hover:text-[#1F3B73]"
+                >
                   {resolvedCategoryName}
                 </Link>
               </>
@@ -341,23 +386,17 @@ export default async function ProductBySkuPage({
             <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_20px_55px_rgba(15,23,42,0.06)] lg:p-8">
               <div className="grid gap-6 xl:grid-cols-[minmax(21rem,26rem)_minmax(0,1fr)]">
                 <div className="overflow-hidden rounded-[1.75rem] border border-neutral-200 bg-neutral-100">
-                  {mainImageUrl ? (
-                    <Image
-                      src={mainImageUrl}
-                      alt={currentProduct.name}
-                      className="h-full min-h-[20rem] w-full object-cover"
-                      width={720}
-                      height={720}
-                    />
-                  ) : (
-                    <div className="min-h-[20rem]">
-                      <ProductImageFallback
-                        sku={currentProduct.sku}
-                        name={currentProduct.name}
-                        brand={currentProduct.brand}
-                      />
-                    </div>
-                  )}
+                  <SmartProductImage
+                    src={mainImageUrl}
+                    alt={currentProduct.name}
+                    sku={currentProduct.sku}
+                    name={currentProduct.name}
+                    brand={currentProduct.brand}
+                    width={720}
+                    height={720}
+                    imageClassName="h-full min-h-[20rem] w-full object-cover"
+                    fallbackWrapperClassName="min-h-[20rem]"
+                  />
                 </div>
 
                 <div className="min-w-0">
@@ -376,35 +415,48 @@ export default async function ProductBySkuPage({
                   <dl className="mt-6 grid grid-cols-1 gap-3 text-sm text-neutral-700 sm:grid-cols-2">
                     <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <dt className="text-neutral-500">Артикул</dt>
-                      <dd className="mt-1 break-all font-semibold text-neutral-900">{currentProduct.sku}</dd>
+                      <dd className="mt-1 break-all font-semibold text-neutral-900">
+                        {currentProduct.sku}
+                      </dd>
                     </div>
                     <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <dt className="text-neutral-500">OEM</dt>
-                      <dd className="mt-1 break-all font-semibold text-neutral-900">{currentProduct.oem || "—"}</dd>
+                      <dd className="mt-1 break-all font-semibold text-neutral-900">
+                        {currentProduct.oem || "—"}
+                      </dd>
                     </div>
                     <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <dt className="text-neutral-500">Бренд</dt>
-                      <dd className="mt-1 font-semibold text-neutral-900">{currentProduct.brand || "—"}</dd>
+                      <dd className="mt-1 font-semibold text-neutral-900">
+                        {currentProduct.brand || "—"}
+                      </dd>
                     </div>
                     <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <dt className="text-neutral-500">Наличие</dt>
-                      <dd className={`mt-1 font-semibold ${currentProduct.stock_quantity > 0 ? "text-emerald-700" : "text-amber-700"}`}>
-                        {currentProduct.stock_quantity > 0 ? "в наличии" : "под заказ"}
+                      <dd
+                        className={`mt-1 font-semibold ${currentProduct.stock_quantity > 0 ? "text-emerald-700" : "text-amber-700"}`}
+                      >
+                        {currentProduct.stock_quantity > 0
+                          ? "в наличии"
+                          : "под заказ"}
                       </dd>
                     </div>
                   </dl>
 
                   <div className="mt-6 rounded-[1.75rem] border border-neutral-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-5">
-                    {typeof oldPrice === "number"
-                    && typeof currentProduct.price === "number"
-                    && !requestMode
-                    && oldPrice > currentProduct.price ? (
+                    {typeof oldPrice === "number" &&
+                    typeof currentProduct.price === "number" &&
+                    !requestMode &&
+                    oldPrice > currentProduct.price ? (
                       <div className="text-sm text-neutral-400 line-through">
                         {oldPrice.toLocaleString("ru-RU")} ₽
                       </div>
                     ) : null}
                     <div className="text-4xl font-black tracking-tight text-[#1F3B73]">
-                      {formatPriceLabel(currentProduct.attributes, currentProduct.price)}
+                      {formatPriceLabel(
+                        currentProduct.attributes,
+                        currentProduct.price,
+                      )}
                     </div>
                     <p className="mt-2 text-sm leading-6 text-neutral-600">
                       {requestMode
@@ -418,7 +470,9 @@ export default async function ProductBySkuPage({
 
             <aside className="space-y-4">
               <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-6 text-white shadow-[0_28px_70px_rgba(31,59,115,0.18)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FFB166]">быстрые действия</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FFB166]">
+                  быстрые действия
+                </div>
                 <div className="mt-4 space-y-3">
                   <AddToCartButton
                     productId={currentProduct.id}
@@ -457,7 +511,9 @@ export default async function ProductBySkuPage({
               </div>
 
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">дополнительно</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+                  дополнительно
+                </div>
                 <div className="mt-4 flex flex-col gap-3">
                   <FavoriteToggleButton
                     productId={currentProduct.id}
@@ -488,28 +544,46 @@ export default async function ProductBySkuPage({
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">описание</div>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">О товаре</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+              описание
+            </div>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">
+              О товаре
+            </h2>
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              {currentProduct.description || "Описание пока не заполнено. Для уточнения характеристик и совместимости свяжитесь с менеджером."}
+              {currentProduct.description ||
+                "Описание пока не заполнено. Для уточнения характеристик и совместимости свяжитесь с менеджером."}
             </p>
           </div>
 
           <div className="space-y-6">
             {compatibilities.length > 0 ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">совместимость</div>
-                <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Подходящие автомобили</h2>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+                  совместимость
+                </div>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">
+                  Подходящие автомобили
+                </h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {compatibilities.map((compatibility, index) => (
-                    <div key={`${compatibility.make}-${compatibility.model}-${index}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                    <div
+                      key={`${compatibility.make}-${compatibility.model}-${index}`}
+                      className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"
+                    >
                       <div className="font-semibold text-neutral-900">
                         {compatibility.make} {compatibility.model}
                       </div>
                       <div className="mt-1 text-sm text-neutral-600">
-                        {compatibility.year_from ? `с ${compatibility.year_from}` : ""}
-                        {compatibility.year_to ? ` по ${compatibility.year_to}` : ""}
-                        {compatibility.engine ? ` · ${compatibility.engine}` : ""}
+                        {compatibility.year_from
+                          ? `с ${compatibility.year_from}`
+                          : ""}
+                        {compatibility.year_to
+                          ? ` по ${compatibility.year_to}`
+                          : ""}
+                        {compatibility.engine
+                          ? ` · ${compatibility.engine}`
+                          : ""}
                       </div>
                     </div>
                   ))}
@@ -519,11 +593,18 @@ export default async function ProductBySkuPage({
 
             {analogs.length > 0 ? (
               <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">аналоги</div>
-                <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">Аналоги и кроссы</h2>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+                  аналоги
+                </div>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#10264B]">
+                  Аналоги и кроссы
+                </h2>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {analogs.map((analog) => (
-                    <span key={analog} className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-700">
+                    <span
+                      key={analog}
+                      className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-700"
+                    >
                       {analog}
                     </span>
                   ))}

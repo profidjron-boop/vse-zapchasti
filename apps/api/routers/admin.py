@@ -6,15 +6,25 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+from types import SimpleNamespace
 from typing import Any, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import uuid
 import zipfile
 
 import bcrypt
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import httpx
@@ -25,7 +35,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
-from notifications import notify_event
+from notifications import (
+    get_notification_channels_health,
+    notify_event,
+    process_notification_queue,
+)
 from models import (
     AuditLog,
     Category,
@@ -117,9 +131,11 @@ def verify_password(plain_password, hashed_password):
     hash_bytes = hashed_password.encode("utf-8")
     return bcrypt.checkpw(plain_bytes, hash_bytes)
 
+
 def get_password_hash(password):
     password_bytes = password.encode("utf-8")
     return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("utf-8")
+
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
@@ -146,13 +162,21 @@ def _decode_access_token(token: str) -> dict[str, Any] | None:
 def _validate_csrf(request: Request) -> None:
     csrf_cookie = (request.cookies.get(ADMIN_CSRF_COOKIE_NAME) or "").strip()
     csrf_header = (request.headers.get("x-csrf-token") or "").strip()
-    if not csrf_cookie or not csrf_header or not secrets.compare_digest(csrf_cookie, csrf_header):
+    if (
+        not csrf_cookie
+        or not csrf_header
+        or not secrets.compare_digest(csrf_cookie, csrf_header)
+    ):
         raise HTTPException(status_code=403, detail="CSRF token is missing or invalid")
 
 
-def _collect_token_candidates(request: Request, bearer_token: str) -> list[tuple[str, str]]:
+def _collect_token_candidates(
+    request: Request, bearer_token: str
+) -> list[tuple[str, str]]:
     cookie_token = (request.cookies.get(ADMIN_SESSION_COOKIE_NAME) or "").strip()
-    legacy_cookie_token = (request.cookies.get(LEGACY_ADMIN_TOKEN_COOKIE_NAME) or "").strip()
+    legacy_cookie_token = (
+        request.cookies.get(LEGACY_ADMIN_TOKEN_COOKIE_NAME) or ""
+    ).strip()
 
     token_candidates: list[tuple[str, str]] = []
     if cookie_token:
@@ -164,7 +188,9 @@ def _collect_token_candidates(request: Request, bearer_token: str) -> list[tuple
     return token_candidates
 
 
-def _resolve_auth_payload(token_candidates: list[tuple[str, str]]) -> tuple[dict[str, Any] | None, str]:
+def _resolve_auth_payload(
+    token_candidates: list[tuple[str, str]],
+) -> tuple[dict[str, Any] | None, str]:
     for candidate_source, candidate_token in token_candidates:
         payload = _decode_access_token(candidate_token)
         if payload is not None:
@@ -209,10 +235,12 @@ async def get_current_user(
     request.state.auth_source = auth_source
     return user
 
+
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
 
 def require_roles(*allowed_roles: str):
     allowed = set(allowed_roles)
@@ -220,7 +248,10 @@ def require_roles(*allowed_roles: str):
     async def _require(current_user: User = Depends(get_current_active_user)):
         if current_user.role not in allowed:
             allowed_str = ", ".join(sorted(allowed))
-            raise HTTPException(status_code=403, detail=f"Not enough permissions. Required roles: {allowed_str}")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Not enough permissions. Required roles: {allowed_str}",
+            )
         return current_user
 
     return _require
@@ -243,13 +274,60 @@ if not UPLOAD_DIR.is_absolute():
     UPLOAD_DIR = (REPO_ROOT / UPLOAD_DIR).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PRODUCT_IMPORT_ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
-PRODUCT_IMPORT_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_MAX_BYTES", 8 * 1024 * 1024)
-PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES = _env_positive_int("ADMIN_PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES", 2 * 1024 * 1024)
+PRODUCT_IMPORT_MAX_BYTES = _env_positive_int(
+    "ADMIN_PRODUCT_IMPORT_MAX_BYTES", 8 * 1024 * 1024
+)
+PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES = _env_positive_int(
+    "ADMIN_PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES", 2 * 1024 * 1024
+)
 IMPORT_TRIGGER_MODES = {"manual", "hourly", "daily", "event"}
 PRODUCT_STOCK_FILTERS = {"all", "in_stock", "out_of_stock"}
 IMPORT_SOURCE_ALLOWED_SCHEMES = {"https", "http"}
-IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS = _env_positive_int("IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS", 5)
-IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS = _env_positive_int("IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS", 30)
+FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY = "feature_erp_source_import_enabled"
+FEATURE_ERP_ONLINE_SYNC_ENABLED_KEY = "feature_erp_online_sync_enabled"
+FEATURE_ERP_SYNC_DELTA_ENABLED_KEY = "feature_erp_sync_delta_enabled"
+FEATURE_ERP_SYNC_RETRY_ENABLED_KEY = "feature_erp_sync_retry_enabled"
+FEATURE_NOTIFICATIONS_ENABLED_KEY = "feature_notifications_enabled"
+FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY = "feature_notifications_email_enabled"
+FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY = "feature_notifications_sms_enabled"
+FEATURE_NOTIFICATIONS_MESSENGER_ENABLED_KEY = "feature_notifications_messenger_enabled"
+FEATURE_NOTIFICATIONS_QUEUE_ENABLED_KEY = "feature_notifications_queue_enabled"
+FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY = "feature_service_prepayment_enabled"
+FEATURE_SERVICE_PAYMENT_FLOW_ENABLED_KEY = "feature_service_payment_flow_enabled"
+FEATURE_SERVICE_PAYMENT_BLOCK_UNPAID_ENABLED_KEY = (
+    "feature_service_payment_block_unpaid_enabled"
+)
+INTEGRATION_NOTIFICATIONS_RETRY_MAX_ATTEMPTS_KEY = (
+    "integration_notifications_retry_max_attempts"
+)
+INTEGRATION_NOTIFICATIONS_RETRY_DELAY_SECONDS_KEY = (
+    "integration_notifications_retry_delay_seconds"
+)
+INTEGRATION_PAYMENTS_PROVIDER_NAME_KEY = "integration_payments_provider_name"
+INTEGRATION_PAYMENTS_DEFAULT_CURRENCY_KEY = "integration_payments_default_currency"
+INTEGRATION_ERP_SOURCE_URL_KEY = "integration_erp_source_url"
+INTEGRATION_ERP_ALLOWED_HOSTS_KEY = "integration_erp_source_allowed_hosts"
+INTEGRATION_ERP_SYNC_SCHEDULE_MINUTES_KEY = "integration_erp_sync_schedule_minutes"
+INTEGRATION_ERP_SYNC_RETRY_MAX_ATTEMPTS_KEY = (
+    "integration_erp_sync_retry_max_attempts"
+)
+INTEGRATION_ERP_SYNC_RETRY_DELAY_SECONDS_KEY = (
+    "integration_erp_sync_retry_delay_seconds"
+)
+INTEGRATION_ERP_SYNC_LAST_STATUS_KEY = "integration_erp_sync_last_status"
+INTEGRATION_ERP_SYNC_LAST_RUN_ID_KEY = "integration_erp_sync_last_run_id"
+INTEGRATION_ERP_SYNC_LAST_RUN_AT_KEY = "integration_erp_sync_last_run_at"
+INTEGRATION_ERP_SYNC_LAST_SUCCESS_AT_KEY = "integration_erp_sync_last_success_at"
+INTEGRATION_ERP_SYNC_LAST_ERROR_KEY = "integration_erp_sync_last_error"
+INTEGRATION_ERP_SYNC_RETRY_ATTEMPT_KEY = "integration_erp_sync_retry_attempt"
+INTEGRATION_ERP_SYNC_NEXT_RETRY_AT_KEY = "integration_erp_sync_next_retry_at"
+IMPORT_PRODUCTS_UPDATE_MODE_KEY = "import_products_update_mode"
+IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS = _env_positive_int(
+    "IMPORT_SOURCE_CONNECT_TIMEOUT_SECONDS", 5
+)
+IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS = _env_positive_int(
+    "IMPORT_SOURCE_HTTP_TIMEOUT_SECONDS", 30
+)
 FALLBACK_CATEGORY_NAME = "Прочие запчасти"
 INFERRED_CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
     (
@@ -379,7 +457,15 @@ INFERRED_CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
         ),
     ),
 ]
-LEAD_STATUSES = ["new", "in_progress", "contacted", "offer_sent", "won", "lost", "cancelled"]
+LEAD_STATUSES = [
+    "new",
+    "in_progress",
+    "contacted",
+    "offer_sent",
+    "won",
+    "lost",
+    "cancelled",
+]
 LEAD_VALID_TRANSITIONS = {
     "new": {"in_progress", "contacted", "lost", "cancelled"},
     "in_progress": {"contacted", "offer_sent", "lost", "cancelled"},
@@ -448,7 +534,9 @@ def _canonicalize_import_row(row: dict[str, Any]) -> dict[str, str]:
         if key is None:
             continue
         normalized_key = _normalize_header(str(key))
-        canonical_key = PRODUCT_IMPORT_COLUMN_ALIASES.get(normalized_key, normalized_key)
+        canonical_key = PRODUCT_IMPORT_COLUMN_ALIASES.get(
+            normalized_key, normalized_key
+        )
         normalized_value = str(value or "").strip()
         existing_value = normalized.get(canonical_key, "")
         # Keep the first non-empty value when several source columns map to one canonical field.
@@ -466,7 +554,9 @@ def _normalize_import_trigger_mode(value: Any) -> str:
     normalized = raw_value.strip().lower()
     if normalized not in IMPORT_TRIGGER_MODES:
         allowed = ", ".join(sorted(IMPORT_TRIGGER_MODES))
-        raise HTTPException(status_code=400, detail=f"trigger_mode must be one of: {allowed}")
+        raise HTTPException(
+            status_code=400, detail=f"trigger_mode must be one of: {allowed}"
+        )
     return normalized
 
 
@@ -483,6 +573,311 @@ def _csv_env(name: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _csv_raw(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_content_flag(value: Optional[str], *, default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_content_positive_int(
+    value: Optional[str],
+    *,
+    default: int,
+    minimum: int = 1,
+    maximum: int = 365 * 24 * 60,
+) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    if parsed < minimum:
+        return minimum
+    if parsed > maximum:
+        return maximum
+    return parsed
+
+
+def _parse_content_optional_int(value: Optional[str]) -> Optional[int]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    try:
+        return int(normalized)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_content_datetime(value: Optional[str]) -> Optional[datetime]:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    try:
+        normalized = normalized.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(UTC).replace(tzinfo=None)
+    return parsed
+
+
+def _serialize_content_datetime(value: Optional[datetime]) -> str:
+    if value is None:
+        return ""
+    return value.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
+
+
+def _sanitize_sync_context(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9_-]+", "-", value.strip().lower()).strip("-")
+    return normalized or "source"
+
+
+def _tag_source_import_filename(file_name: str, run_context: str) -> str:
+    return f"source__{_sanitize_sync_context(run_context)}__{file_name}"
+
+
+def _normalize_sync_update_mode(value: Optional[str]) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {"hourly", "daily"}:
+        return normalized
+    return "hourly"
+
+
+def _resolve_sync_schedule_minutes(update_mode: str, raw_override: Optional[str]) -> int:
+    default_minutes = 24 * 60 if update_mode == "daily" else 60
+    return _parse_content_positive_int(
+        raw_override,
+        default=default_minutes,
+        minimum=1,
+        maximum=24 * 60 * 7,
+    )
+
+
+async def _upsert_site_content_values(
+    db: AsyncSession,
+    payload_by_key: dict[str, str],
+    *,
+    description_by_key: Optional[dict[str, str]] = None,
+) -> None:
+    if not payload_by_key:
+        return
+
+    keys = list(payload_by_key.keys())
+    existing_result = await db.execute(select(SiteContent).where(SiteContent.key.in_(keys)))
+    existing_by_key = {row.key: row for row in existing_result.scalars().all()}
+
+    for key, raw_value in payload_by_key.items():
+        value = raw_value if raw_value is not None else ""
+        existing = existing_by_key.get(key)
+        description = (description_by_key or {}).get(key)
+        if existing is None:
+            db.add(
+                SiteContent(
+                    key=key,
+                    value=value,
+                    type="text",
+                    description=description,
+                )
+            )
+            continue
+        existing.value = value
+        existing.type = "text"
+        if description:
+            existing.description = description
+
+
+async def _load_latest_source_import_run(
+    db: AsyncSession, *, status: Optional[str] = None
+) -> Optional[ImportRun]:
+    query = (
+        select(ImportRun)
+        .where(
+            ImportRun.entity_type == "products",
+            ImportRun.source.is_not(None),
+            ImportRun.source.like("%:source__%"),
+        )
+        .order_by(ImportRun.started_at.desc(), ImportRun.id.desc())
+        .limit(1)
+    )
+    if status:
+        query = query.where(ImportRun.status == status)
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
+def _build_source_sync_url_with_delta(
+    source_url: str, *, delta_since: Optional[datetime]
+) -> str:
+    if delta_since is None:
+        return source_url
+
+    parsed = urlparse(source_url)
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    delta_param = (os.getenv("IMPORT_SOURCE_DELTA_PARAM") or "updated_since").strip()
+    mode_param = (os.getenv("IMPORT_SOURCE_DELTA_MODE_PARAM") or "delta").strip()
+    if not delta_param:
+        delta_param = "updated_since"
+    if not mode_param:
+        mode_param = "delta"
+
+    if delta_param not in params:
+        params[delta_param] = _serialize_content_datetime(delta_since)
+    if mode_param not in params:
+        params[mode_param] = "1"
+
+    return urlunparse(parsed._replace(query=urlencode(params)))
+
+
+async def _get_site_content_values(
+    db: AsyncSession, keys: list[str]
+) -> dict[str, Optional[str]]:
+    if not keys:
+        return {}
+
+    result = await db.execute(
+        select(SiteContent.key, SiteContent.value).where(SiteContent.key.in_(keys))
+    )
+    values = {key: value for key, value in result.all()}
+    return {key: values.get(key) for key in keys}
+
+
+async def _get_notification_flags(db: AsyncSession) -> dict[str, Any]:
+    settings = await _get_site_content_values(
+        db,
+        [
+            FEATURE_NOTIFICATIONS_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_MESSENGER_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_QUEUE_ENABLED_KEY,
+            INTEGRATION_NOTIFICATIONS_RETRY_MAX_ATTEMPTS_KEY,
+            INTEGRATION_NOTIFICATIONS_RETRY_DELAY_SECONDS_KEY,
+        ],
+    )
+    global_enabled = _parse_content_flag(
+        settings.get(FEATURE_NOTIFICATIONS_ENABLED_KEY), default=True
+    )
+    if not global_enabled:
+        return {
+            "enabled": False,
+            "email": False,
+            "sms": False,
+            "messenger": False,
+            "queue_enabled": False,
+            "retry_max_attempts": 5,
+            "retry_delay_seconds": 300,
+        }
+
+    return {
+        "enabled": True,
+        "email": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY), default=True
+        ),
+        "sms": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY), default=True
+        ),
+        "messenger": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_MESSENGER_ENABLED_KEY), default=True
+        ),
+        "queue_enabled": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_QUEUE_ENABLED_KEY), default=False
+        ),
+        "retry_max_attempts": _parse_content_positive_int(
+            settings.get(INTEGRATION_NOTIFICATIONS_RETRY_MAX_ATTEMPTS_KEY),
+            default=5,
+            minimum=1,
+            maximum=20,
+        ),
+        "retry_delay_seconds": _parse_content_positive_int(
+            settings.get(INTEGRATION_NOTIFICATIONS_RETRY_DELAY_SECONDS_KEY),
+            default=300,
+            minimum=10,
+            maximum=86400,
+        ),
+    }
+
+
+def _normalize_payment_currency(value: Optional[str], *, default: str = "RUB") -> str:
+    normalized = (value or "").strip().upper()
+    if not normalized:
+        return default
+    return normalized[:10]
+
+
+async def _get_service_payment_flags(db: AsyncSession) -> dict[str, Any]:
+    settings = await _get_site_content_values(
+        db,
+        [
+            FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY,
+            FEATURE_SERVICE_PAYMENT_FLOW_ENABLED_KEY,
+            FEATURE_SERVICE_PAYMENT_BLOCK_UNPAID_ENABLED_KEY,
+            INTEGRATION_PAYMENTS_PROVIDER_NAME_KEY,
+            INTEGRATION_PAYMENTS_DEFAULT_CURRENCY_KEY,
+        ],
+    )
+    return {
+        "prepayment_enabled": _parse_content_flag(
+            settings.get(FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY),
+            default=False,
+        ),
+        "payment_flow_enabled": _parse_content_flag(
+            settings.get(FEATURE_SERVICE_PAYMENT_FLOW_ENABLED_KEY),
+            default=False,
+        ),
+        "payment_block_unpaid_enabled": _parse_content_flag(
+            settings.get(FEATURE_SERVICE_PAYMENT_BLOCK_UNPAID_ENABLED_KEY),
+            default=False,
+        ),
+        "provider_name": (settings.get(INTEGRATION_PAYMENTS_PROVIDER_NAME_KEY) or "").strip(),
+        "default_currency": _normalize_payment_currency(
+            settings.get(INTEGRATION_PAYMENTS_DEFAULT_CURRENCY_KEY),
+            default="RUB",
+        ),
+    }
+
+
+def _notify_with_flags(
+    event: str, payload: dict[str, Any], notification_flags: dict[str, Any]
+) -> None:
+    if not notification_flags.get("enabled", True):
+        return
+    try:
+        notify_event(
+            event,
+            payload,
+            enable_email=notification_flags.get("email", True),
+            enable_sms=notification_flags.get("sms", True),
+            enable_messenger=notification_flags.get("messenger", True),
+            queue_enabled=notification_flags.get("queue_enabled", False),
+            retry_max_attempts=_parse_content_positive_int(
+                str(notification_flags.get("retry_max_attempts", 5)),
+                default=5,
+                minimum=1,
+                maximum=20,
+            ),
+            retry_delay_seconds=_parse_content_positive_int(
+                str(notification_flags.get("retry_delay_seconds", 300)),
+                default=300,
+                minimum=10,
+                maximum=86400,
+            ),
+        )
+    except TypeError:
+        # Backward-compatible path for tests/patches that still use
+        # notify_event(event, payload) without channel kwargs.
+        notify_event(event, payload)
+
+
 def _is_allowed_source_host(host: str, allowed_hosts: set[str]) -> bool:
     normalized_host = host.lower()
     for allowed in allowed_hosts:
@@ -493,7 +888,10 @@ def _is_allowed_source_host(host: str, allowed_hosts: set[str]) -> bool:
 
 def _build_import_source_filename(source_url: str) -> str:
     path_name = Path(urlparse(source_url).path).name.strip()
-    if path_name and Path(path_name).suffix.lower() in PRODUCT_IMPORT_ALLOWED_EXTENSIONS:
+    if (
+        path_name
+        and Path(path_name).suffix.lower() in PRODUCT_IMPORT_ALLOWED_EXTENSIONS
+    ):
         return path_name
 
     lower_url = source_url.lower()
@@ -504,6 +902,7 @@ def _build_import_source_filename(source_url: str) -> str:
 async def _download_import_source_payload(
     *,
     source_url: str,
+    source_allowed_hosts_raw: str = "",
     source_auth_header: str,
     source_username: str,
     source_password: str,
@@ -513,13 +912,24 @@ async def _download_import_source_payload(
     host = (parsed.hostname or "").strip().lower()
 
     if scheme not in IMPORT_SOURCE_ALLOWED_SCHEMES:
-        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL must use http/https scheme.")
+        raise HTTPException(
+            status_code=400, detail="IMPORT_SOURCE_URL must use http/https scheme."
+        )
     if not host:
-        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL must include a host.")
+        raise HTTPException(
+            status_code=400, detail="IMPORT_SOURCE_URL must include a host."
+        )
 
-    allowed_hosts = {item.lower() for item in _csv_env("IMPORT_SOURCE_ALLOWED_HOSTS")}
+    effective_allowed_hosts_raw = source_allowed_hosts_raw.strip()
+    if not effective_allowed_hosts_raw:
+        effective_allowed_hosts_raw = os.getenv("IMPORT_SOURCE_ALLOWED_HOSTS", "")
+    allowed_hosts = {
+        item.lower() for item in _csv_raw(effective_allowed_hosts_raw)
+    }
     if allowed_hosts and not _is_allowed_source_host(host, allowed_hosts):
-        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL host is not allowlisted.")
+        raise HTTPException(
+            status_code=400, detail="IMPORT_SOURCE_URL host is not allowlisted."
+        )
 
     auth: tuple[str, str] | None = None
     if source_username or source_password:
@@ -538,7 +948,9 @@ async def _download_import_source_payload(
             response = await client.get(source_url, headers=headers, auth=auth)
             response.raise_for_status()
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail="Failed to fetch import source payload.") from exc
+        raise HTTPException(
+            status_code=502, detail="Failed to fetch import source payload."
+        ) from exc
 
     content = response.content
     if not content:
@@ -584,13 +996,17 @@ def _split_compatibility_segments(raw: str) -> list[str]:
 
 
 def _extract_year_range(segment: str) -> tuple[str, Optional[int], Optional[int]]:
-    year_match = re.search(r"(19\d{2}|20\d{2})(?:\s*[-–/]\s*(19\d{2}|20\d{2}))?", segment)
+    year_match = re.search(
+        r"(19\d{2}|20\d{2})(?:\s*[-–/]\s*(19\d{2}|20\d{2}))?", segment
+    )
     if not year_match:
         return segment, None, None
 
     year_from = int(year_match.group(1))
     year_to = int(year_match.group(2)) if year_match.group(2) else year_from
-    cleaned = f"{segment[:year_match.start()]} {segment[year_match.end():]}".strip(" ,;")
+    cleaned = f"{segment[:year_match.start()]} {segment[year_match.end():]}".strip(
+        " ,;"
+    )
     return cleaned, year_from, year_to
 
 
@@ -643,7 +1059,9 @@ def _parse_compatibility_segment(segment: str) -> Optional[dict[str, Any]]:
     }
 
 
-def _compatibility_dedupe_key(compatibility: dict[str, Any]) -> tuple[str, str, Optional[int], Optional[int], Optional[str]]:
+def _compatibility_dedupe_key(
+    compatibility: dict[str, Any],
+) -> tuple[str, str, Optional[int], Optional[int], Optional[str]]:
     engine = compatibility.get("engine")
     return (
         str(compatibility.get("make", "")).lower(),
@@ -654,7 +1072,9 @@ def _compatibility_dedupe_key(compatibility: dict[str, Any]) -> tuple[str, str, 
     )
 
 
-def _parse_import_compatibilities(value: str) -> tuple[list[dict[str, Any]], Optional[str]]:
+def _parse_import_compatibilities(
+    value: str,
+) -> tuple[list[dict[str, Any]], Optional[str]]:
     raw = value.strip()
     if not raw:
         return [], None
@@ -717,7 +1137,9 @@ def _decode_csv_content(content: bytes) -> str:
             return content.decode(encoding)
         except UnicodeDecodeError:
             continue
-    raise HTTPException(status_code=400, detail="Cannot decode CSV file. Use UTF-8 or CP1251.")
+    raise HTTPException(
+        status_code=400, detail="Cannot decode CSV file. Use UTF-8 or CP1251."
+    )
 
 
 def _extract_csv_rows(content: bytes) -> list[dict[str, str]]:
@@ -738,13 +1160,20 @@ def _extract_csv_rows(content: bytes) -> list[dict[str, str]]:
 def _read_zip_entry_limited(archive: zipfile.ZipFile, entry_name: str) -> bytes:
     info = archive.getinfo(entry_name)
     if info.file_size > PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES:
-        raise HTTPException(status_code=400, detail=f"XLSX entry '{entry_name}' is too large.")
+        raise HTTPException(
+            status_code=400, detail=f"XLSX entry '{entry_name}' is too large."
+        )
     if info.compress_size > 0 and info.file_size / info.compress_size > 200:
-        raise HTTPException(status_code=400, detail=f"XLSX entry '{entry_name}' has unsafe compression ratio.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"XLSX entry '{entry_name}' has unsafe compression ratio.",
+        )
 
     content = archive.read(entry_name)
     if len(content) > PRODUCT_IMPORT_XML_ENTRY_MAX_BYTES:
-        raise HTTPException(status_code=400, detail=f"XLSX entry '{entry_name}' is too large.")
+        raise HTTPException(
+            status_code=400, detail=f"XLSX entry '{entry_name}' is too large."
+        )
     return content
 
 
@@ -807,7 +1236,9 @@ def _resolve_xlsx_worksheet_path(
     if first_sheet is None:
         return worksheet_path
 
-    rel_id = first_sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+    rel_id = first_sheet.attrib.get(
+        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    )
     if not rel_id:
         return worksheet_path
 
@@ -822,11 +1253,15 @@ def _resolve_xlsx_worksheet_path(
 
     worksheet_path = f"xl/{rel_target_path}"
     if not worksheet_path.startswith("xl/worksheets/"):
-        raise HTTPException(status_code=400, detail="Unsupported XLSX worksheet target.")
+        raise HTTPException(
+            status_code=400, detail="Unsupported XLSX worksheet target."
+        )
     return worksheet_path
 
 
-def _extract_xlsx_shared_string_cell(cell: Any, namespace: dict[str, str], shared_strings: list[str]) -> str:
+def _extract_xlsx_shared_string_cell(
+    cell: Any, namespace: dict[str, str], shared_strings: list[str]
+) -> str:
     raw = cell.find("x:v", namespace)
     if raw is None or not raw.text or not raw.text.isdigit():
         return ""
@@ -847,7 +1282,9 @@ def _extract_xlsx_value_cell(cell: Any, namespace: dict[str, str]) -> str:
     return raw.text if raw is not None and raw.text else ""
 
 
-def _extract_xlsx_cell_value(cell: Any, namespace: dict[str, str], shared_strings: list[str]) -> str:
+def _extract_xlsx_cell_value(
+    cell: Any, namespace: dict[str, str], shared_strings: list[str]
+) -> str:
     cell_type = cell.attrib.get("t")
     if cell_type == "s":
         return _extract_xlsx_shared_string_cell(cell, namespace, shared_strings)
@@ -867,7 +1304,9 @@ def _extract_xlsx_row_values(
         column_index = _xlsx_column_to_index(cell_ref)
         if column_index < 0:
             continue
-        indexed_values[column_index] = _extract_xlsx_cell_value(cell, namespace, shared_strings)
+        indexed_values[column_index] = _extract_xlsx_cell_value(
+            cell, namespace, shared_strings
+        )
 
     if not indexed_values:
         return []
@@ -876,18 +1315,24 @@ def _extract_xlsx_row_values(
     return [indexed_values.get(index, "") for index in range(max_index + 1)]
 
 
-def _normalize_xlsx_data_row(header: list[str], row_values: list[str]) -> dict[str, str]:
+def _normalize_xlsx_data_row(
+    header: list[str], row_values: list[str]
+) -> dict[str, str]:
     normalized_row: dict[str, str] = {}
     for index, key in enumerate(header):
         if not key:
             continue
-        normalized_row[key] = row_values[index].strip() if index < len(row_values) else ""
+        normalized_row[key] = (
+            row_values[index].strip() if index < len(row_values) else ""
+        )
     return _canonicalize_import_row(normalized_row)
 
 
 def _extract_xlsx_rows(content: bytes) -> list[dict[str, str]]:
     namespace = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    rel_namespace = {"r": "http://schemas.openxmlformats.org/package/2006/relationships"}
+    rel_namespace = {
+        "r": "http://schemas.openxmlformats.org/package/2006/relationships"
+    }
 
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         shared_strings = _extract_xlsx_shared_strings(archive, namespace)
@@ -899,7 +1344,9 @@ def _extract_xlsx_rows(content: bytes) -> list[dict[str, str]]:
                 "Invalid XLSX worksheet XML.",
             )
         except KeyError as exc:
-            raise HTTPException(status_code=400, detail="XLSX worksheet not found.") from exc
+            raise HTTPException(
+                status_code=400, detail="XLSX worksheet not found."
+            ) from exc
 
     header: list[str] = []
     rows: list[dict[str, str]] = []
@@ -930,7 +1377,9 @@ def _parse_import_rows(filename: str, content: bytes) -> list[dict[str, str]]:
         )
 
     if extension not in PRODUCT_IMPORT_ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only CSV and XLSX files are supported.")
+        raise HTTPException(
+            status_code=400, detail="Only CSV and XLSX files are supported."
+        )
 
     if extension == ".csv":
         return _extract_csv_rows(content)
@@ -1037,7 +1486,9 @@ def _product_snapshot_image_sort_key(image: ProductImage) -> tuple[int, int]:
     return image.sort_order, image.id
 
 
-def _product_snapshot_compatibility_sort_key(compatibility: ProductCompatibility) -> tuple[str, str, int, int, int]:
+def _product_snapshot_compatibility_sort_key(
+    compatibility: ProductCompatibility,
+) -> tuple[str, str, int, int, int]:
     return (
         (compatibility.make or "").lower(),
         (compatibility.model or "").lower(),
@@ -1056,7 +1507,9 @@ def _serialize_product_snapshot_image(image: ProductImage) -> dict[str, Any]:
     }
 
 
-def _serialize_product_snapshot_compatibility(compatibility: ProductCompatibility) -> dict[str, Any]:
+def _serialize_product_snapshot_compatibility(
+    compatibility: ProductCompatibility,
+) -> dict[str, Any]:
     return {
         "id": compatibility.id,
         "make": compatibility.make,
@@ -1069,7 +1522,9 @@ def _serialize_product_snapshot_compatibility(compatibility: ProductCompatibilit
 
 def _serialize_product_snapshot_item(product: Product) -> dict[str, Any]:
     images = sorted(product.images or [], key=_product_snapshot_image_sort_key)
-    compatibilities = sorted(product.compatibilities or [], key=_product_snapshot_compatibility_sort_key)
+    compatibilities = sorted(
+        product.compatibilities or [], key=_product_snapshot_compatibility_sort_key
+    )
 
     return {
         "id": product.id,
@@ -1084,12 +1539,17 @@ def _serialize_product_snapshot_item(product: Product) -> dict[str, Any]:
         "is_active": product.is_active,
         "attributes": product.attributes or {},
         "images": [_serialize_product_snapshot_image(image) for image in images],
-        "compatibilities": [_serialize_product_snapshot_compatibility(compatibility) for compatibility in compatibilities],
+        "compatibilities": [
+            _serialize_product_snapshot_compatibility(compatibility)
+            for compatibility in compatibilities
+        ],
         "updated_at": product.updated_at.isoformat() if product.updated_at else None,
     }
 
 
-async def _sync_latest_products_snapshot(db: AsyncSession, product_id: int, *, remove: bool = False) -> None:
+async def _sync_latest_products_snapshot(
+    db: AsyncSession, product_id: int, *, remove: bool = False
+) -> None:
     run_result = await db.execute(
         select(ImportRun)
         .where(ImportRun.entity_type == "products", ImportRun.status == "finished")
@@ -1118,7 +1578,9 @@ async def _sync_latest_products_snapshot(db: AsyncSession, product_id: int, *, r
     await _save_import_run_snapshot_data(db, latest_run, snapshot_items)
 
 
-def _find_product_snapshot_index(snapshot_items: list[Any], product_id: int) -> Optional[int]:
+def _find_product_snapshot_index(
+    snapshot_items: list[Any], product_id: int
+) -> Optional[int]:
     return next(
         (
             index
@@ -1136,7 +1598,9 @@ def _remove_snapshot_item(snapshot_items: list[Any], index: Optional[int]) -> bo
     return True
 
 
-def _upsert_product_snapshot_item(snapshot_items: list[Any], index: Optional[int], product: Product) -> None:
+def _upsert_product_snapshot_item(
+    snapshot_items: list[Any], index: Optional[int], product: Product
+) -> None:
     snapshot_item = _serialize_product_snapshot_item(product)
     if index is None:
         snapshot_items.append(snapshot_item)
@@ -1144,7 +1608,9 @@ def _upsert_product_snapshot_item(snapshot_items: list[Any], index: Optional[int
         snapshot_items[index] = snapshot_item
 
 
-async def _load_product_for_snapshot(db: AsyncSession, product_id: int) -> Optional[Product]:
+async def _load_product_for_snapshot(
+    db: AsyncSession, product_id: int
+) -> Optional[Product]:
     product_result = await db.execute(
         select(Product)
         .options(selectinload(Product.images), selectinload(Product.compatibilities))
@@ -1153,12 +1619,16 @@ async def _load_product_for_snapshot(db: AsyncSession, product_id: int) -> Optio
     return product_result.scalar_one_or_none()
 
 
-async def _save_import_run_snapshot_data(db: AsyncSession, run: ImportRun, snapshot_items: list[Any]) -> None:
+async def _save_import_run_snapshot_data(
+    db: AsyncSession, run: ImportRun, snapshot_items: list[Any]
+) -> None:
     run.snapshot_data = snapshot_items
     await db.flush()
 
 
-def _serialize_import_run(run: ImportRun, users_by_id: dict[int, str]) -> dict[str, Any]:
+def _serialize_import_run(
+    run: ImportRun, users_by_id: dict[int, str]
+) -> dict[str, Any]:
     counts = _extract_import_counts(run)
     return {
         "id": run.id,
@@ -1218,24 +1688,29 @@ async def _load_users_map(db: AsyncSession, user_ids: set[int]) -> dict[int, str
     if not user_ids:
         return {}
 
-    users_result = await db.execute(select(User.id, User.email).where(User.id.in_(user_ids)))
+    users_result = await db.execute(
+        select(User.id, User.email).where(User.id.in_(user_ids))
+    )
     return {row[0]: row[1] for row in users_result.all()}
+
 
 # ---------- Authentication ----------
 @router.post("/auth/token", response_model=TokenResponse)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+):
     """Login and get access token"""
     query = select(User).where(User.email == form_data.username)
     result = await db.execute(query)
     user = result.scalar_one_or_none()
-    
+
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=401,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
@@ -1281,17 +1756,21 @@ async def logout():
     response.delete_cookie(LEGACY_ADMIN_TOKEN_COOKIE_NAME, path="/")
     return response
 
+
 @router.get("/auth/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     """Get current user info"""
     return current_user
+
 
 # ---------- Users ----------
 @router.get("/users", response_model=List[UserResponse])
 async def admin_get_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    search: Optional[str] = Query(None, min_length=2, description="Search by email or name"),
+    search: Optional[str] = Query(
+        None, min_length=2, description="Search by email or name"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
@@ -1322,7 +1801,9 @@ async def admin_create_user(
     email = str(payload.email).strip().lower()
     existing = await db.execute(select(User).where(User.email == email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="User with this email already exists")
+        raise HTTPException(
+            status_code=409, detail="User with this email already exists"
+        )
 
     db_user = User(
         email=email,
@@ -1361,7 +1842,9 @@ def _snapshot_user_state(user: User) -> dict[str, Any]:
     }
 
 
-def _validate_user_update_request(payload: UserUpdate, target_user: User, current_user: User) -> None:
+def _validate_user_update_request(
+    payload: UserUpdate, target_user: User, current_user: User
+) -> None:
     if (
         payload.name is None
         and payload.role is None
@@ -1371,10 +1854,18 @@ def _validate_user_update_request(payload: UserUpdate, target_user: User, curren
         raise HTTPException(status_code=400, detail="No fields to update")
 
     if payload.is_active is False and target_user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+        raise HTTPException(
+            status_code=400, detail="Cannot deactivate your own account"
+        )
 
-    if payload.role is not None and target_user.id == current_user.id and payload.role != "admin":
-        raise HTTPException(status_code=400, detail="Cannot change your own role from admin")
+    if (
+        payload.role is not None
+        and target_user.id == current_user.id
+        and payload.role != "admin"
+    ):
+        raise HTTPException(
+            status_code=400, detail="Cannot change your own role from admin"
+        )
 
 
 def _apply_user_updates(target_user: User, payload: UserUpdate) -> bool:
@@ -1428,6 +1919,7 @@ async def admin_update_user(
 
     return target_user
 
+
 # ---------- Products ----------
 @router.get("/products", response_model=List[ProductResponse])
 async def admin_get_products(
@@ -1437,7 +1929,7 @@ async def admin_get_products(
     search: str | None = Query(None),
     stock: str | None = Query(None, description="all|in_stock|out_of_stock"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Get all products (admin only)"""
     normalized_stock = _normalize_product_stock_filter(stock)
@@ -1475,11 +1967,12 @@ async def admin_get_products(
     result = await db.execute(query)
     return result.scalars().all()
 
+
 @router.get("/products/{product_id}", response_model=ProductResponse)
 async def admin_get_product(
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Get product by ID (admin)"""
     query = (
@@ -1489,16 +1982,17 @@ async def admin_get_product(
     )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
-    
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
 
 @router.post("/products", response_model=ProductResponse, status_code=201)
 async def admin_create_product(
     product: ProductCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Create new product"""
     # Check if SKU exists
@@ -1535,7 +2029,7 @@ async def admin_create_product(
         action="create",
         entity_type="product",
         entity_id=db_product.id,
-        new_values=product.model_dump()
+        new_values=product.model_dump(),
     )
     db.add(audit)
     await db.commit()
@@ -1548,7 +2042,11 @@ async def admin_create_product(
     return created_result.scalar_one()
 
 
-@router.post("/products/{product_id}/images", response_model=ProductImageResponse, status_code=201)
+@router.post(
+    "/products/{product_id}/images",
+    response_model=ProductImageResponse,
+    status_code=201,
+)
 async def admin_attach_product_image(
     product_id: int,
     image: ProductImageBase,
@@ -1572,7 +2070,9 @@ async def admin_attach_product_image(
 
     if image.is_main:
         current_main = await db.execute(
-            select(ProductImage).where(ProductImage.product_id == product_id, ProductImage.is_main.is_(True))
+            select(ProductImage).where(
+                ProductImage.product_id == product_id, ProductImage.is_main.is_(True)
+            )
         )
         for existing_main in current_main.scalars().all():
             existing_main.is_main = False
@@ -1611,7 +2111,7 @@ async def admin_update_product(
     product_id: int,
     product_update: ProductUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Update product"""
     query = (
@@ -1621,10 +2121,10 @@ async def admin_update_product(
     )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
-    
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+
     # Store old values for audit
     old_values = {
         "sku": product.sku,
@@ -1646,12 +2146,18 @@ async def admin_update_product(
     has_compatibilities_update = "compatibilities" in product_update.model_fields_set
 
     # Update only provided scalar fields
-    update_data = product_update.model_dump(exclude_unset=True, exclude={"compatibilities"})
+    update_data = product_update.model_dump(
+        exclude_unset=True, exclude={"compatibilities"}
+    )
     for field, value in update_data.items():
         setattr(product, field, value)
 
     if has_compatibilities_update:
-        await db.execute(delete(ProductCompatibility).where(ProductCompatibility.product_id == product_id))
+        await db.execute(
+            delete(ProductCompatibility).where(
+                ProductCompatibility.product_id == product_id
+            )
+        )
         for compatibility in product_update.compatibilities or []:
             db.add(
                 ProductCompatibility(
@@ -1659,7 +2165,7 @@ async def admin_update_product(
                     **compatibility.model_dump(),
                 )
             )
-    
+
     await db.commit()
     await _sync_latest_products_snapshot(db, product_id)
 
@@ -1674,12 +2180,15 @@ async def admin_update_product(
             **update_data,
             **(
                 {
-                    "compatibilities": [item.model_dump() for item in (product_update.compatibilities or [])]
+                    "compatibilities": [
+                        item.model_dump()
+                        for item in (product_update.compatibilities or [])
+                    ]
                 }
                 if has_compatibilities_update
                 else {}
             ),
-        }
+        },
     )
     db.add(audit)
     await db.commit()
@@ -1691,34 +2200,35 @@ async def admin_update_product(
     )
     return updated_result.scalar_one()
 
+
 @router.delete("/products/{product_id}", status_code=204)
 async def admin_delete_product(
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_admin_user),
 ):
     """Delete product"""
     query = select(Product).where(Product.id == product_id)
     result = await db.execute(query)
     product = result.scalar_one_or_none()
-    
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+
     await db.delete(product)
     await db.commit()
     await _sync_latest_products_snapshot(db, product_id, remove=True)
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
         action="delete",
         entity_type="product",
-        entity_id=product_id
+        entity_id=product_id,
     )
     db.add(audit)
     await db.commit()
-    
+
     return None
 
 
@@ -1793,11 +2303,17 @@ async def _finish_products_import_run(
     await db.commit()
 
 
-async def _load_import_category_maps(db: AsyncSession) -> tuple[dict[str, int], dict[str, int]]:
+async def _load_import_category_maps(
+    db: AsyncSession,
+) -> tuple[dict[str, int], dict[str, int]]:
     categories_result = await db.execute(select(Category))
     categories = categories_result.scalars().all()
-    category_by_slug = {category.slug.lower(): category.id for category in categories if category.slug}
-    category_by_name = {category.name.lower(): category.id for category in categories if category.name}
+    category_by_slug = {
+        category.slug.lower(): category.id for category in categories if category.slug
+    }
+    category_by_name = {
+        category.name.lower(): category.id for category in categories if category.name
+    }
     return category_by_slug, category_by_name
 
 
@@ -1848,8 +2364,12 @@ def _build_import_row_payload(
     existing_product: Optional[Product],
 ) -> tuple[dict[str, Any], list[dict[str, Any]], Optional[str]]:
     price_raw = row.get("price", "")
-    price_on_request = _parse_bool(row.get("price_on_request", ""), default=False) or _is_price_on_request(price_raw)
-    compatibility_rows, compatibility_raw = _parse_import_compatibilities(row.get("compatibility_raw", ""))
+    price_on_request = _parse_bool(
+        row.get("price_on_request", ""), default=False
+    ) or _is_price_on_request(price_raw)
+    compatibility_rows, compatibility_raw = _parse_import_compatibilities(
+        row.get("compatibility_raw", "")
+    )
 
     payload = {
         "category_id": category_id,
@@ -1861,7 +2381,9 @@ def _build_import_row_payload(
         "stock_quantity": _parse_stock_quantity(row.get("stock_quantity", "")),
         "is_active": _parse_bool(row.get("is_active", ""), default=True),
     }
-    base_attributes = dict(existing_product.attributes or {}) if existing_product else {}
+    base_attributes = (
+        dict(existing_product.attributes or {}) if existing_product else {}
+    )
     if compatibility_raw:
         base_attributes["compatibility_raw"] = compatibility_raw
     payload["attributes"] = base_attributes
@@ -1887,7 +2409,11 @@ async def _sync_product_compatibilities(
     clear_existing: bool,
 ) -> None:
     if clear_existing:
-        await db.execute(delete(ProductCompatibility).where(ProductCompatibility.product_id == product_id))
+        await db.execute(
+            delete(ProductCompatibility).where(
+                ProductCompatibility.product_id == product_id
+            )
+        )
     for compatibility in compatibility_rows:
         db.add(ProductCompatibility(product_id=product_id, **compatibility))
 
@@ -1954,7 +2480,10 @@ async def _build_products_snapshot(db: AsyncSession) -> list[dict[str, Any]]:
         .options(selectinload(Product.images), selectinload(Product.compatibilities))
         .order_by(Product.id)
     )
-    return [_serialize_product_snapshot_item(product) for product in snapshot_result.scalars().all()]
+    return [
+        _serialize_product_snapshot_item(product)
+        for product in snapshot_result.scalars().all()
+    ]
 
 
 async def _create_products_import_run(
@@ -1962,7 +2491,7 @@ async def _create_products_import_run(
     *,
     file_name: Optional[str],
     trigger_mode: str,
-    created_by: int,
+    created_by: Optional[int],
 ) -> ImportRun:
     previous_successful_run = await db.execute(
         select(ImportRun)
@@ -2019,7 +2548,7 @@ async def _process_products_import_rows(
 
 def _build_products_import_audit(
     *,
-    user_id: int,
+    user_id: Optional[int],
     run_id: int,
     skip_invalid: bool,
     summary: dict[str, Any],
@@ -2086,7 +2615,9 @@ async def _finish_products_import_with_no_rows(
 async def admin_import_products(
     file: UploadFile = File(...),
     default_category_id: Optional[int] = Query(None, ge=1),
-    skip_invalid: bool = Query(False, description="Skip invalid rows and import valid rows only"),
+    skip_invalid: bool = Query(
+        False, description="Skip invalid rows and import valid rows only"
+    ),
     trigger_mode: str = Query(
         "manual",
         description="manual/hourly/daily/event mode marker for import run audit",
@@ -2098,12 +2629,13 @@ async def admin_import_products(
     run_id: Optional[int] = None
     collected_errors: list[str] = []
     normalized_trigger_mode = _normalize_import_trigger_mode(trigger_mode)
+    actor_id = getattr(current_user, "id", None)
 
     run = await _create_products_import_run(
         db,
         file_name=file.filename,
         trigger_mode=normalized_trigger_mode,
-        created_by=current_user.id,
+        created_by=actor_id,
     )
     run_id = run.id
 
@@ -2150,7 +2682,7 @@ async def admin_import_products(
         snapshot_data = await _build_products_snapshot(db)
         db.add(
             _build_products_import_audit(
-                user_id=current_user.id,
+                user_id=actor_id,
                 run_id=run.id,
                 skip_invalid=skip_invalid,
                 summary=summary,
@@ -2166,18 +2698,24 @@ async def admin_import_products(
         return _build_products_import_response(run.id, summary, collected_errors)
     except HTTPException as http_exc:
         await db.rollback()
-        await _mark_import_run_failed(db, run_id, collected_errors, str(http_exc.detail))
+        await _mark_import_run_failed(
+            db, run_id, collected_errors, str(http_exc.detail)
+        )
         raise
     except Exception as exc:
         await db.rollback()
         await _mark_import_run_failed(db, run_id, collected_errors, str(exc))
-        raise HTTPException(status_code=500, detail="Import failed. Please check file format and data.") from exc
+        raise HTTPException(
+            status_code=500, detail="Import failed. Please check file format and data."
+        ) from exc
 
 
 @router.post("/products/import-from-source")
 async def admin_import_products_from_source(
     default_category_id: Optional[int] = Query(None, ge=1),
-    skip_invalid: bool = Query(False, description="Skip invalid rows and import valid rows only"),
+    skip_invalid: bool = Query(
+        False, description="Skip invalid rows and import valid rows only"
+    ),
     trigger_mode: str = Query(
         "event",
         description="manual/hourly/daily/event mode marker for import run audit",
@@ -2185,35 +2723,609 @@ async def admin_import_products_from_source(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
-    source_url = (os.getenv("IMPORT_SOURCE_URL") or "").strip()
-    if not source_url:
-        raise HTTPException(status_code=400, detail="IMPORT_SOURCE_URL is not configured.")
+    return await _import_products_from_source_internal(
+        db=db,
+        initiated_by=getattr(current_user, "id", None),
+        default_category_id=default_category_id,
+        skip_invalid=skip_invalid,
+        trigger_mode=trigger_mode,
+        run_context="api-source-trigger",
+    )
 
+
+async def _import_products_from_source_internal(
+    *,
+    db: AsyncSession,
+    initiated_by: Optional[int],
+    default_category_id: Optional[int],
+    skip_invalid: bool,
+    trigger_mode: str,
+    run_context: str,
+) -> dict[str, Any]:
+    settings = await _get_site_content_values(
+        db,
+        [
+            FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY,
+            FEATURE_ERP_SYNC_DELTA_ENABLED_KEY,
+            INTEGRATION_ERP_SOURCE_URL_KEY,
+            INTEGRATION_ERP_ALLOWED_HOSTS_KEY,
+        ],
+    )
+    source_import_enabled = _parse_content_flag(
+        settings.get(FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY), default=True
+    )
+    if not source_import_enabled:
+        raise HTTPException(
+            status_code=409,
+            detail="Source import is disabled. Enable it in admin integrations settings.",
+        )
+
+    source_url = (
+        settings.get(INTEGRATION_ERP_SOURCE_URL_KEY)
+        or os.getenv("IMPORT_SOURCE_URL")
+        or ""
+    ).strip()
+    if not source_url:
+        raise HTTPException(
+            status_code=400, detail="IMPORT_SOURCE_URL is not configured."
+        )
+
+    source_allowed_hosts_raw = (
+        settings.get(INTEGRATION_ERP_ALLOWED_HOSTS_KEY)
+        or os.getenv("IMPORT_SOURCE_ALLOWED_HOSTS")
+        or ""
+    ).strip()
     source_auth_header = (os.getenv("IMPORT_SOURCE_AUTH_HEADER") or "").strip()
     source_username = (os.getenv("IMPORT_SOURCE_USERNAME") or "").strip()
     source_password = (os.getenv("IMPORT_SOURCE_PASSWORD") or "").strip()
 
+    delta_enabled = _parse_content_flag(
+        settings.get(FEATURE_ERP_SYNC_DELTA_ENABLED_KEY), default=False
+    )
+    delta_since: Optional[datetime] = None
+    effective_source_url = source_url
+    if delta_enabled:
+        latest_success = await _load_latest_source_import_run(db, status="finished")
+        if latest_success and latest_success.finished_at:
+            delta_since = latest_success.finished_at
+            effective_source_url = _build_source_sync_url_with_delta(
+                source_url,
+                delta_since=delta_since,
+            )
+
     file_name, content = await _download_import_source_payload(
-        source_url=source_url,
+        source_url=effective_source_url,
+        source_allowed_hosts_raw=source_allowed_hosts_raw,
         source_auth_header=source_auth_header,
         source_username=source_username,
         source_password=source_password,
     )
-    return await admin_import_products(
-        file=_BufferedUploadFile(file_name, content),
+
+    result = await admin_import_products(
+        file=_BufferedUploadFile(_tag_source_import_filename(file_name, run_context), content),
         default_category_id=default_category_id,
         skip_invalid=skip_invalid,
         trigger_mode=trigger_mode,
         db=db,
-        current_user=current_user,
+        current_user=SimpleNamespace(id=initiated_by),
     )
+    if delta_since:
+        result["delta_since"] = _serialize_content_datetime(delta_since)
+    return result
+
+
+def _build_erp_sync_state_descriptions() -> dict[str, str]:
+    return {
+        INTEGRATION_ERP_SYNC_LAST_STATUS_KEY: "Служебное состояние online-sync: последний статус",
+        INTEGRATION_ERP_SYNC_LAST_RUN_ID_KEY: "Служебное состояние online-sync: последний run_id импорта",
+        INTEGRATION_ERP_SYNC_LAST_RUN_AT_KEY: "Служебное состояние online-sync: время последнего запуска",
+        INTEGRATION_ERP_SYNC_LAST_SUCCESS_AT_KEY: "Служебное состояние online-sync: время последнего успешного запуска",
+        INTEGRATION_ERP_SYNC_LAST_ERROR_KEY: "Служебное состояние online-sync: текст последней ошибки",
+        INTEGRATION_ERP_SYNC_RETRY_ATTEMPT_KEY: "Служебное состояние online-sync: номер следующей retry-попытки",
+        INTEGRATION_ERP_SYNC_NEXT_RETRY_AT_KEY: "Служебное состояние online-sync: время следующей retry-попытки",
+    }
+
+
+async def _update_erp_sync_state(
+    db: AsyncSession,
+    *,
+    status: str,
+    run_id: Optional[int],
+    error_message: Optional[str],
+    retry_attempt: int,
+    next_retry_at: Optional[datetime],
+    mark_success: bool,
+) -> None:
+    now = _utcnow()
+    payload = {
+        INTEGRATION_ERP_SYNC_LAST_STATUS_KEY: status,
+        INTEGRATION_ERP_SYNC_LAST_RUN_ID_KEY: str(run_id or ""),
+        INTEGRATION_ERP_SYNC_LAST_RUN_AT_KEY: _serialize_content_datetime(now),
+        INTEGRATION_ERP_SYNC_LAST_ERROR_KEY: (error_message or "").strip(),
+        INTEGRATION_ERP_SYNC_RETRY_ATTEMPT_KEY: str(max(retry_attempt, 0)),
+        INTEGRATION_ERP_SYNC_NEXT_RETRY_AT_KEY: _serialize_content_datetime(next_retry_at),
+    }
+    if mark_success:
+        payload[INTEGRATION_ERP_SYNC_LAST_SUCCESS_AT_KEY] = _serialize_content_datetime(now)
+
+    await _upsert_site_content_values(
+        db,
+        payload,
+        description_by_key=_build_erp_sync_state_descriptions(),
+    )
+    await db.commit()
+
+
+async def _load_erp_sync_runtime_settings(db: AsyncSession) -> dict[str, Any]:
+    settings = await _get_site_content_values(
+        db,
+        [
+            FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY,
+            FEATURE_ERP_ONLINE_SYNC_ENABLED_KEY,
+            FEATURE_ERP_SYNC_DELTA_ENABLED_KEY,
+            FEATURE_ERP_SYNC_RETRY_ENABLED_KEY,
+            INTEGRATION_ERP_SYNC_SCHEDULE_MINUTES_KEY,
+            INTEGRATION_ERP_SYNC_RETRY_MAX_ATTEMPTS_KEY,
+            INTEGRATION_ERP_SYNC_RETRY_DELAY_SECONDS_KEY,
+            IMPORT_PRODUCTS_UPDATE_MODE_KEY,
+            INTEGRATION_ERP_SYNC_LAST_STATUS_KEY,
+            INTEGRATION_ERP_SYNC_LAST_RUN_ID_KEY,
+            INTEGRATION_ERP_SYNC_LAST_RUN_AT_KEY,
+            INTEGRATION_ERP_SYNC_LAST_SUCCESS_AT_KEY,
+            INTEGRATION_ERP_SYNC_LAST_ERROR_KEY,
+            INTEGRATION_ERP_SYNC_RETRY_ATTEMPT_KEY,
+            INTEGRATION_ERP_SYNC_NEXT_RETRY_AT_KEY,
+        ],
+    )
+
+    update_mode = _normalize_sync_update_mode(settings.get(IMPORT_PRODUCTS_UPDATE_MODE_KEY))
+    schedule_minutes = _resolve_sync_schedule_minutes(
+        update_mode,
+        settings.get(INTEGRATION_ERP_SYNC_SCHEDULE_MINUTES_KEY),
+    )
+    retry_max_attempts = _parse_content_positive_int(
+        settings.get(INTEGRATION_ERP_SYNC_RETRY_MAX_ATTEMPTS_KEY),
+        default=5,
+        minimum=1,
+        maximum=20,
+    )
+
+    return {
+        "source_import_enabled": _parse_content_flag(
+            settings.get(FEATURE_ERP_SOURCE_IMPORT_ENABLED_KEY),
+            default=True,
+        ),
+        "online_sync_enabled": _parse_content_flag(
+            settings.get(FEATURE_ERP_ONLINE_SYNC_ENABLED_KEY),
+            default=False,
+        ),
+        "delta_enabled": _parse_content_flag(
+            settings.get(FEATURE_ERP_SYNC_DELTA_ENABLED_KEY),
+            default=False,
+        ),
+        "retry_enabled": _parse_content_flag(
+            settings.get(FEATURE_ERP_SYNC_RETRY_ENABLED_KEY),
+            default=True,
+        ),
+        "schedule_minutes": schedule_minutes,
+        "retry_max_attempts": retry_max_attempts,
+        "retry_delay_seconds": _parse_content_positive_int(
+            settings.get(INTEGRATION_ERP_SYNC_RETRY_DELAY_SECONDS_KEY),
+            default=300,
+            minimum=10,
+            maximum=24 * 60 * 60,
+        ),
+        "update_mode": update_mode,
+        "last_status": (settings.get(INTEGRATION_ERP_SYNC_LAST_STATUS_KEY) or "").strip()
+        or None,
+        "last_run_id": _parse_content_optional_int(
+            settings.get(INTEGRATION_ERP_SYNC_LAST_RUN_ID_KEY)
+        ),
+        "last_run_at": _parse_content_datetime(
+            settings.get(INTEGRATION_ERP_SYNC_LAST_RUN_AT_KEY)
+        ),
+        "last_success_at": _parse_content_datetime(
+            settings.get(INTEGRATION_ERP_SYNC_LAST_SUCCESS_AT_KEY)
+        ),
+        "last_error": (settings.get(INTEGRATION_ERP_SYNC_LAST_ERROR_KEY) or "").strip()
+        or None,
+        "retry_attempt": _parse_content_positive_int(
+            settings.get(INTEGRATION_ERP_SYNC_RETRY_ATTEMPT_KEY),
+            default=0,
+            minimum=0,
+            maximum=retry_max_attempts,
+        ),
+        "next_retry_at": _parse_content_datetime(
+            settings.get(INTEGRATION_ERP_SYNC_NEXT_RETRY_AT_KEY)
+        ),
+    }
+
+
+def _serialize_import_run_compact(run: ImportRun) -> dict[str, Any]:
+    errors = _extract_import_errors(run)
+    counts = _extract_import_counts(run)
+    return {
+        "id": run.id,
+        "status": run.status,
+        "source": run.source,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "created": counts["created"],
+        "updated": counts["updated"],
+        "failed": counts["failed"],
+        "errors_count": len(errors),
+        "error_preview": errors[:3],
+    }
+
+
+async def _build_erp_sync_status_payload(db: AsyncSession) -> dict[str, Any]:
+    runtime = await _load_erp_sync_runtime_settings(db)
+    latest_source_run = await _load_latest_source_import_run(db)
+    failed_result = await db.execute(
+        select(ImportRun)
+        .where(
+            ImportRun.entity_type == "products",
+            ImportRun.status == "failed",
+            ImportRun.source.is_not(None),
+            ImportRun.source.like("%:source__%"),
+        )
+        .order_by(ImportRun.started_at.desc(), ImportRun.id.desc())
+        .limit(10)
+    )
+    failed_runs = failed_result.scalars().all()
+
+    next_scheduled_at: Optional[datetime] = None
+    if (
+        runtime["online_sync_enabled"]
+        and runtime["source_import_enabled"]
+        and runtime["update_mode"] in {"hourly", "daily"}
+    ):
+        if latest_source_run and latest_source_run.started_at:
+            next_scheduled_at = latest_source_run.started_at + timedelta(
+                minutes=runtime["schedule_minutes"]
+            )
+        else:
+            next_scheduled_at = _utcnow()
+
+    return {
+        "online_sync_enabled": runtime["online_sync_enabled"],
+        "source_import_enabled": runtime["source_import_enabled"],
+        "update_mode": runtime["update_mode"],
+        "schedule_minutes": runtime["schedule_minutes"],
+        "delta_enabled": runtime["delta_enabled"],
+        "retry_enabled": runtime["retry_enabled"],
+        "retry_max_attempts": runtime["retry_max_attempts"],
+        "retry_delay_seconds": runtime["retry_delay_seconds"],
+        "last_status": runtime["last_status"],
+        "last_run_id": runtime["last_run_id"],
+        "last_run_at": runtime["last_run_at"],
+        "last_success_at": runtime["last_success_at"],
+        "last_error": runtime["last_error"],
+        "retry_attempt": runtime["retry_attempt"],
+        "next_retry_at": runtime["next_retry_at"],
+        "next_scheduled_at": next_scheduled_at,
+        "latest_source_run": (
+            _serialize_import_run_compact(latest_source_run) if latest_source_run else None
+        ),
+        "recent_failed_runs": [
+            _serialize_import_run_compact(run) for run in failed_runs
+        ],
+    }
+
+
+def _extract_sync_error_message(exc: HTTPException) -> str:
+    if isinstance(exc.detail, str):
+        return exc.detail
+    return "ERP sync failed."
+
+
+async def _execute_erp_sync_run(
+    db: AsyncSession,
+    *,
+    initiated_by: Optional[int],
+    default_category_id: Optional[int],
+    skip_invalid: bool,
+    trigger_mode: str,
+    run_context: str,
+    retry_enabled: bool,
+    retry_max_attempts: int,
+    retry_delay_seconds: int,
+    previous_retry_attempt: int = 0,
+) -> dict[str, Any]:
+    try:
+        result = await _import_products_from_source_internal(
+            db=db,
+            initiated_by=initiated_by,
+            default_category_id=default_category_id,
+            skip_invalid=skip_invalid,
+            trigger_mode=trigger_mode,
+            run_context=run_context,
+        )
+    except HTTPException as exc:
+        next_retry_attempt = 0
+        next_retry_at = None
+        if retry_enabled:
+            candidate_attempt = previous_retry_attempt + 1
+            if candidate_attempt <= retry_max_attempts:
+                next_retry_attempt = candidate_attempt
+                next_retry_at = _utcnow() + timedelta(seconds=retry_delay_seconds)
+
+        await _update_erp_sync_state(
+            db,
+            status="failed",
+            run_id=None,
+            error_message=_extract_sync_error_message(exc),
+            retry_attempt=next_retry_attempt,
+            next_retry_at=next_retry_at,
+            mark_success=False,
+        )
+        raise
+
+    await _update_erp_sync_state(
+        db,
+        status="finished",
+        run_id=_parse_content_optional_int(str(result.get("run_id", ""))),
+        error_message=None,
+        retry_attempt=0,
+        next_retry_at=None,
+        mark_success=True,
+    )
+    return result
+
+
+async def run_erp_sync_scheduler_tick(db: AsyncSession) -> dict[str, Any]:
+    runtime = await _load_erp_sync_runtime_settings(db)
+    if not runtime["online_sync_enabled"]:
+        return {"action": "skip", "reason": "online_sync_disabled"}
+    if not runtime["source_import_enabled"]:
+        return {"action": "skip", "reason": "source_import_disabled"}
+    if runtime["update_mode"] not in {"hourly", "daily"}:
+        return {"action": "skip", "reason": "update_mode_not_scheduled"}
+
+    started_result = await db.execute(
+        select(ImportRun.id)
+        .where(
+            ImportRun.entity_type == "products",
+            ImportRun.status == "started",
+            ImportRun.source.is_not(None),
+            ImportRun.source.like("%:source__%"),
+        )
+        .limit(1)
+    )
+    running_id = started_result.scalar_one_or_none()
+    if running_id is not None:
+        return {"action": "skip", "reason": "already_running", "run_id": running_id}
+
+    latest_run = await _load_latest_source_import_run(db)
+    now = _utcnow()
+    schedule_reference = (
+        latest_run.started_at
+        if latest_run and latest_run.started_at
+        else runtime["last_run_at"]
+    )
+    next_scheduled_at = (
+        schedule_reference + timedelta(minutes=runtime["schedule_minutes"])
+        if schedule_reference
+        else now
+    )
+    retry_due = (
+        runtime["retry_enabled"]
+        and runtime["retry_attempt"] > 0
+        and runtime["next_retry_at"] is not None
+        and runtime["next_retry_at"] <= now
+    )
+    scheduled_due = next_scheduled_at <= now
+    if not retry_due and not scheduled_due:
+        return {"action": "skip", "reason": "not_due"}
+
+    trigger_mode = "daily" if runtime["update_mode"] == "daily" else "hourly"
+    run_context = (
+        f"sync-retry-{runtime['retry_attempt']}" if retry_due else "sync-scheduled"
+    )
+    retry_base_attempt = runtime["retry_attempt"] if retry_due else 0
+
+    try:
+        result = await _execute_erp_sync_run(
+            db,
+            initiated_by=None,
+            default_category_id=None,
+            skip_invalid=True,
+            trigger_mode=trigger_mode,
+            run_context=run_context,
+            retry_enabled=runtime["retry_enabled"],
+            retry_max_attempts=runtime["retry_max_attempts"],
+            retry_delay_seconds=runtime["retry_delay_seconds"],
+            previous_retry_attempt=retry_base_attempt,
+        )
+    except HTTPException as exc:
+        return {
+            "action": "error",
+            "reason": run_context,
+            "detail": _extract_sync_error_message(exc),
+        }
+
+    return {
+        "action": "started",
+        "reason": run_context,
+        "run_id": result.get("run_id"),
+    }
+
+
+@router.get("/integrations/erp-sync/status", response_model=dict)
+async def admin_get_erp_sync_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    return await _build_erp_sync_status_payload(db)
+
+
+@router.post("/integrations/erp-sync/run", response_model=dict)
+async def admin_run_erp_sync(
+    default_category_id: Optional[int] = Query(None, ge=1),
+    skip_invalid: bool = Query(
+        True, description="Skip invalid rows and import valid rows only"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    runtime = await _load_erp_sync_runtime_settings(db)
+    if not runtime["online_sync_enabled"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Online-sync is disabled. Enable it in admin integrations settings.",
+        )
+
+    try:
+        result = await _execute_erp_sync_run(
+            db,
+            initiated_by=getattr(current_user, "id", None),
+            default_category_id=default_category_id,
+            skip_invalid=skip_invalid,
+            trigger_mode="manual",
+            run_context="sync-manual",
+            retry_enabled=runtime["retry_enabled"],
+            retry_max_attempts=runtime["retry_max_attempts"],
+            retry_delay_seconds=runtime["retry_delay_seconds"],
+            previous_retry_attempt=0,
+        )
+    except HTTPException:
+        raise
+
+    return {
+        "status": "started",
+        "run_id": result.get("run_id"),
+        "created": result.get("created", 0),
+        "updated": result.get("updated", 0),
+        "failed": result.get("failed", 0),
+        "delta_since": result.get("delta_since"),
+    }
+
+
+@router.get("/integrations/notifications/health", response_model=dict)
+async def admin_get_notifications_health(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    flags = await _get_notification_flags(db)
+    health = get_notification_channels_health()
+    health["features"] = {
+        "enabled": bool(flags.get("enabled", True)),
+        "email": bool(flags.get("email", True)),
+        "sms": bool(flags.get("sms", True)),
+        "messenger": bool(flags.get("messenger", True)),
+        "queue_enabled": bool(flags.get("queue_enabled", False)),
+        "retry_max_attempts": _parse_content_positive_int(
+            str(flags.get("retry_max_attempts", 5)),
+            default=5,
+            minimum=1,
+            maximum=20,
+        ),
+        "retry_delay_seconds": _parse_content_positive_int(
+            str(flags.get("retry_delay_seconds", 300)),
+            default=300,
+            minimum=10,
+            maximum=86400,
+        ),
+    }
+    return health
+
+
+def _normalize_notification_test_channel(channel: Optional[str]) -> Optional[str]:
+    if channel is None:
+        return None
+    normalized = channel.strip().lower()
+    if not normalized:
+        return None
+    if normalized not in {"all", "email", "sms", "messenger"}:
+        raise HTTPException(
+            status_code=400,
+            detail="channel must be one of: all, email, sms, messenger",
+        )
+    return normalized
+
+
+@router.post("/integrations/notifications/test", response_model=dict)
+async def admin_send_test_notification(
+    channel: Optional[str] = Query(
+        None, description="all/email/sms/messenger; default=all enabled channels"
+    ),
+    flush_queue: bool = Query(
+        True,
+        description="If queue is enabled, process pending queue immediately for smoke checks.",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    flags = await _get_notification_flags(db)
+    if not flags.get("enabled", True):
+        raise HTTPException(
+            status_code=409,
+            detail="Notifications are disabled in admin integrations settings.",
+        )
+
+    selected_channel = _normalize_notification_test_channel(channel)
+    effective_flags = dict(flags)
+    if selected_channel and selected_channel != "all":
+        effective_flags["email"] = selected_channel == "email"
+        effective_flags["sms"] = selected_channel == "sms"
+        effective_flags["messenger"] = selected_channel == "messenger"
+
+    if not any(
+        [
+            bool(effective_flags.get("email", False)),
+            bool(effective_flags.get("sms", False)),
+            bool(effective_flags.get("messenger", False)),
+        ]
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="All notification channels are disabled by settings/selection.",
+        )
+
+    payload = {
+        "triggered_by_user_id": current_user.id,
+        "triggered_at": _utcnow().isoformat(),
+        "channel": selected_channel or "all",
+        "scope": "admin_test",
+    }
+    _notify_with_flags("admin.notifications.test", payload, effective_flags)
+
+    queue_result: dict[str, int] | None = None
+    if bool(effective_flags.get("queue_enabled", False)) and flush_queue:
+        queue_result = process_notification_queue(limit=25)
+
+    return {
+        "status": "ok",
+        "channel": selected_channel or "all",
+        "queue_enabled": bool(effective_flags.get("queue_enabled", False)),
+        "queue_processed": queue_result,
+    }
+
+
+@router.get("/integrations/payments/health", response_model=dict)
+async def admin_get_payments_health(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    flags = await _get_service_payment_flags(db)
+    return {
+        "features": flags,
+        "provider_name": flags["provider_name"] or "not configured",
+        "default_currency": flags["default_currency"],
+        "webhook_endpoint": "/api/public/payments/webhook",
+        "webhook_token_configured": bool(
+            (os.getenv("PAYMENTS_WEBHOOK_TOKEN") or "").strip()
+        ),
+    }
 
 
 @router.get("/imports", response_model=List[dict])
 async def admin_get_import_runs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    entity_type: Optional[str] = Query(None, description="Filter by import entity type"),
+    entity_type: Optional[str] = Query(
+        None, description="Filter by import entity type"
+    ),
     status: Optional[str] = Query(None, description="Filter by import status"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
@@ -2226,7 +3338,11 @@ async def admin_get_import_runs(
     if status:
         query = query.where(ImportRun.status == status.strip().lower())
 
-    query = query.order_by(ImportRun.started_at.desc(), ImportRun.id.desc()).offset(skip).limit(limit)
+    query = (
+        query.order_by(ImportRun.started_at.desc(), ImportRun.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
     runs = result.scalars().all()
 
@@ -2247,7 +3363,9 @@ async def admin_get_import_run_details(
     if not run:
         raise HTTPException(status_code=404, detail="Import run not found")
 
-    users_by_id = await _load_users_map(db, {run.created_by} if run.created_by is not None else set())
+    users_by_id = await _load_users_map(
+        db, {run.created_by} if run.created_by is not None else set()
+    )
     counts = _extract_import_counts(run)
     errors = _extract_import_errors(run)
     snapshot_metadata = _extract_snapshot_metadata(run)
@@ -2261,7 +3379,9 @@ async def admin_get_import_run_details(
         "started_at": run.started_at,
         "finished_at": run.finished_at,
         "created_by": run.created_by,
-        "created_by_user": users_by_id.get(run.created_by) if run.created_by is not None else None,
+        "created_by_user": (
+            users_by_id.get(run.created_by) if run.created_by is not None else None
+        ),
         "total": counts["total"],
         "created": counts["created"],
         "updated": counts["updated"],
@@ -2273,92 +3393,95 @@ async def admin_get_import_run_details(
         "snapshot_metadata": snapshot_metadata,
     }
 
+
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])
 async def admin_get_categories(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_catalog_user)
 ):
     """Get all categories (admin)"""
     query = select(Category).order_by(Category.sort_order)
     result = await db.execute(query)
     return result.scalars().all()
 
+
 @router.post("/categories", response_model=CategoryResponse, status_code=201)
 async def admin_create_category(
     category: CategoryCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Create new category"""
     # Check if slug exists
     existing = await db.execute(select(Category).where(Category.slug == category.slug))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Slug already exists")
-    
+
     db_category = Category(**category.model_dump())
     db.add(db_category)
     await db.commit()
     await db.refresh(db_category)
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
         action="create",
         entity_type="category",
         entity_id=db_category.id,
-        new_values=category.model_dump()
+        new_values=category.model_dump(),
     )
     db.add(audit)
     await db.commit()
-    
+
     return db_category
+
 
 @router.get("/categories/{category_id}", response_model=CategoryResponse)
 async def admin_get_category(
     category_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Get category by ID"""
     query = select(Category).where(Category.id == category_id)
     result = await db.execute(query)
     category = result.scalar_one_or_none()
-    
+
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
+
 
 @router.put("/categories/{category_id}", response_model=CategoryResponse)
 async def admin_update_category(
     category_id: int,
     category_update: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_catalog_user)
+    current_user: User = Depends(get_catalog_user),
 ):
     """Update category"""
     query = select(Category).where(Category.id == category_id)
     result = await db.execute(query)
     category = result.scalar_one_or_none()
-    
+
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
-    
+
     # Store old values for audit
     old_values = {
         "name": category.name,
         "slug": category.slug,
-        "is_active": category.is_active
+        "is_active": category.is_active,
     }
-    
+
     # Update only provided fields
     update_data = category_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(category, field, value)
-    
+
     await db.commit()
     await db.refresh(category)
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
@@ -2366,41 +3489,43 @@ async def admin_update_category(
         entity_type="category",
         entity_id=category_id,
         old_values=old_values,
-        new_values=update_data
+        new_values=update_data,
     )
     db.add(audit)
     await db.commit()
-    
+
     return category
+
 
 @router.delete("/categories/{category_id}", status_code=204)
 async def admin_delete_category(
     category_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_admin_user),
 ):
     """Delete category"""
     query = select(Category).where(Category.id == category_id)
     result = await db.execute(query)
     category = result.scalar_one_or_none()
-    
+
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
-    
+
     await db.delete(category)
     await db.commit()
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
         action="delete",
         entity_type="category",
-        entity_id=category_id
+        entity_id=category_id,
     )
     db.add(audit)
     await db.commit()
-    
+
     return None
+
 
 # ---------- Service Requests ----------
 @router.get("/service-catalog", response_model=List[ServiceCatalogItemResponse])
@@ -2417,15 +3542,21 @@ async def admin_get_service_catalog(
     if vehicle_type:
         normalized_vehicle_type = vehicle_type.strip().lower()
         if normalized_vehicle_type not in {"passenger", "truck", "both"}:
-            raise HTTPException(status_code=400, detail="vehicle_type must be passenger, truck or both")
+            raise HTTPException(
+                status_code=400, detail="vehicle_type must be passenger, truck or both"
+            )
         query = query.where(ServiceCatalogItem.vehicle_type == normalized_vehicle_type)
 
-    query = query.order_by(ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc())
+    query = query.order_by(
+        ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc()
+    )
     result = await db.execute(query)
     return result.scalars().all()
 
 
-@router.post("/service-catalog", response_model=ServiceCatalogItemResponse, status_code=201)
+@router.post(
+    "/service-catalog", response_model=ServiceCatalogItemResponse, status_code=201
+)
 async def admin_create_service_catalog_item(
     payload: ServiceCatalogItemCreate,
     db: AsyncSession = Depends(get_db),
@@ -2433,8 +3564,14 @@ async def admin_create_service_catalog_item(
 ):
     create_data = payload.model_dump()
     if create_data["prepayment_required"]:
-        if create_data.get("prepayment_amount") is None or create_data["prepayment_amount"] <= 0:
-            raise HTTPException(status_code=400, detail="prepayment_amount must be > 0 when prepayment is required")
+        if (
+            create_data.get("prepayment_amount") is None
+            or create_data["prepayment_amount"] <= 0
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="prepayment_amount must be > 0 when prepayment is required",
+            )
     else:
         create_data["prepayment_amount"] = None
 
@@ -2463,7 +3600,9 @@ async def admin_update_service_catalog_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_service_catalog_user),
 ):
-    result = await db.execute(select(ServiceCatalogItem).where(ServiceCatalogItem.id == item_id))
+    result = await db.execute(
+        select(ServiceCatalogItem).where(ServiceCatalogItem.id == item_id)
+    )
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Service catalog item not found")
@@ -2480,11 +3619,18 @@ async def admin_update_service_catalog_item(
         "is_active": item.is_active,
     }
 
-    next_prepayment_required = update_data.get("prepayment_required", item.prepayment_required)
-    next_prepayment_amount = update_data.get("prepayment_amount", item.prepayment_amount)
+    next_prepayment_required = update_data.get(
+        "prepayment_required", item.prepayment_required
+    )
+    next_prepayment_amount = update_data.get(
+        "prepayment_amount", item.prepayment_amount
+    )
     if next_prepayment_required:
         if next_prepayment_amount is None or next_prepayment_amount <= 0:
-            raise HTTPException(status_code=400, detail="prepayment_amount must be > 0 when prepayment is required")
+            raise HTTPException(
+                status_code=400,
+                detail="prepayment_amount must be > 0 when prepayment is required",
+            )
     elif "prepayment_required" in update_data or "prepayment_amount" in update_data:
         update_data["prepayment_amount"] = None
 
@@ -2514,7 +3660,9 @@ async def admin_delete_service_catalog_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_service_catalog_user),
 ):
-    result = await db.execute(select(ServiceCatalogItem).where(ServiceCatalogItem.id == item_id))
+    result = await db.execute(
+        select(ServiceCatalogItem).where(ServiceCatalogItem.id == item_id)
+    )
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Service catalog item not found")
@@ -2546,7 +3694,9 @@ async def admin_get_service_requests(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status"),
-    search: Optional[str] = Query(None, min_length=2, description="Search by name or phone"),
+    search: Optional[str] = Query(
+        None, min_length=2, description="Search by name or phone"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_service_requests_user),
 ):
@@ -2579,7 +3729,9 @@ async def admin_get_service_request(
     current_user: User = Depends(get_service_requests_user),
 ):
     """Get service request by ID"""
-    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+    result = await db.execute(
+        select(ServiceRequest).where(ServiceRequest.id == request_id)
+    )
     service_request = result.scalar_one_or_none()
 
     if not service_request:
@@ -2588,7 +3740,9 @@ async def admin_get_service_request(
     return service_request
 
 
-@router.put("/service-requests/{request_id}/status", response_model=ServiceRequestResponse)
+@router.put(
+    "/service-requests/{request_id}/status", response_model=ServiceRequestResponse
+)
 async def admin_update_service_request_status(
     request_id: int,
     payload: ServiceRequestStatusUpdate,
@@ -2596,11 +3750,15 @@ async def admin_update_service_request_status(
     current_user: User = Depends(get_service_requests_user),
 ):
     """Update service request status and operator comment"""
-    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+    result = await db.execute(
+        select(ServiceRequest).where(ServiceRequest.id == request_id)
+    )
     service_request = result.scalar_one_or_none()
 
     if not service_request:
         raise HTTPException(status_code=404, detail="Service request not found")
+
+    payment_flags = await _get_service_payment_flags(db)
 
     valid_transitions = {
         "new": {"in_progress"},
@@ -2610,7 +3768,23 @@ async def admin_update_service_request_status(
 
     next_status = payload.status
     current_status = service_request.status or "new"
-    if next_status != current_status and next_status not in valid_transitions.get(current_status, set()):
+    payment_status = (
+        getattr(service_request, "payment_status", None) or "not_required"
+    ).strip().lower()
+    if (
+        payment_flags["payment_flow_enabled"]
+        and payment_flags["payment_block_unpaid_enabled"]
+        and bool(getattr(service_request, "payment_required", False))
+        and next_status in {"in_progress", "closed"}
+        and payment_status != "paid"
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Payment is required before moving service request to in_progress/closed.",
+        )
+    if next_status != current_status and next_status not in valid_transitions.get(
+        current_status, set()
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid status transition: {current_status} -> {next_status}",
@@ -2641,7 +3815,8 @@ async def admin_update_service_request_status(
     db.add(audit)
     await db.commit()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "service_request.status_changed",
         {
             "id": service_request.id,
@@ -2650,11 +3825,17 @@ async def admin_update_service_request_status(
             "new_status": service_request.status,
             "phone": service_request.phone,
             "operator_comment": service_request.operator_comment,
-            "updated_at": service_request.updated_at.isoformat() if service_request.updated_at else None,
+            "updated_at": (
+                service_request.updated_at.isoformat()
+                if service_request.updated_at
+                else None
+            ),
         },
+        notification_flags,
     )
 
     return service_request
+
 
 # ---------- VIN Requests ----------
 @router.get("/vin-requests", response_model=List[VinRequestResponse])
@@ -2662,7 +3843,9 @@ async def admin_get_vin_requests(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status"),
-    search: Optional[str] = Query(None, min_length=2, description="Search by VIN, phone, name, email"),
+    search: Optional[str] = Query(
+        None, min_length=2, description="Search by VIN, phone, name, email"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_leads_user),
 ):
@@ -2734,7 +3917,9 @@ async def admin_update_vin_request_status(
 
     next_status = payload.status
     current_status = vin_request.status or "new"
-    if next_status != current_status and next_status not in valid_transitions.get(current_status, set()):
+    if next_status != current_status and next_status not in valid_transitions.get(
+        current_status, set()
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid status transition: {current_status} -> {next_status}",
@@ -2765,7 +3950,8 @@ async def admin_update_vin_request_status(
     db.add(audit)
     await db.commit()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "vin_request.status_changed",
         {
             "id": vin_request.id,
@@ -2775,94 +3961,102 @@ async def admin_update_vin_request_status(
             "vin": vin_request.vin,
             "phone": vin_request.phone,
             "operator_comment": vin_request.operator_comment,
-            "updated_at": vin_request.updated_at.isoformat() if vin_request.updated_at else None,
+            "updated_at": (
+                vin_request.updated_at.isoformat() if vin_request.updated_at else None
+            ),
         },
+        notification_flags,
     )
 
     return vin_request
 
+
 # ---------- Site Content ----------
 @router.get("/content", response_model=List[SiteContentResponse])
 async def admin_get_content(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_content_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_content_user)
 ):
     """Get all site content blocks"""
     query = select(SiteContent).order_by(SiteContent.key)
     result = await db.execute(query)
     return result.scalars().all()
 
+
 @router.get("/content/{key}", response_model=SiteContentResponse)
 async def admin_get_content_by_key(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_content_user)
+    current_user: User = Depends(get_content_user),
 ):
     """Get site content by key"""
     query = select(SiteContent).where(SiteContent.key == key)
     result = await db.execute(query)
     content = result.scalar_one_or_none()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
     return content
+
 
 @router.post("/content", response_model=SiteContentResponse, status_code=201)
 async def admin_create_content(
     content: SiteContentCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_content_user)
+    current_user: User = Depends(get_content_user),
 ):
     """Create new content block"""
     # Check if key exists
-    existing = await db.execute(select(SiteContent).where(SiteContent.key == content.key))
+    existing = await db.execute(
+        select(SiteContent).where(SiteContent.key == content.key)
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Key already exists")
-    
+
     db_content = SiteContent(**content.model_dump())
     db.add(db_content)
     await db.commit()
     await db.refresh(db_content)
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
         action="create",
         entity_type="content",
         entity_id=db_content.id,
-        new_values=content.model_dump()
+        new_values=content.model_dump(),
     )
     db.add(audit)
     await db.commit()
-    
+
     return db_content
+
 
 @router.put("/content/{key}", response_model=SiteContentResponse)
 async def admin_update_content(
     key: str,
     content_update: SiteContentUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_content_user)
+    current_user: User = Depends(get_content_user),
 ):
     """Update content block"""
     query = select(SiteContent).where(SiteContent.key == key)
     result = await db.execute(query)
     content = result.scalar_one_or_none()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     # Store old value for audit
     old_values = {"value": content.value}
-    
+
     # Update only provided fields
     update_data = content_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(content, field, value)
-    
+
     await db.commit()
     await db.refresh(content)
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
@@ -2870,11 +4064,11 @@ async def admin_update_content(
         entity_type="content",
         entity_id=content.id,
         old_values=old_values,
-        new_values=update_data
+        new_values=update_data,
     )
     db.add(audit)
     await db.commit()
-    
+
     return content
 
 
@@ -2909,40 +4103,41 @@ async def admin_delete_content(
 
     return None
 
+
 @router.post("/upload")
 async def admin_upload_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_content_user)
+    current_user: User = Depends(get_content_user),
 ):
     """Upload a file (image, etc.)"""
     # Проверяем расширение
-    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp'}
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp"}
     ext = Path(file.filename).suffix.lower()
     if ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="File type not allowed")
-    
+
     # Генерируем уникальное имя
     filename = f"{uuid.uuid4()}{ext}"
     file_path = UPLOAD_DIR / filename
-    
+
     # Сохраняем файл
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
+
     # Возвращаем URL для доступа к файлу
     file_url = f"/uploads/{filename}"
-    
+
     # Аудит
     audit = AuditLog(
         user_id=current_user.id,
         action="upload",
         entity_type="file",
-        new_values={"filename": filename, "url": file_url}
+        new_values={"filename": filename, "url": file_url},
     )
     db.add(audit)
     await db.commit()
-    
+
     return {"url": file_url, "filename": filename}
 
 
@@ -2963,9 +4158,13 @@ def _apply_order_search_filter(query: Any, search: Optional[str]) -> Any:
     )
 
 
-def _apply_order_date_filters(query: Any, date_from_dt: Optional[datetime], date_to_dt: Optional[datetime]) -> Any:
+def _apply_order_date_filters(
+    query: Any, date_from_dt: Optional[datetime], date_to_dt: Optional[datetime]
+) -> Any:
     if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
-        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
+        raise HTTPException(
+            status_code=400, detail="date_from must be less than or equal to date_to"
+        )
     if date_from_dt:
         query = query.where(Order.created_at >= date_from_dt)
     if date_to_dt:
@@ -2978,7 +4177,9 @@ async def admin_get_orders(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status"),
-    search: Optional[str] = Query(None, min_length=2, description="Search by phone, name, email, order UUID"),
+    search: Optional[str] = Query(
+        None, min_length=2, description="Search by phone, name, email, order UUID"
+    ),
     date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
     db: AsyncSession = Depends(get_db),
@@ -3035,7 +4236,10 @@ async def admin_update_order_status(
     if next_status not in ORDER_STATUSES:
         raise HTTPException(status_code=400, detail=f"Unknown status: {next_status}")
 
-    if next_status != current_status and next_status not in ORDER_VALID_TRANSITIONS.get(current_status, set()):
+    if (
+        next_status != current_status
+        and next_status not in ORDER_VALID_TRANSITIONS.get(current_status, set())
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid status transition: {current_status} -> {next_status}",
@@ -3063,10 +4267,13 @@ async def admin_update_order_status(
     db.add(audit)
     await db.commit()
 
-    result = await db.execute(select(Order).options(selectinload(Order.items)).where(Order.id == order_id))
+    result = await db.execute(
+        select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
+    )
     updated_order = result.scalar_one()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "order.status_changed",
         {
             "id": updated_order.id,
@@ -3075,8 +4282,13 @@ async def admin_update_order_status(
             "new_status": updated_order.status,
             "customer_phone": updated_order.customer_phone,
             "manager_comment": updated_order.manager_comment,
-            "updated_at": updated_order.updated_at.isoformat() if updated_order.updated_at else None,
+            "updated_at": (
+                updated_order.updated_at.isoformat()
+                if updated_order.updated_at
+                else None
+            ),
         },
+        notification_flags,
     )
     return updated_order
 
@@ -3088,14 +4300,19 @@ async def admin_get_order_statuses(
     """Get all possible order statuses."""
     return ORDER_STATUSES
 
+
 # ---------- Leads ----------
-def _parse_optional_date_filter(value: Optional[str], field_name: str) -> Optional[datetime]:
+def _parse_optional_date_filter(
+    value: Optional[str], field_name: str
+) -> Optional[datetime]:
     if not value:
         return None
     try:
         return datetime.strptime(value.strip(), "%Y-%m-%d")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"{field_name} must be in YYYY-MM-DD format") from exc
+        raise HTTPException(
+            status_code=400, detail=f"{field_name} must be in YYYY-MM-DD format"
+        ) from exc
 
 
 def _normalize_lead_type_filter(value: str) -> str:
@@ -3121,9 +4338,13 @@ def _apply_lead_search_filter(query: Any, search: Optional[str]) -> Any:
     )
 
 
-def _apply_lead_date_filters(query: Any, date_from_dt: Optional[datetime], date_to_dt: Optional[datetime]) -> Any:
+def _apply_lead_date_filters(
+    query: Any, date_from_dt: Optional[datetime], date_to_dt: Optional[datetime]
+) -> Any:
     if date_from_dt and date_to_dt and date_from_dt > date_to_dt:
-        raise HTTPException(status_code=400, detail="date_from must be less than or equal to date_to")
+        raise HTTPException(
+            status_code=400, detail="date_from must be less than or equal to date_to"
+        )
     if date_from_dt:
         query = query.where(Lead.created_at >= date_from_dt)
     if date_to_dt:
@@ -3137,42 +4358,46 @@ async def admin_get_leads(
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status"),
     type: Optional[str] = Query(None, description="Filter by lead type"),
-    search: Optional[str] = Query(None, min_length=2, description="Search in phone, name, email"),
+    search: Optional[str] = Query(
+        None, min_length=2, description="Search in phone, name, email"
+    ),
     date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_leads_user)
+    current_user: User = Depends(get_leads_user),
 ):
     """Get all leads with filters"""
     query = select(Lead)
     date_from_dt = _parse_optional_date_filter(date_from, "date_from")
     date_to_dt = _parse_optional_date_filter(date_to, "date_to")
-    
+
     if status:
         query = query.where(Lead.status == status.strip().lower())
     if type:
         query = query.where(Lead.type == _normalize_lead_type_filter(type))
     query = _apply_lead_search_filter(query, search)
     query = _apply_lead_date_filters(query, date_from_dt, date_to_dt)
-    
+
     query = query.order_by(Lead.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
+
 
 @router.get("/leads/{lead_id}", response_model=LeadResponse)
 async def admin_get_lead(
     lead_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_leads_user)
+    current_user: User = Depends(get_leads_user),
 ):
     """Get single lead by ID"""
     query = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(query)
     lead = result.scalar_one_or_none()
-    
+
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
+
 
 @router.put("/leads/{lead_id}/status")
 async def admin_update_lead_status(
@@ -3180,13 +4405,13 @@ async def admin_update_lead_status(
     status: str,
     comment: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_leads_user)
+    current_user: User = Depends(get_leads_user),
 ):
     """Update lead status"""
     query = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(query)
     lead = result.scalar_one_or_none()
-    
+
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -3195,7 +4420,9 @@ async def admin_update_lead_status(
         raise HTTPException(status_code=400, detail=f"Unknown status: {next_status}")
 
     current_status = lead.status or "new"
-    if next_status != current_status and next_status not in LEAD_VALID_TRANSITIONS.get(current_status, set()):
+    if next_status != current_status and next_status not in LEAD_VALID_TRANSITIONS.get(
+        current_status, set()
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid status transition: {current_status} -> {next_status}",
@@ -3214,9 +4441,9 @@ async def admin_update_lead_status(
     if comment is not None:
         lead.manager_comment = normalized_comment
     lead.updated_at = _utcnow()
-    
+
     await db.commit()
-    
+
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
@@ -3229,7 +4456,8 @@ async def admin_update_lead_status(
     db.add(audit)
     await db.commit()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "lead.status_changed",
         {
             "id": lead.id,
@@ -3241,42 +4469,44 @@ async def admin_update_lead_status(
             "manager_comment": lead.manager_comment,
             "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
         },
+        notification_flags,
     )
-    
-    return {"status": "updated", "new_status": lead.status, "manager_comment": lead.manager_comment}
+
+    return {
+        "status": "updated",
+        "new_status": lead.status,
+        "manager_comment": lead.manager_comment,
+    }
+
 
 @router.delete("/leads/{lead_id}", status_code=204)
 async def admin_delete_lead(
     lead_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_admin_user),
 ):
     """Delete lead"""
     query = select(Lead).where(Lead.id == lead_id)
     result = await db.execute(query)
     lead = result.scalar_one_or_none()
-    
+
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    
+
     await db.delete(lead)
     await db.commit()
-    
+
     # Audit log
     audit = AuditLog(
-        user_id=current_user.id,
-        action="delete",
-        entity_type="lead",
-        entity_id=lead_id
+        user_id=current_user.id, action="delete", entity_type="lead", entity_id=lead_id
     )
     db.add(audit)
     await db.commit()
-    
+
     return None
 
+
 @router.get("/leads/statuses", response_model=List[str])
-async def admin_get_lead_statuses(
-    current_user: User = Depends(get_leads_user)
-):
+async def admin_get_lead_statuses(current_user: User = Depends(get_leads_user)):
     """Get all possible lead statuses"""
     return LEAD_STATUSES

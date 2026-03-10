@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
 
 type OrderItem = {
   id: number;
@@ -57,7 +61,9 @@ function sourceLabel(value: string): string {
 }
 
 function formatPrice(value: number | null): string {
-  return typeof value === "number" ? `${Math.round(value).toLocaleString("ru-RU")} ₽` : "Цена по запросу";
+  return typeof value === "number"
+    ? `${Math.round(value).toLocaleString("ru-RU")} ₽`
+    : "Цена по запросу";
 }
 
 export default function AdminOrderDetailsPage() {
@@ -80,7 +86,7 @@ export default function AdminOrderDetailsPage() {
       const payload = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, "/api/admin/orders/statuses"),
         {},
-        12000
+        12000,
       );
       if (Array.isArray(payload)) {
         setStatuses(payload);
@@ -97,21 +103,16 @@ export default function AdminOrderDetailsPage() {
       const payload = await fetchJsonWithTimeout<OrderDetails>(
         withApiBase(apiBaseUrl, `/api/admin/orders/${orderId}`),
         {},
-        12000
+        12000,
       );
       setOrder(payload);
       setSelectedStatus(payload.status);
       setManagerComment(payload.manager_comment || "");
     } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(fetchError, router)) {
         return;
       }
-      if (fetchError instanceof ApiRequestError) {
-        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
-      } else {
-        setError("Ошибка загрузки заказа");
-      }
+      setError(toAdminErrorMessage(fetchError, "Ошибка загрузки заказа"));
     } finally {
       setLoading(false);
     }
@@ -145,22 +146,17 @@ export default function AdminOrderDetailsPage() {
             manager_comment: managerComment.trim() || null,
           }),
         },
-        12000
+        12000,
       );
       setOrder(payload);
       setSelectedStatus(payload.status);
       setManagerComment(payload.manager_comment || "");
       setSuccess("Изменения сохранены");
     } catch (saveError) {
-      if (saveError instanceof ApiRequestError && (saveError.status === 401 || saveError.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(saveError, router)) {
         return;
       }
-      if (saveError instanceof ApiRequestError) {
-        setError(saveError.traceId ? `${saveError.message}. Код: ${saveError.traceId}` : saveError.message);
-      } else {
-        setError("Ошибка сохранения");
-      }
+      setError(toAdminErrorMessage(saveError, "Ошибка сохранения"));
     } finally {
       setSaving(false);
     }
@@ -178,7 +174,10 @@ export default function AdminOrderDetailsPage() {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-white p-6">
         <p className="text-neutral-600">Заказ не найден</p>
-        <Link href="/admin/orders" className="mt-3 inline-block text-[#1F3B73] hover:underline">
+        <Link
+          href="/admin/orders"
+          className="mt-3 inline-block text-[#1F3B73] hover:underline"
+        >
           Вернуться к списку заказов
         </Link>
       </div>
@@ -188,20 +187,33 @@ export default function AdminOrderDetailsPage() {
   return (
     <div>
       <div className="mb-6">
-        <Link href="/admin/orders" className="text-sm text-[#1F3B73] hover:underline">
+        <Link
+          href="/admin/orders"
+          className="text-sm text-[#1F3B73] hover:underline"
+        >
           ← Назад к заказам
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-[#1F3B73]">Заказ #{order.id}</h1>
+        <h1 className="mt-2 text-2xl font-bold text-[#1F3B73]">
+          Заказ #{order.id}
+        </h1>
       </div>
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
         {!error && success ? (
-          <div role="status" aria-live="polite" className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700"
+          >
             {success}
           </div>
         ) : null}
@@ -209,18 +221,52 @@ export default function AdminOrderDetailsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
-          <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Данные заказа</h2>
+          <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">
+            Данные заказа
+          </h2>
           <dl className="space-y-3 text-sm">
-            <div><dt className="text-neutral-500">UUID</dt><dd className="break-all font-mono text-xs sm:text-sm">{order.uuid}</dd></div>
-            <div><dt className="text-neutral-500">Статус</dt><dd>{statusLabel(order.status)}</dd></div>
-            <div><dt className="text-neutral-500">Источник</dt><dd>{sourceLabel(order.source)}</dd></div>
-            <div><dt className="text-neutral-500">Имя клиента</dt><dd>{order.customer_name || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Телефон</dt><dd>{order.customer_phone}</dd></div>
-            <div><dt className="text-neutral-500">Email</dt><dd>{order.customer_email || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Доставка</dt><dd>{order.delivery_method || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Оплата</dt><dd>{order.payment_method || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Юрлицо</dt><dd>{order.legal_entity_name || "—"}</dd></div>
-            <div><dt className="text-neutral-500">ИНН</dt><dd>{order.legal_entity_inn || "—"}</dd></div>
+            <div>
+              <dt className="text-neutral-500">UUID</dt>
+              <dd className="break-all font-mono text-xs sm:text-sm">
+                {order.uuid}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Статус</dt>
+              <dd>{statusLabel(order.status)}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Источник</dt>
+              <dd>{sourceLabel(order.source)}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Имя клиента</dt>
+              <dd>{order.customer_name || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Телефон</dt>
+              <dd>{order.customer_phone}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Email</dt>
+              <dd>{order.customer_email || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Доставка</dt>
+              <dd>{order.delivery_method || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Оплата</dt>
+              <dd>{order.payment_method || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Юрлицо</dt>
+              <dd>{order.legal_entity_name || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">ИНН</dt>
+              <dd>{order.legal_entity_inn || "—"}</dd>
+            </div>
             <div>
               <dt className="text-neutral-500">Файл реквизитов</dt>
               <dd>
@@ -233,38 +279,72 @@ export default function AdminOrderDetailsPage() {
                   >
                     {order.invoice_requisites_file_name || "Открыть файл"}
                   </a>
-                ) : "—"}
+                ) : (
+                  "—"
+                )}
               </dd>
             </div>
-            <div><dt className="text-neutral-500">Комментарий клиента</dt><dd className="whitespace-pre-wrap break-words">{order.comment || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Согласие 152-ФЗ</dt><dd>{order.consent_given ? "Да" : "Нет"}</dd></div>
-            <div><dt className="text-neutral-500">Версия согласия</dt><dd>{order.consent_version || "—"}</dd></div>
-            <div><dt className="text-neutral-500">Дата согласия</dt><dd>{order.consent_at ? new Date(order.consent_at).toLocaleString("ru-RU") : "—"}</dd></div>
-            <div><dt className="text-neutral-500">Дата создания</dt><dd>{new Date(order.created_at).toLocaleString("ru-RU")}</dd></div>
-            <div><dt className="text-neutral-500">Дата обновления</dt><dd>{new Date(order.updated_at).toLocaleString("ru-RU")}</dd></div>
+            <div>
+              <dt className="text-neutral-500">Комментарий клиента</dt>
+              <dd className="whitespace-pre-wrap break-words">
+                {order.comment || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Согласие 152-ФЗ</dt>
+              <dd>{order.consent_given ? "Да" : "Нет"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Версия согласия</dt>
+              <dd>{order.consent_version || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Дата согласия</dt>
+              <dd>
+                {order.consent_at
+                  ? new Date(order.consent_at).toLocaleString("ru-RU")
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Дата создания</dt>
+              <dd>{new Date(order.created_at).toLocaleString("ru-RU")}</dd>
+            </div>
+            <div>
+              <dt className="text-neutral-500">Дата обновления</dt>
+              <dd>{new Date(order.updated_at).toLocaleString("ru-RU")}</dd>
+            </div>
           </dl>
         </div>
 
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
-          <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Обработка</h2>
+          <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">
+            Обработка
+          </h2>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Статус</label>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">
+                Статус
+              </label>
               <select
                 value={selectedStatus}
                 onChange={(event) => setSelectedStatus(event.target.value)}
                 className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
               >
-                {(statuses.length > 0 ? statuses : [order.status]).map((statusValue) => (
-                  <option key={statusValue} value={statusValue}>
-                    {statusLabel(statusValue)}
-                  </option>
-                ))}
+                {(statuses.length > 0 ? statuses : [order.status]).map(
+                  (statusValue) => (
+                    <option key={statusValue} value={statusValue}>
+                      {statusLabel(statusValue)}
+                    </option>
+                  ),
+                )}
               </select>
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Комментарий менеджера</label>
+              <label className="mb-1 block text-sm font-medium text-neutral-700">
+                Комментарий менеджера
+              </label>
               <textarea
                 rows={5}
                 value={managerComment}
@@ -279,7 +359,8 @@ export default function AdminOrderDetailsPage() {
               disabled={
                 saving ||
                 (selectedStatus === order.status &&
-                  managerComment.trim() === (order.manager_comment || "").trim())
+                  managerComment.trim() ===
+                    (order.manager_comment || "").trim())
               }
               className="w-full rounded-xl bg-[#FF7A00] px-4 py-2 text-sm font-medium text-white hover:bg-[#e66e00] disabled:opacity-60"
             >
@@ -290,7 +371,9 @@ export default function AdminOrderDetailsPage() {
       </div>
 
       <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">Позиции заказа</h2>
+        <h2 className="mb-4 text-lg font-semibold text-[#1F3B73]">
+          Позиции заказа
+        </h2>
         {order.items.length === 0 ? (
           <p className="text-sm text-neutral-500">Позиции отсутствуют</p>
         ) : (
@@ -298,11 +381,17 @@ export default function AdminOrderDetailsPage() {
             <div className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 md:hidden">
               {order.items.map((item) => (
                 <article key={item.id} className="space-y-2 px-3 py-3 text-sm">
-                  <p className="break-all font-medium text-neutral-900">{item.product_sku || "—"}</p>
+                  <p className="break-all font-medium text-neutral-900">
+                    {item.product_sku || "—"}
+                  </p>
                   <p className="text-neutral-700">{item.product_name}</p>
                   <p className="text-neutral-700">Кол-во: {item.quantity}</p>
-                  <p className="text-neutral-700">Цена: {formatPrice(item.unit_price)}</p>
-                  <p className="text-neutral-700">Сумма: {formatPrice(item.line_total)}</p>
+                  <p className="text-neutral-700">
+                    Цена: {formatPrice(item.unit_price)}
+                  </p>
+                  <p className="text-neutral-700">
+                    Сумма: {formatPrice(item.line_total)}
+                  </p>
                 </article>
               ))}
             </div>
@@ -310,11 +399,21 @@ export default function AdminOrderDetailsPage() {
               <table className="w-full">
                 <thead className="border-b border-neutral-200 bg-neutral-50">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">SKU</th>
-                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Наименование</th>
-                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Кол-во</th>
-                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Цена</th>
-                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">Сумма</th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">
+                      SKU
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">
+                      Наименование
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">
+                      Кол-во
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">
+                      Цена
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs uppercase tracking-wide text-neutral-500">
+                      Сумма
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 text-sm">
@@ -323,8 +422,12 @@ export default function AdminOrderDetailsPage() {
                       <td className="px-3 py-2">{item.product_sku || "—"}</td>
                       <td className="px-3 py-2">{item.product_name}</td>
                       <td className="px-3 py-2">{item.quantity}</td>
-                      <td className="px-3 py-2">{formatPrice(item.unit_price)}</td>
-                      <td className="px-3 py-2">{formatPrice(item.line_total)}</td>
+                      <td className="px-3 py-2">
+                        {formatPrice(item.unit_price)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {formatPrice(item.line_total)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

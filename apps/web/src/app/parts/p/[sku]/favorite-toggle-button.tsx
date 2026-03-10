@@ -19,7 +19,7 @@ export default function FavoriteToggleButton({
   imageUrl,
 }: FavoriteToggleButtonProps) {
   const [active, setActive] = useState(
-    typeof window !== "undefined" ? isFavorite(productId) : false
+    typeof window !== "undefined" ? isFavorite(productId) : false,
   );
 
   function handleToggle() {

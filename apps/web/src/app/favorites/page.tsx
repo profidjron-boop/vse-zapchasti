@@ -2,21 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { addToCart } from "@/lib/cart";
 import { PublicFooter } from "@/components/public-footer";
-import { FavoriteItem, clearFavorites, loadFavorites, removeFavorite } from "@/lib/favorites";
+import { usePublicSiteContent } from "@/components/use-public-site-content";
+import {
+  FavoriteItem,
+  clearFavorites,
+  loadFavorites,
+  removeFavorite,
+} from "@/lib/favorites";
 import { PublicHeader } from "@/components/public-header";
 
 function formatPrice(value: number | null): string {
-  return value !== null ? `${Math.round(value).toLocaleString("ru-RU")} ₽` : "Цена по запросу";
+  return value !== null
+    ? `${Math.round(value).toLocaleString("ru-RU")} ₽`
+    : "Цена по запросу";
 }
 
 export default function FavoritesPage() {
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
-  const [contentMap, setContentMap] = useState<Record<string, string>>({});
+  const { brandName, footerText, labels, contentValue } = usePublicSiteContent();
   const isEmptyState = !loading && items.length === 0;
 
   useEffect(() => {
@@ -45,57 +52,27 @@ export default function FavoritesPage() {
     };
   }, [notice]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadContent() {
-      try {
-        const apiBaseUrl = getClientApiBaseUrl();
-        const response = await fetch(withApiBase(apiBaseUrl, "/api/public/content"), { cache: "no-store" });
-        if (!response.ok) return;
-        const payload = (await response.json()) as Array<{ key?: string; value?: string | null }>;
-        if (!Array.isArray(payload) || cancelled) return;
-
-        const map: Record<string, string> = {};
-        for (const item of payload) {
-          if (item?.key && typeof item.value === "string") {
-            map[item.key] = item.value;
-          }
-        }
-        setContentMap(map);
-      } catch {
-        // keep defaults
-      }
-    }
-
-    void loadContent();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const contentValue = (key: string, fallback: string): string => {
-    const value = contentMap[key];
-    return value && value.trim() ? value : fallback;
-  };
-
-  const brandName = contentValue("site_brand_name", "Все запчасти");
-  const navParts = contentValue("site_nav_parts_label", "Запчасти");
-  const navService = contentValue("site_nav_service_label", "Автосервис");
-  const navContacts = contentValue("site_nav_contacts_label", "Контакты");
-  const navAbout = contentValue("site_nav_about_label", "О компании");
-  const navFavorites = contentValue("site_nav_favorites_label", "Избранное");
-  const navCart = contentValue("site_nav_cart_label", "Корзина");
-  const navOrders = contentValue("site_nav_orders_label", "Мои заказы");
-  const navDealer = contentValue("site_nav_dealer_label", "Для дилеров");
-  const navCallback = contentValue("site_nav_callback_label", "Заказать звонок");
   const pageTitle = contentValue("favorites_page_title", "Избранное");
-  const clearListLabel = contentValue("favorites_clear_label", "Очистить список");
-  const emptyText = contentValue("favorites_empty_text", "Список избранного пока пуст.");
-  const openCatalogLabel = contentValue("favorites_open_catalog_label", "Открыть каталог");
-  const openProductLabel = contentValue("favorites_open_product_label", "К товару");
-  const addToCartLabel = contentValue("favorites_add_to_cart_label", "В корзину");
-  const footerText = contentValue("site_footer_text", "Все запчасти · Красноярск · NO CDN");
+  const clearListLabel = contentValue(
+    "favorites_clear_label",
+    "Очистить список",
+  );
+  const emptyText = contentValue(
+    "favorites_empty_text",
+    "Список избранного пока пуст.",
+  );
+  const openCatalogLabel = contentValue(
+    "favorites_open_catalog_label",
+    "Открыть каталог",
+  );
+  const openProductLabel = contentValue(
+    "favorites_open_product_label",
+    "К товару",
+  );
+  const addToCartLabel = contentValue(
+    "favorites_add_to_cart_label",
+    "В корзину",
+  );
 
   function handleRemove(productId: number) {
     setItems(removeFavorite(productId));
@@ -109,7 +86,7 @@ export default function FavoritesPage() {
         name: item.name,
         price: item.price,
       },
-      1
+      1,
     );
     setNotice(`Товар "${item.name}" добавлен в корзину.`);
   }
@@ -124,17 +101,7 @@ export default function FavoritesPage() {
       <PublicHeader
         brandName={brandName}
         activeKey="favorites"
-        labels={{
-          parts: navParts,
-          service: navService,
-          contacts: navContacts,
-          about: navAbout,
-          favorites: navFavorites,
-          cart: navCart,
-          orders: navOrders,
-          dealer: navDealer,
-          callback: navCallback,
-        }}
+        labels={labels}
       />
 
       <section className="border-b border-neutral-200 bg-[linear-gradient(180deg,#f8fafc_0%,#eef3fb_100%)]">
@@ -143,7 +110,9 @@ export default function FavoritesPage() {
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               wishlist · saved products · compare later
             </div>
-            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{pageTitle}</h1>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
+              {pageTitle}
+            </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
               {isEmptyState
                 ? "Сохраняйте интересующие позиции, чтобы вернуться к ним позже, сравнить и быстро перенести в корзину."
@@ -152,30 +121,46 @@ export default function FavoritesPage() {
             {isEmptyState ? (
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">первый шаг</div>
-                  <div className="mt-2 text-base font-semibold">Откройте каталог и сохраните интересующие товары</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">
+                    первый шаг
+                  </div>
+                  <div className="mt-2 text-base font-semibold">
+                    Откройте каталог и сохраните интересующие товары
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">второй шаг</div>
-                  <div className="mt-2 text-base font-semibold">Вернитесь к ним позже и перенесите нужные позиции в корзину</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">
+                    второй шаг
+                  </div>
+                  <div className="mt-2 text-base font-semibold">
+                    Вернитесь к ним позже и перенесите нужные позиции в корзину
+                  </div>
                 </div>
               </div>
             ) : (
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">товаров в списке</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">
+                    товаров в списке
+                  </div>
                   <div className="mt-2 text-2xl font-bold">{items.length}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/8 px-5 py-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">следующий шаг</div>
-                  <div className="mt-2 text-base font-semibold">Перенос в корзину или переход в карточку</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/60">
+                    следующий шаг
+                  </div>
+                  <div className="mt-2 text-base font-semibold">
+                    Перенос в корзину или переход в карточку
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
           <div className="rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">как использовать список</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FF7A00]">
+              как использовать список
+            </div>
             <div className="mt-4 space-y-3">
               {(isEmptyState
                 ? [
@@ -187,8 +172,12 @@ export default function FavoritesPage() {
                     "Сохраняйте редкие или отложенные позиции без оформления заказа.",
                     "Открывайте карточку товара, чтобы уточнить наличие, цену и совместимость.",
                     "Переносите нужные позиции в корзину одной кнопкой без повторного поиска.",
-                  ]).map((item) => (
-                <div key={item} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                  ]
+              ).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600"
+                >
                   {item}
                 </div>
               ))}
@@ -232,8 +221,9 @@ export default function FavoritesPage() {
             <div className="mx-auto max-w-2xl">
               <h2 className="text-2xl font-bold text-[#10264B]">{emptyText}</h2>
               <p className="mt-3 text-sm leading-7 text-neutral-600">
-                Добавляйте сюда товары, которые хотите сравнить, показать менеджеру или заказать позже. Избранное
-                подойдёт как рабочий shortlist перед оформлением заказа.
+                Добавляйте сюда товары, которые хотите сравнить, показать
+                менеджеру или заказать позже. Избранное подойдёт как рабочий
+                shortlist перед оформлением заказа.
               </p>
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link
@@ -252,7 +242,7 @@ export default function FavoritesPage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className={items.length > 1 ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
             {items.map((item) => (
               <article
                 key={item.productId}
@@ -260,8 +250,12 @@ export default function FavoritesPage() {
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">sku · {item.sku}</div>
-                    <h2 className="mt-2 text-xl font-bold text-[#10264B]">{item.name}</h2>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#FF7A00]">
+                      sku · {item.sku}
+                    </div>
+                    <h2 className="mt-2 text-xl font-bold text-[#10264B]">
+                      {item.name}
+                    </h2>
                     <div className="mt-3 inline-flex rounded-full bg-neutral-100 px-3 py-1 text-sm font-semibold text-neutral-700">
                       {formatPrice(item.price)}
                     </div>
@@ -296,7 +290,11 @@ export default function FavoritesPage() {
         )}
       </section>
 
-      <PublicFooter brandName={brandName} footerText={footerText} contactsLabel={navContacts} />
+      <PublicFooter
+        brandName={brandName}
+        footerText={footerText}
+        contactsLabel={labels.contacts}
+      />
     </main>
   );
 }

@@ -103,3 +103,20 @@ Common pipeline for all modes:
     optional hardening: `IMPORT_SOURCE_ALLOWED_HOSTS`, timeout envs.
 - This gives immediate 1C/ERP pull integration without changing public catalog contracts.
 - Next stage (optional): dedicated adapter service with richer protocol mapping/retries.
+
+## 11. Online sync technical contour (implemented)
+- API scheduler tick is integrated into app lifecycle (`main.py`):
+  - background loop runs every `ERP_SYNC_POLL_SECONDS` (default 30 sec),
+  - can be disabled by `ERP_SYNC_BACKGROUND_ENABLED=0`.
+- New admin endpoints:
+  - `GET /api/admin/integrations/erp-sync/status`
+  - `POST /api/admin/integrations/erp-sync/run`
+- Sync state and feature flags are managed via `site_content` keys:
+  - `feature_erp_online_sync_enabled`
+  - `feature_erp_sync_delta_enabled`
+  - `feature_erp_sync_retry_enabled`
+  - `integration_erp_sync_schedule_minutes`
+  - `integration_erp_sync_retry_max_attempts`
+  - `integration_erp_sync_retry_delay_seconds`
+- Runtime state persisted in `site_content` (last status, last run, retry attempt, next retry time) for admin observability.
+- Import journal/error surface remains `import_runs` (source imports tagged as `source__...`).

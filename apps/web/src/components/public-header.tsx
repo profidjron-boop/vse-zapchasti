@@ -54,7 +54,12 @@ const NAV_ITEMS: Array<{ key: PublicNavKey; href: string }> = [
   { key: "orders", href: "/account/orders" },
 ];
 
-const PRIMARY_NAV_KEYS: PublicNavKey[] = ["parts", "service", "contacts", "about"];
+const PRIMARY_NAV_KEYS: PublicNavKey[] = [
+  "parts",
+  "service",
+  "contacts",
+  "about",
+];
 const UTILITY_NAV_KEYS: PublicNavKey[] = ["favorites", "cart", "orders"];
 
 function primaryItemClass(active: boolean): string {
@@ -90,14 +95,17 @@ function renderNavLabel(key: PublicNavKey, label: string, cartCount: number) {
     return label;
   }
   const cartLabel = cartCount > 99 ? "99+" : String(cartCount);
-  const cartBadgeClass = cartCount > 0
-    ? "bg-[#1F3B73] text-white"
-    : "bg-neutral-200 text-neutral-600";
+  const cartBadgeClass =
+    cartCount > 0
+      ? "bg-[#1F3B73] text-white"
+      : "bg-neutral-200 text-neutral-600";
 
   return (
     <span className="inline-flex items-center gap-2">
       <span>{label}</span>
-      <span className={`inline-flex h-5 w-7 items-center justify-center rounded-full text-[11px] font-semibold leading-none ${cartBadgeClass}`}>
+      <span
+        className={`inline-flex h-5 w-7 items-center justify-center rounded-full text-[11px] font-semibold leading-none ${cartBadgeClass}`}
+      >
         {cartLabel}
       </span>
     </span>
@@ -128,19 +136,27 @@ export function PublicHeader({
   }, []);
 
   const merged = { ...DEFAULT_LABELS, ...(labels ?? {}) };
-  const primaryItems = NAV_ITEMS.filter((item) => PRIMARY_NAV_KEYS.includes(item.key));
-  const utilityItems = NAV_ITEMS.filter((item) => UTILITY_NAV_KEYS.includes(item.key));
+  const primaryItems = NAV_ITEMS.filter((item) =>
+    PRIMARY_NAV_KEYS.includes(item.key),
+  );
+  const utilityItems = NAV_ITEMS.filter((item) =>
+    UTILITY_NAV_KEYS.includes(item.key),
+  );
 
   return (
     <header className="sticky top-0 z-50 border-b border-neutral-200 bg-white/95 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-md supports-[backdrop-filter]:bg-white/90">
       <div className="hidden border-b border-neutral-200 bg-neutral-50/90 sm:block">
         <div className="mx-auto flex max-w-[92rem] items-center justify-between gap-3 px-4 py-1.5 text-xs text-neutral-500 sm:px-6">
           <p className="truncate font-medium text-neutral-600">
-            Каталог запчастей и сервис для коммерческого транспорта и легковых авто
+            Каталог запчастей и сервис для коммерческого транспорта и легковых
+            авто
           </p>
           <div className="hidden items-center gap-3 md:flex">
             <span>Красноярск</span>
-            <span className="h-1 w-1 rounded-full bg-neutral-300" aria-hidden="true" />
+            <span
+              className="h-1 w-1 rounded-full bg-neutral-300"
+              aria-hidden="true"
+            />
             <span>Пн-Сб 09:00-19:00</span>
           </div>
         </div>
@@ -159,7 +175,11 @@ export function PublicHeader({
             </Link>
           </div>
 
-          <form action="/parts" method="get" className="flex flex-1 items-center gap-3">
+          <form
+            action="/parts"
+            method="get"
+            className="flex flex-1 items-center gap-3"
+          >
             <label htmlFor="public-header-search" className="sr-only">
               Поиск по каталогу
             </label>
@@ -202,7 +222,11 @@ export function PublicHeader({
 
           <nav className="hidden items-center gap-2 2xl:flex">
             {utilityItems.map((item) => (
-              <Link key={item.key} href={item.href} className={utilityItemClass(activeKey === item.key)}>
+              <Link
+                key={item.key}
+                href={item.href}
+                className={utilityItemClass(activeKey === item.key)}
+              >
                 {renderNavLabel(item.key, merged[item.key], cartCount)}
               </Link>
             ))}
@@ -213,7 +237,11 @@ export function PublicHeader({
           <div className="hidden items-center justify-between gap-3 xl:flex">
             <nav className="flex flex-wrap items-center gap-2">
               {primaryItems.map((item) => (
-                <Link key={item.key} href={item.href} className={primaryItemClass(activeKey === item.key)}>
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className={primaryItemClass(activeKey === item.key)}
+                >
                   {merged[item.key]}
                 </Link>
               ))}
@@ -221,7 +249,11 @@ export function PublicHeader({
 
             <nav className="flex flex-wrap items-center gap-2 2xl:hidden">
               {utilityItems.map((item) => (
-                <Link key={item.key} href={item.href} className={utilityItemClass(activeKey === item.key)}>
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className={utilityItemClass(activeKey === item.key)}
+                >
                   {renderNavLabel(item.key, merged[item.key], cartCount)}
                 </Link>
               ))}
@@ -248,7 +280,11 @@ export function PublicHeader({
 
             <nav className="flex items-center gap-2 overflow-x-auto pb-1">
               {[...primaryItems, ...utilityItems].map((item) => (
-                <Link key={item.key} href={item.href} className={mobileNavItemClass(activeKey === item.key)}>
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className={mobileNavItemClass(activeKey === item.key)}
+                >
                   {renderNavLabel(item.key, merged[item.key], cartCount)}
                 </Link>
               ))}

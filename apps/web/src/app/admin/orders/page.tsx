@@ -1,10 +1,16 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { normalizePage } from "@/components/admin/pagination-utils";
+import { AdminHasNextFooter } from "@/components/admin/table-pagination-shared";
 
 type OrderRow = {
   id: number;
@@ -21,14 +27,6 @@ type OrderRow = {
 };
 
 const PAGE_SIZE = 25;
-
-function normalizePage(value: string | null): number {
-  const parsed = Number.parseInt(value || "1", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-  return 1;
-}
 
 function statusLabel(value: string): string {
   if (value === "new") return "Новый";
@@ -71,59 +69,55 @@ export default function AdminOrdersPage() {
       const payload = await fetchJsonWithTimeout<string[]>(
         withApiBase(apiBaseUrl, "/api/admin/orders/statuses"),
         {},
-        12000
+        12000,
       );
       if (Array.isArray(payload)) {
         setStatuses(payload);
       }
     } catch (statusError) {
-      if (statusError instanceof ApiRequestError && (statusError.status === 401 || statusError.status === 403)) {
-        router.push("/admin/login");
-      }
+      redirectIfAdminUnauthorized(statusError, router);
     }
   }, [router]);
 
-  const fetchOrders = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) {
-      setRefreshing(true);
-    }
-    setError("");
-
-    try {
-      const query = new URLSearchParams({
-        skip: String((page - 1) * PAGE_SIZE),
-        limit: String(PAGE_SIZE + 1),
-      });
-      if (appliedStatus) query.set("status", appliedStatus);
-      if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
-
-      const apiBaseUrl = getClientApiBaseUrl();
-      const payload = await fetchJsonWithTimeout<OrderRow[]>(
-        withApiBase(apiBaseUrl, `/api/admin/orders?${query.toString()}`),
-        {},
-        12000
-      );
-      const rows = Array.isArray(payload) ? payload : [];
-      const nextPageAvailable = rows.length > PAGE_SIZE;
-      const pageRows = nextPageAvailable ? rows.slice(0, PAGE_SIZE) : rows;
-      setOrders(pageRows);
-      setHasNextPage(nextPageAvailable);
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        router.push("/admin/login");
-        return;
+  const fetchOrders = useCallback(
+    async (showRefreshing = false) => {
+      if (showRefreshing) {
+        setRefreshing(true);
       }
-      if (fetchError instanceof ApiRequestError) {
-        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
-      } else {
-        setError("Ошибка загрузки заказов");
+      setError("");
+
+      try {
+        const query = new URLSearchParams({
+          skip: String((page - 1) * PAGE_SIZE),
+          limit: String(PAGE_SIZE + 1),
+        });
+        if (appliedStatus) query.set("status", appliedStatus);
+        if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
+
+        const apiBaseUrl = getClientApiBaseUrl();
+        const payload = await fetchJsonWithTimeout<OrderRow[]>(
+          withApiBase(apiBaseUrl, `/api/admin/orders?${query.toString()}`),
+          {},
+          12000,
+        );
+        const rows = Array.isArray(payload) ? payload : [];
+        const nextPageAvailable = rows.length > PAGE_SIZE;
+        const pageRows = nextPageAvailable ? rows.slice(0, PAGE_SIZE) : rows;
+        setOrders(pageRows);
+        setHasNextPage(nextPageAvailable);
+        setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+      } catch (fetchError) {
+        if (redirectIfAdminUnauthorized(fetchError, router)) {
+          return;
+        }
+        setError(toAdminErrorMessage(fetchError, "Ошибка загрузки заказов"));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [appliedSearch, appliedStatus, page, router]);
+    },
+    [appliedSearch, appliedStatus, page, router],
+  );
 
   useEffect(() => {
     void fetchStatuses();
@@ -157,7 +151,9 @@ export default function AdminOrdersPage() {
     if (page > 1) {
       query.set("page", String(page));
     }
-    const target = query.toString() ? `/admin/orders?${query.toString()}` : "/admin/orders";
+    const target = query.toString()
+      ? `/admin/orders?${query.toString()}`
+      : "/admin/orders";
     router.replace(target, { scroll: false });
   }, [appliedSearch, appliedStatus, page, router]);
 
@@ -206,7 +202,11 @@ export default function AdminOrdersPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-[#1F3B73]">Заказы</h1>
         <div className="flex items-center gap-3">
-          {lastUpdated && <span className="text-xs text-neutral-500">Обновлено: {lastUpdated}</span>}
+          {lastUpdated && (
+            <span className="text-xs text-neutral-500">
+              Обновлено: {lastUpdated}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => void fetchOrders(true)}
@@ -218,9 +218,14 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      <form onSubmit={handleApplyFilters} className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-3">
+      <form
+        onSubmit={handleApplyFilters}
+        className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-3"
+      >
         <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Статус</label>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Статус
+          </label>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
@@ -235,7 +240,9 @@ export default function AdminOrdersPage() {
           </select>
         </div>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Поиск
+          </label>
           <input
             type="text"
             value={search}
@@ -263,7 +270,11 @@ export default function AdminOrdersPage() {
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
@@ -274,12 +285,16 @@ export default function AdminOrdersPage() {
           {appliedStatus || appliedSearch ? (
             <>
               <p>По выбранным фильтрам заказы не найдены</p>
-              <p className="mt-2 text-sm">Попробуйте сбросить фильтры или изменить параметры поиска</p>
+              <p className="mt-2 text-sm">
+                Попробуйте сбросить фильтры или изменить параметры поиска
+              </p>
             </>
           ) : (
             <>
               <p>Заказов пока нет</p>
-              <p className="mt-2 text-sm">Заказы появятся после оформления на сайте</p>
+              <p className="mt-2 text-sm">
+                Заказы появятся после оформления на сайте
+              </p>
             </>
           )}
         </div>
@@ -294,8 +309,12 @@ export default function AdminOrdersPage() {
               <article key={order.id} className="space-y-3 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-neutral-900">#{order.id}</p>
-                    <p className="mt-1 text-xs text-neutral-500">{sourceLabel(order.source)}</p>
+                    <p className="text-sm font-semibold text-neutral-900">
+                      #{order.id}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      {sourceLabel(order.source)}
+                    </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-[#1F3B73]/10 px-2 py-1 text-xs text-[#1F3B73]">
                     {statusLabel(order.status)}
@@ -305,12 +324,20 @@ export default function AdminOrdersPage() {
                 <div className="grid grid-cols-1 gap-2 text-sm text-neutral-700">
                   <p>Клиент: {order.customer_name || "—"}</p>
                   <p>Телефон: {order.customer_phone}</p>
-                  <p>Доставка/Оплата: {(order.delivery_method || "—")} / {(order.payment_method || "—")}</p>
+                  <p>
+                    Доставка/Оплата: {order.delivery_method || "—"} /{" "}
+                    {order.payment_method || "—"}
+                  </p>
                   <p>Позиции: {order.items.length}</p>
-                  <p className="text-xs text-neutral-500">{new Date(order.created_at).toLocaleString("ru-RU")}</p>
+                  <p className="text-xs text-neutral-500">
+                    {new Date(order.created_at).toLocaleString("ru-RU")}
+                  </p>
                 </div>
 
-                <Link className="text-sm font-medium text-[#1F3B73] hover:underline" href={`/admin/orders/${order.id}`}>
+                <Link
+                  className="text-sm font-medium text-[#1F3B73] hover:underline"
+                  href={`/admin/orders/${order.id}`}
+                >
                   Открыть карточку
                 </Link>
               </article>
@@ -321,32 +348,66 @@ export default function AdminOrdersPage() {
             <table className="w-full min-w-[980px]">
               <thead className="border-b border-neutral-200 bg-neutral-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">ID</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Источник</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Клиент</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Телефон</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Доставка/Оплата</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Позиции</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Дата</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Карточка</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Статус
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Источник
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Клиент
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Телефон
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Доставка/Оплата
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Позиции
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Дата
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Карточка
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
                 {orders.map((order) => (
                   <tr key={order.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">#{order.id}</td>
-                    <td className="px-4 py-3 text-sm">{statusLabel(order.status)}</td>
-                    <td className="px-4 py-3 text-sm">{sourceLabel(order.source)}</td>
-                    <td className="px-4 py-3 text-sm">{order.customer_name || "—"}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{order.customer_phone}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      #{order.id}
+                    </td>
                     <td className="px-4 py-3 text-sm">
-                      {(order.delivery_method || "—")} / {(order.payment_method || "—")}
+                      {statusLabel(order.status)}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {sourceLabel(order.source)}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {order.customer_name || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {order.customer_phone}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {order.delivery_method || "—"} /{" "}
+                      {order.payment_method || "—"}
                     </td>
                     <td className="px-4 py-3 text-sm">{order.items.length}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{new Date(order.created_at).toLocaleString("ru-RU")}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      <Link className="text-[#1F3B73] hover:underline" href={`/admin/orders/${order.id}`}>
+                      {new Date(order.created_at).toLocaleString("ru-RU")}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <Link
+                        className="text-[#1F3B73] hover:underline"
+                        href={`/admin/orders/${order.id}`}
+                      >
                         Открыть
                       </Link>
                     </td>
@@ -356,47 +417,18 @@ export default function AdminOrdersPage() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-neutral-200 px-4 py-3 text-sm">
-            <div className="text-neutral-500">
-              Поиск работает по всем заказам, не только по текущей странице.
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1 || refreshing}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Назад
-              </button>
-              <span className="min-w-[5rem] text-center text-neutral-600">Стр. {page}</span>
-              <button
-                type="button"
-                onClick={() => setPage((prev) => prev + 1)}
-                disabled={!hasNextPage || refreshing}
-                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
-              >
-                Вперёд
-              </button>
-              <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
-                <label htmlFor="orders-page-jump" className="text-xs text-neutral-500">Стр.</label>
-                <input
-                  id="orders-page-jump"
-                  type="number"
-                  min={1}
-                  value={pageInput}
-                  onChange={(event) => setPageInput(event.target.value)}
-                  className="w-20 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-700 focus:border-[#1F3B73] focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
-                >
-                  Перейти
-                </button>
-              </form>
-            </div>
-          </div>
+          <AdminHasNextFooter
+            summary="Поиск работает по всем заказам, не только по текущей странице."
+            page={page}
+            hasNextPage={hasNextPage}
+            pageInput={pageInput}
+            jumpInputId="orders-page-jump"
+            onPageInputChange={setPageInput}
+            onPrevPage={() => setPage((prev) => Math.max(1, prev - 1))}
+            onNextPage={() => setPage((prev) => prev + 1)}
+            onJumpToPage={handlePageJump}
+            disabled={refreshing}
+          />
         </div>
       )}
     </div>

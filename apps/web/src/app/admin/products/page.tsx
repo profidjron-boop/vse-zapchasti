@@ -1,10 +1,17 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeoutAndResponse } from "@/lib/fetch-json";
+import { normalizePage } from "@/components/admin/pagination-utils";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
+import {
+  fetchJsonWithTimeoutAndResponse,
+} from "@/lib/fetch-json";
 
 type Product = {
   id: number;
@@ -23,7 +30,9 @@ type Product = {
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
-function normalizeStockFilter(value: string | null): "all" | "in_stock" | "out_of_stock" {
+function normalizeStockFilter(
+  value: string | null,
+): "all" | "in_stock" | "out_of_stock" {
   if (value === "in_stock" || value === "out_of_stock") {
     return value;
   }
@@ -32,18 +41,12 @@ function normalizeStockFilter(value: string | null): "all" | "in_stock" | "out_o
 
 function normalizePageSize(value: string | null): number {
   const parsed = Number.parseInt(value || "", 10);
-  if (PAGE_SIZE_OPTIONS.includes(parsed as typeof PAGE_SIZE_OPTIONS[number])) {
+  if (
+    PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])
+  ) {
     return parsed;
   }
   return DEFAULT_PAGE_SIZE;
-}
-
-function normalizePage(value: string | null): number {
-  const parsed = Number.parseInt(value || "1", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-  return 1;
 }
 
 export default function AdminProductsPage() {
@@ -51,62 +54,80 @@ export default function AdminProductsPage() {
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [totalProducts, setTotalProducts] = useState(0);
-  const [page, setPage] = useState(() => normalizePage(searchParams.get("page")));
+  const [page, setPage] = useState(() =>
+    normalizePage(searchParams.get("page")),
+  );
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
-  const [search, setSearch] = useState(() => (searchParams.get("q") || "").trim());
-  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">(
-    () => normalizeStockFilter(searchParams.get("stock"))
+  const [search, setSearch] = useState(() =>
+    (searchParams.get("q") || "").trim(),
   );
-  const [pageSize, setPageSize] = useState<number>(() => normalizePageSize(searchParams.get("page_size")));
-  const [pageInput, setPageInput] = useState(() => String(normalizePage(searchParams.get("page"))));
+  const [stockFilter, setStockFilter] = useState<
+    "all" | "in_stock" | "out_of_stock"
+  >(() => normalizeStockFilter(searchParams.get("stock")));
+  const [pageSize, setPageSize] = useState<number>(() =>
+    normalizePageSize(searchParams.get("page_size")),
+  );
+  const [pageInput, setPageInput] = useState(() =>
+    String(normalizePage(searchParams.get("page"))),
+  );
 
-  const fetchProducts = useCallback(async (showRefreshing = false) => {
-    setError("");
-    if (showRefreshing) {
-      setIsRefreshing(true);
-    }
-
-    try {
-      const apiBaseUrl = getClientApiBaseUrl();
-      const searchParams = new URLSearchParams({
-        limit: String(pageSize),
-        skip: String((page - 1) * pageSize),
-      });
-      const normalizedSearch = search.trim();
-      if (normalizedSearch) {
-        searchParams.set("search", normalizedSearch);
-      }
-      if (stockFilter !== "all") {
-        searchParams.set("stock", stockFilter);
+  const fetchProducts = useCallback(
+    async (showRefreshing = false) => {
+      setError("");
+      if (showRefreshing) {
+        setIsRefreshing(true);
       }
 
-      const { data, response } = await fetchJsonWithTimeoutAndResponse<Product[]>(
-        withApiBase(apiBaseUrl, `/api/admin/products?${searchParams.toString()}`),
-        {},
-        12000
-      );
-      setProducts(data);
-      const totalHeader = Number.parseInt(response.headers.get("x-total-count") || "", 10);
-      setTotalProducts(Number.isFinite(totalHeader) ? totalHeader : data.length);
-      setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
-    } catch (fetchError) {
-      if (fetchError instanceof ApiRequestError && (fetchError.status === 401 || fetchError.status === 403)) {
-        router.push("/admin/login");
-        return;
+      try {
+        const apiBaseUrl = getClientApiBaseUrl();
+        const searchParams = new URLSearchParams({
+          limit: String(pageSize),
+          skip: String((page - 1) * pageSize),
+        });
+        const normalizedSearch = search.trim();
+        if (normalizedSearch) {
+          searchParams.set("search", normalizedSearch);
+        }
+        if (stockFilter !== "all") {
+          searchParams.set("stock", stockFilter);
+        }
+
+        const { data, response } = await fetchJsonWithTimeoutAndResponse<
+          Product[]
+        >(
+          withApiBase(
+            apiBaseUrl,
+            `/api/admin/products?${searchParams.toString()}`,
+          ),
+          {},
+          12000,
+        );
+        setProducts(data);
+        const totalHeader = Number.parseInt(
+          response.headers.get("x-total-count") || "",
+          10,
+        );
+        setTotalProducts(
+          Number.isFinite(totalHeader) ? totalHeader : data.length,
+        );
+        setLastUpdated(new Date().toLocaleTimeString("ru-RU"));
+      } catch (fetchError) {
+        if (redirectIfAdminUnauthorized(fetchError, router)) {
+          return;
+        }
+        setError(
+          toAdminErrorMessage(fetchError, "Не удалось загрузить список товаров"),
+        );
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
       }
-      if (fetchError instanceof ApiRequestError) {
-        setError(fetchError.traceId ? `${fetchError.message}. Код: ${fetchError.traceId}` : fetchError.message);
-      } else {
-        setError("Не удалось загрузить список товаров");
-      }
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [router, search, stockFilter, page, pageSize]);
+    },
+    [router, search, stockFilter, page, pageSize],
+  );
 
   useEffect(() => {
     const nextSearch = (searchParams.get("q") || "").trim();
@@ -115,7 +136,9 @@ export default function AdminProductsPage() {
     const nextPage = normalizePage(searchParams.get("page"));
 
     setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-    setStockFilter((prev) => (prev === nextStockFilter ? prev : nextStockFilter));
+    setStockFilter((prev) =>
+      prev === nextStockFilter ? prev : nextStockFilter,
+    );
     setPageSize((prev) => (prev === nextPageSize ? prev : nextPageSize));
     setPage((prev) => (prev === nextPage ? prev : nextPage));
   }, [searchParams]);
@@ -158,7 +181,9 @@ export default function AdminProductsPage() {
     if (page > 1) {
       query.set("page", String(page));
     }
-    const target = query.toString() ? `/admin/products?${query.toString()}` : "/admin/products";
+    const target = query.toString()
+      ? `/admin/products?${query.toString()}`
+      : "/admin/products";
     router.replace(target, { scroll: false });
   }, [page, pageSize, router, search, stockFilter]);
 
@@ -185,7 +210,9 @@ export default function AdminProductsPage() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-[#1F3B73]">Управление товарами</h1>
+        <h1 className="text-2xl font-bold text-[#1F3B73]">
+          Управление товарами
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -205,12 +232,16 @@ export default function AdminProductsPage() {
       </div>
 
       {lastUpdated && (
-        <div className="mb-4 text-xs text-neutral-500">Обновлено: {lastUpdated}</div>
+        <div className="mb-4 text-xs text-neutral-500">
+          Обновлено: {lastUpdated}
+        </div>
       )}
 
       <div className="mb-6 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 md:grid-cols-4">
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Поиск</label>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Поиск
+          </label>
           <input
             type="text"
             value={search}
@@ -223,11 +254,15 @@ export default function AdminProductsPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Наличие</label>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Наличие
+          </label>
           <select
             value={stockFilter}
             onChange={(event) => {
-              setStockFilter(event.target.value as "all" | "in_stock" | "out_of_stock");
+              setStockFilter(
+                event.target.value as "all" | "in_stock" | "out_of_stock",
+              );
               setPage(1);
             }}
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
@@ -238,11 +273,15 @@ export default function AdminProductsPage() {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">На странице</label>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            На странице
+          </label>
           <select
             value={String(pageSize)}
             onChange={(event) => {
-              setPageSize(Number.parseInt(event.target.value, 10) || DEFAULT_PAGE_SIZE);
+              setPageSize(
+                Number.parseInt(event.target.value, 10) || DEFAULT_PAGE_SIZE,
+              );
               setPage(1);
             }}
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm focus:border-[#1F3B73] focus:outline-none"
@@ -272,7 +311,11 @@ export default function AdminProductsPage() {
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
@@ -283,19 +326,24 @@ export default function AdminProductsPage() {
           {totalProducts === 0 ? (
             <>
               <p>Товаров пока нет</p>
-              <p className="mt-2 text-sm">Добавьте первый товар через кнопку выше</p>
+              <p className="mt-2 text-sm">
+                Добавьте первый товар через кнопку выше
+              </p>
             </>
           ) : (
             <>
               <p>На этой странице товаров нет</p>
-              <p className="mt-2 text-sm">Попробуйте перейти на предыдущую страницу или изменить фильтры</p>
+              <p className="mt-2 text-sm">
+                Попробуйте перейти на предыдущую страницу или изменить фильтры
+              </p>
             </>
           )}
         </div>
       ) : (
         <div className="rounded-2xl border border-neutral-200 bg-white">
           <div className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-500">
-            Показано: {products.length} из {totalProducts} · Страница {page} из {totalPages}
+            Показано: {products.length} из {totalProducts} · Страница {page} из{" "}
+            {totalPages}
           </div>
 
           <div className="divide-y divide-neutral-200 md:hidden">
@@ -303,11 +351,19 @@ export default function AdminProductsPage() {
               <article key={product.id} className="space-y-3 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="break-all text-xs text-neutral-500">{product.sku}</p>
-                    <p className="mt-1 font-medium text-neutral-900">{product.name}</p>
-                    <p className="mt-1 text-sm text-neutral-600">OEM: {product.oem || "—"}</p>
+                    <p className="break-all text-xs text-neutral-500">
+                      {product.sku}
+                    </p>
+                    <p className="mt-1 font-medium text-neutral-900">
+                      {product.name}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      OEM: {product.oem || "—"}
+                    </p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}
+                  >
                     {product.is_active ? "Активен" : "Выключен"}
                   </span>
                 </div>
@@ -316,7 +372,10 @@ export default function AdminProductsPage() {
                   <p>Бренд: {product.brand || "—"}</p>
                   <p>Остаток: {product.stock_quantity}</p>
                   <p className="col-span-2">
-                    Цена: {typeof product.price === "number" ? `${product.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                    Цена:{" "}
+                    {typeof product.price === "number"
+                      ? `${product.price.toLocaleString("ru-RU")} ₽`
+                      : "Цена по запросу"}
                   </p>
                 </div>
 
@@ -344,29 +403,59 @@ export default function AdminProductsPage() {
             <table className="w-full min-w-[980px]">
               <thead className="border-b border-neutral-200 bg-neutral-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">SKU</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">OEM</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Название</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Бренд</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Цена</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Остаток</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Статус</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">Действия</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    SKU
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    OEM
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Название
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Бренд
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Цена
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Остаток
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Статус
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-neutral-600">
+                    Действия
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
                 {products.map((product) => (
                   <tr key={product.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.sku}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.oem || "—"}</td>
-                    <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
-                    <td className="px-4 py-3 text-sm">{product.brand || "—"}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      {typeof product.price === "number" ? `${product.price.toLocaleString("ru-RU")} ₽` : "Цена по запросу"}
+                      {product.sku}
                     </td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{product.stock_quantity}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      <span className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}>
+                      {product.oem || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium">
+                      {product.name}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {product.brand || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {typeof product.price === "number"
+                        ? `${product.price.toLocaleString("ru-RU")} ₽`
+                        : "Цена по запросу"}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {product.stock_quantity}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${product.is_active ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-600"}`}
+                      >
                         {product.is_active ? "Активен" : "Выключен"}
                       </span>
                     </td>
@@ -413,14 +502,24 @@ export default function AdminProductsPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() =>
+                    setPage((prev) => Math.min(totalPages, prev + 1))
+                  }
                   disabled={page >= totalPages}
                   className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
                 >
                   Вперёд
                 </button>
-                <form onSubmit={handlePageJump} className="ml-1 flex items-center gap-2">
-                  <label htmlFor="products-page-jump" className="text-xs text-neutral-500">Стр.</label>
+                <form
+                  onSubmit={handlePageJump}
+                  className="ml-1 flex items-center gap-2"
+                >
+                  <label
+                    htmlFor="products-page-jump"
+                    className="text-xs text-neutral-500"
+                  >
+                    Стр.
+                  </label>
                   <input
                     id="products-page-jump"
                     type="number"

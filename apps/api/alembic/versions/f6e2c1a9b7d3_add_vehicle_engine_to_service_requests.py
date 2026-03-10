@@ -5,11 +5,11 @@ Revises: a1b2c3d4e5f6
 Create Date: 2026-03-09 21:10:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 revision: str = "f6e2c1a9b7d3"
 down_revision: Union[str, Sequence[str], None] = "a1b2c3d4e5f6"
@@ -30,7 +30,10 @@ def _get_column(table_name: str, column_name: str):
 
 def upgrade() -> None:
     if _get_column("service_requests", "vehicle_engine") is None:
-        op.add_column("service_requests", sa.Column("vehicle_engine", sa.String(length=100), nullable=True))
+        op.add_column(
+            "service_requests",
+            sa.Column("vehicle_engine", sa.String(length=100), nullable=True),
+        )
 
     name_column = _get_column("service_requests", "name")
     if name_column is not None and not bool(name_column.get("nullable", False)):

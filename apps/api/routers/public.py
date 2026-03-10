@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import logging
 import os
 from pathlib import Path
+import secrets
 from threading import Lock
 import time
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -30,11 +31,15 @@ from models import (
     VinRequest,
 )
 from schemas import (
-    CategoryResponse, ProductResponse, LeadCreate, LeadResponse,
+    CategoryResponse,
+    ProductResponse,
+    LeadCreate,
+    LeadResponse,
     OrderCreate,
     OrderRequisitesUploadResponse,
     OrderPublicResponse,
     OrderResponse,
+    PaymentWebhookPayload,
     ServiceCatalogItemResponse,
     ServiceRequestCreate,
     ServiceRequestResponse,
@@ -76,14 +81,24 @@ def _env_positive_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-ORDER_REQUISITES_MAX_BYTES = _env_positive_int("PUBLIC_ORDER_REQUISITES_MAX_BYTES", 10 * 1024 * 1024)
+ORDER_REQUISITES_MAX_BYTES = _env_positive_int(
+    "PUBLIC_ORDER_REQUISITES_MAX_BYTES", 10 * 1024 * 1024
+)
 
 
-FORM_RATE_LIMIT_WINDOW_SECONDS = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS", 60)
-DEFAULT_FORM_RATE_LIMIT_PER_MINUTE = _env_positive_int("PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", 20)
+FORM_RATE_LIMIT_WINDOW_SECONDS = _env_positive_int(
+    "PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS", 60
+)
+DEFAULT_FORM_RATE_LIMIT_PER_MINUTE = _env_positive_int(
+    "PUBLIC_FORMS_RATE_LIMIT_PER_MINUTE", 20
+)
 FORM_RATE_LIMITS_PER_SCOPE = {
-    "leads": _env_positive_int("PUBLIC_LEADS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
-    "orders": _env_positive_int("PUBLIC_ORDERS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE),
+    "leads": _env_positive_int(
+        "PUBLIC_LEADS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE
+    ),
+    "orders": _env_positive_int(
+        "PUBLIC_ORDERS_RATE_LIMIT_PER_MINUTE", DEFAULT_FORM_RATE_LIMIT_PER_MINUTE
+    ),
     "order_requisites_upload": _env_positive_int(
         "PUBLIC_ORDER_REQUISITES_UPLOAD_RATE_LIMIT_PER_MINUTE",
         max(5, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE // 2),
@@ -100,8 +115,23 @@ FORM_RATE_LIMITS_PER_SCOPE = {
 _rate_limit_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
 _redis_rate_limit_client: Redis | None = None
-REDIS_RATE_LIMIT_URL = (os.getenv("RATE_LIMIT_REDIS_URL") or os.getenv("REDIS_URL") or "").strip()
-PUBLIC_PRODUCTS_READ_MODE = os.getenv("PUBLIC_PRODUCTS_READ_MODE", "snapshot").strip().lower()
+REDIS_RATE_LIMIT_URL = (
+    os.getenv("RATE_LIMIT_REDIS_URL") or os.getenv("REDIS_URL") or ""
+).strip()
+PUBLIC_PRODUCTS_READ_MODE = (
+    os.getenv("PUBLIC_PRODUCTS_READ_MODE", "snapshot").strip().lower()
+)
+FEATURE_NOTIFICATIONS_ENABLED_KEY = "feature_notifications_enabled"
+FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY = "feature_notifications_email_enabled"
+FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY = "feature_notifications_sms_enabled"
+FEATURE_NOTIFICATIONS_MESSENGER_ENABLED_KEY = "feature_notifications_messenger_enabled"
+FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY = "feature_service_prepayment_enabled"
+FEATURE_SERVICE_PAYMENT_FLOW_ENABLED_KEY = "feature_service_payment_flow_enabled"
+FEATURE_SERVICE_PAYMENT_BLOCK_UNPAID_ENABLED_KEY = (
+    "feature_service_payment_block_unpaid_enabled"
+)
+INTEGRATION_PAYMENTS_PROVIDER_NAME_KEY = "integration_payments_provider_name"
+INTEGRATION_PAYMENTS_DEFAULT_CURRENCY_KEY = "integration_payments_default_currency"
 
 
 async def _get_redis_rate_limit_client() -> Redis | None:
@@ -109,7 +139,9 @@ async def _get_redis_rate_limit_client() -> Redis | None:
     if not REDIS_RATE_LIMIT_URL:
         return None
     if _redis_rate_limit_client is None:
-        _redis_rate_limit_client = Redis.from_url(REDIS_RATE_LIMIT_URL, decode_responses=True)
+        _redis_rate_limit_client = Redis.from_url(
+            REDIS_RATE_LIMIT_URL, decode_responses=True
+        )
     return _redis_rate_limit_client
 
 
@@ -134,13 +166,17 @@ def _validate_order_requisites_signature(extension: str, content: bytes) -> None
 def _resolve_invoice_requisites_path(file_url: str) -> Path:
     relative_path = file_url.removeprefix("/uploads/").strip("/")
     if not relative_path.startswith("order-requisites/"):
-        raise HTTPException(status_code=400, detail="Недопустимый путь к файлу реквизитов")
+        raise HTTPException(
+            status_code=400, detail="Недопустимый путь к файлу реквизитов"
+        )
     return UPLOAD_DIR / relative_path
 
 
 async def _enforce_form_rate_limit(request: Request, scope: str) -> None:
     ip_address = _extract_client_ip(request)
-    limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE)
+    limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(
+        scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE
+    )
 
     redis_client = await _get_redis_rate_limit_client()
     if redis_client is not None:
@@ -171,7 +207,9 @@ async def _enforce_form_rate_limit(request: Request, scope: str) -> None:
     ip_address = request.client.host if request.client else "unknown"
     bucket_key = f"{scope}:{ip_address}"
     now = time.time()
-    limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE)
+    limit_per_minute = FORM_RATE_LIMITS_PER_SCOPE.get(
+        scope, DEFAULT_FORM_RATE_LIMIT_PER_MINUTE
+    )
 
     with _rate_limit_lock:
         bucket = _rate_limit_buckets[bucket_key]
@@ -192,6 +230,172 @@ def _to_int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _parse_content_flag(value: Optional[str], *, default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+async def _get_site_content_values(
+    db: AsyncSession, keys: list[str]
+) -> dict[str, Optional[str]]:
+    if not keys:
+        return {}
+
+    result = await db.execute(
+        select(SiteContent.key, SiteContent.value).where(SiteContent.key.in_(keys))
+    )
+    values = {key: value for key, value in result.all()}
+    return {key: values.get(key) for key in keys}
+
+
+async def _get_notification_flags(db: AsyncSession) -> dict[str, bool]:
+    settings = await _get_site_content_values(
+        db,
+        [
+            FEATURE_NOTIFICATIONS_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY,
+            FEATURE_NOTIFICATIONS_MESSENGER_ENABLED_KEY,
+        ],
+    )
+    global_enabled = _parse_content_flag(
+        settings.get(FEATURE_NOTIFICATIONS_ENABLED_KEY), default=True
+    )
+    if not global_enabled:
+        return {"enabled": False, "email": False, "sms": False, "messenger": False}
+
+    return {
+        "enabled": True,
+        "email": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY), default=True
+        ),
+        "sms": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY), default=True
+        ),
+        "messenger": _parse_content_flag(
+            settings.get(FEATURE_NOTIFICATIONS_MESSENGER_ENABLED_KEY), default=True
+        ),
+    }
+
+
+def _notify_with_flags(
+    event: str, payload: dict[str, Any], notification_flags: dict[str, bool]
+) -> None:
+    if not notification_flags.get("enabled", True):
+        return
+    try:
+        notify_event(
+            event,
+            payload,
+            enable_email=notification_flags.get("email", True),
+            enable_sms=notification_flags.get("sms", True),
+            enable_messenger=notification_flags.get("messenger", True),
+        )
+    except TypeError:
+        notify_event(event, payload)
+
+
+async def _is_service_prepayment_enabled(db: AsyncSession) -> bool:
+    settings = await _get_site_content_values(db, [FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY])
+    return _parse_content_flag(
+        settings.get(FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY),
+        default=False,
+    )
+
+
+def _normalize_payment_currency(value: Optional[str], *, default: str = "RUB") -> str:
+    normalized = (value or "").strip().upper()
+    if not normalized:
+        return default
+    return normalized[:10]
+
+
+def _extract_payments_webhook_token(request: Request) -> str:
+    token_header = (request.headers.get("x-payments-token") or "").strip()
+    if token_header:
+        return token_header
+
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        return auth_header[7:].strip()
+    return ""
+
+
+async def _get_service_payment_settings(db: AsyncSession) -> dict[str, Any]:
+    settings = await _get_site_content_values(
+        db,
+        [
+            FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY,
+            FEATURE_SERVICE_PAYMENT_FLOW_ENABLED_KEY,
+            FEATURE_SERVICE_PAYMENT_BLOCK_UNPAID_ENABLED_KEY,
+            INTEGRATION_PAYMENTS_PROVIDER_NAME_KEY,
+            INTEGRATION_PAYMENTS_DEFAULT_CURRENCY_KEY,
+        ],
+    )
+    return {
+        "prepayment_enabled": _parse_content_flag(
+            settings.get(FEATURE_SERVICE_PREPAYMENT_ENABLED_KEY),
+            default=False,
+        ),
+        "payment_flow_enabled": _parse_content_flag(
+            settings.get(FEATURE_SERVICE_PAYMENT_FLOW_ENABLED_KEY),
+            default=False,
+        ),
+        "payment_block_unpaid_enabled": _parse_content_flag(
+            settings.get(FEATURE_SERVICE_PAYMENT_BLOCK_UNPAID_ENABLED_KEY),
+            default=False,
+        ),
+        "provider_name": (settings.get(INTEGRATION_PAYMENTS_PROVIDER_NAME_KEY) or "").strip(),
+        "default_currency": _normalize_payment_currency(
+            settings.get(INTEGRATION_PAYMENTS_DEFAULT_CURRENCY_KEY),
+            default="RUB",
+        ),
+    }
+
+
+async def _resolve_service_catalog_item_for_request(
+    db: AsyncSession,
+    *,
+    service_type: str,
+    vehicle_type: str,
+) -> Optional[ServiceCatalogItem]:
+    normalized_service_type = service_type.strip().lower()
+    if not normalized_service_type:
+        return None
+
+    result = await db.execute(
+        select(ServiceCatalogItem)
+        .where(
+            ServiceCatalogItem.is_active.is_(True),
+            func.lower(ServiceCatalogItem.name) == normalized_service_type,
+            or_(
+                ServiceCatalogItem.vehicle_type == vehicle_type,
+                ServiceCatalogItem.vehicle_type == "both",
+            ),
+        )
+        .order_by(ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc())
+    )
+    items = result.scalars().all()
+    if not items:
+        return None
+    for item in items:
+        if (item.vehicle_type or "").strip().lower() == vehicle_type:
+            return item
+    return items[0]
+
+
+def _is_payment_transition_allowed(current_status: str, next_status: str) -> bool:
+    allowed_transitions = {
+        "not_required": {"not_required", "pending", "paid", "failed"},
+        "pending": {"pending", "paid", "failed", "refunded"},
+        "paid": {"paid", "refunded"},
+        "failed": {"failed", "pending", "paid"},
+        "refunded": {"refunded", "pending", "paid"},
+    }
+    return next_status in allowed_transitions.get(current_status, set())
 
 
 def _to_float(value: Any) -> Optional[float]:
@@ -229,7 +433,9 @@ def _normalize_snapshot_images(raw_images: Any) -> list[dict[str, Any]]:
     return images
 
 
-def _normalize_snapshot_compatibilities(raw_compatibilities: Any) -> list[dict[str, Any]]:
+def _normalize_snapshot_compatibilities(
+    raw_compatibilities: Any,
+) -> list[dict[str, Any]]:
     if not isinstance(raw_compatibilities, list):
         return []
 
@@ -280,8 +486,16 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
 
     created_at_raw = raw_product.get("created_at")
     updated_at_raw = raw_product.get("updated_at")
-    created_at = created_at_raw if isinstance(created_at_raw, str) and created_at_raw.strip() else None
-    updated_at = updated_at_raw if isinstance(updated_at_raw, str) and updated_at_raw.strip() else None
+    created_at = (
+        created_at_raw
+        if isinstance(created_at_raw, str) and created_at_raw.strip()
+        else None
+    )
+    updated_at = (
+        updated_at_raw
+        if isinstance(updated_at_raw, str) and updated_at_raw.strip()
+        else None
+    )
     fallback_timestamp = datetime.now(UTC).replace(tzinfo=None).isoformat()
     if created_at is None and updated_at is None:
         created_at = fallback_timestamp
@@ -295,16 +509,32 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
         "id": _to_int(product_id, 0),
         "category_id": _to_int(category_id, 0),
         "sku": sku.strip(),
-        "oem": raw_product.get("oem") if isinstance(raw_product.get("oem"), str) else None,
-        "brand": raw_product.get("brand") if isinstance(raw_product.get("brand"), str) else None,
+        "oem": (
+            raw_product.get("oem") if isinstance(raw_product.get("oem"), str) else None
+        ),
+        "brand": (
+            raw_product.get("brand")
+            if isinstance(raw_product.get("brand"), str)
+            else None
+        ),
         "name": name.strip(),
-        "description": raw_product.get("description") if isinstance(raw_product.get("description"), str) else None,
+        "description": (
+            raw_product.get("description")
+            if isinstance(raw_product.get("description"), str)
+            else None
+        ),
         "price": _to_float(raw_product.get("price")),
         "stock_quantity": _to_int(raw_product.get("stock_quantity"), 0),
         "is_active": bool(raw_product.get("is_active", True)),
-        "attributes": raw_product.get("attributes") if isinstance(raw_product.get("attributes"), dict) else {},
+        "attributes": (
+            raw_product.get("attributes")
+            if isinstance(raw_product.get("attributes"), dict)
+            else {}
+        ),
         "images": _normalize_snapshot_images(raw_product.get("images")),
-        "compatibilities": _normalize_snapshot_compatibilities(raw_product.get("compatibilities")),
+        "compatibilities": _normalize_snapshot_compatibilities(
+            raw_product.get("compatibilities")
+        ),
         "created_at": created_at,
         "updated_at": updated_at,
     }
@@ -315,7 +545,9 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
     return normalized
 
 
-async def _load_latest_products_snapshot(db: AsyncSession) -> Optional[list[dict[str, Any]]]:
+async def _load_latest_products_snapshot(
+    db: AsyncSession,
+) -> Optional[list[dict[str, Any]]]:
     if PUBLIC_PRODUCTS_READ_MODE != "snapshot":
         return None
 
@@ -383,7 +615,9 @@ def _product_matches_vehicle(
     return False
 
 
-def _apply_snapshot_search(products: list[dict[str, Any]], search: str) -> list[dict[str, Any]]:
+def _apply_snapshot_search(
+    products: list[dict[str, Any]], search: str
+) -> list[dict[str, Any]]:
     search_text = " ".join(search.strip().lower().split())
     if not search_text:
         return sorted(products, key=lambda product: _to_int(product.get("id"), 0))
@@ -424,18 +658,25 @@ def _apply_snapshot_filters(
     filtered = [product for product in products if product.get("is_active", False)]
 
     if category_id:
-        filtered = [product for product in filtered if product.get("category_id") == category_id]
+        filtered = [
+            product for product in filtered if product.get("category_id") == category_id
+        ]
 
     if brand:
         brand_normalized = brand.strip().lower()
         filtered = [
             product
             for product in filtered
-            if isinstance(product.get("brand"), str) and product.get("brand", "").strip().lower() == brand_normalized
+            if isinstance(product.get("brand"), str)
+            and product.get("brand", "").strip().lower() == brand_normalized
         ]
 
     if in_stock_only:
-        filtered = [product for product in filtered if _to_int(product.get("stock_quantity"), 0) > 0]
+        filtered = [
+            product
+            for product in filtered
+            if _to_int(product.get("stock_quantity"), 0) > 0
+        ]
 
     if vehicle_make or vehicle_model or vehicle_year is not None or vehicle_engine:
         vehicle_make_normalized = _normalize_optional_filter(vehicle_make)
@@ -460,12 +701,13 @@ def _apply_snapshot_filters(
 
     return filtered
 
+
 # ---------- Categories ----------
 @router.get("/categories", response_model=List[CategoryResponse])
 async def get_categories(
     parent_id: Optional[int] = None,
     active_only: bool = True,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get all categories, optionally filtered by parent"""
     query = select(Category)
@@ -474,9 +716,10 @@ async def get_categories(
     if active_only:
         query = query.where(Category.is_active)
     query = query.order_by(Category.sort_order)
-    
+
     result = await db.execute(query)
     return result.scalars().all()
+
 
 @router.get("/categories/{slug}", response_model=CategoryResponse)
 async def get_category_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
@@ -484,10 +727,11 @@ async def get_category_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
     query = select(Category).where(Category.slug == slug)
     result = await db.execute(query)
     category = result.scalar_one_or_none()
-    
+
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
+
 
 # ---------- Products ----------
 @router.get("/products", response_model=List[ProductResponse])
@@ -502,7 +746,7 @@ async def get_products(
     in_stock_only: bool = False,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get products with filters and search"""
     snapshot_products = await _load_latest_products_snapshot(db)
@@ -525,18 +769,20 @@ async def get_products(
         .options(selectinload(Product.images), selectinload(Product.compatibilities))
         .where(Product.is_active)
     )
-    
+
     if category_id:
         query = query.where(Product.category_id == category_id)
-    
+
     if brand:
         query = query.where(Product.brand == brand)
-    
+
     if in_stock_only:
         query = query.where(Product.stock_quantity > 0)
 
     if vehicle_make or vehicle_model or vehicle_year is not None or vehicle_engine:
-        compatibility_query = select(ProductCompatibility.id).where(ProductCompatibility.product_id == Product.id)
+        compatibility_query = select(ProductCompatibility.id).where(
+            ProductCompatibility.product_id == Product.id
+        )
 
         if vehicle_make:
             compatibility_query = compatibility_query.where(
@@ -548,18 +794,26 @@ async def get_products(
             )
         if vehicle_engine:
             compatibility_query = compatibility_query.where(
-                func.lower(ProductCompatibility.engine).ilike(f"%{vehicle_engine.strip().lower()}%")
+                func.lower(ProductCompatibility.engine).ilike(
+                    f"%{vehicle_engine.strip().lower()}%"
+                )
             )
         if vehicle_year is not None:
             compatibility_query = compatibility_query.where(
                 and_(
-                    or_(ProductCompatibility.year_from.is_(None), ProductCompatibility.year_from <= vehicle_year),
-                    or_(ProductCompatibility.year_to.is_(None), ProductCompatibility.year_to >= vehicle_year),
+                    or_(
+                        ProductCompatibility.year_from.is_(None),
+                        ProductCompatibility.year_from <= vehicle_year,
+                    ),
+                    or_(
+                        ProductCompatibility.year_to.is_(None),
+                        ProductCompatibility.year_to >= vehicle_year,
+                    ),
                 )
             )
 
         query = query.where(compatibility_query.exists())
-    
+
     if search:
         search_text = " ".join(search.strip().split())
         search_pattern = f"%{search}%"
@@ -592,6 +846,7 @@ async def get_products(
     result = await db.execute(query)
     return result.scalars().all()
 
+
 @router.get("/products/{product_id}", response_model=ProductResponse)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     """Get product by ID"""
@@ -609,10 +864,11 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
-    
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
 
 @router.get("/products/by-sku/{sku}", response_model=ProductResponse)
 async def get_product_by_sku(sku: str, db: AsyncSession = Depends(get_db)):
@@ -632,17 +888,16 @@ async def get_product_by_sku(sku: str, db: AsyncSession = Depends(get_db)):
     )
     result = await db.execute(query)
     product = result.scalar_one_or_none()
-    
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
+
 # ---------- Leads ----------
 @router.post("/leads", response_model=LeadResponse, status_code=201)
 async def create_lead(
-    lead: LeadCreate,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
+    lead: LeadCreate, request: Request, db: AsyncSession = Depends(get_db)
 ):
     """Create a new lead (parts request, VIN request, callback, etc.)"""
     await _enforce_form_rate_limit(request, "leads")
@@ -669,7 +924,8 @@ async def create_lead(
     await db.commit()
     await db.refresh(db_lead)
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "lead.created",
         {
             "id": db_lead.id,
@@ -677,14 +933,21 @@ async def create_lead(
             "type": db_lead.type,
             "status": db_lead.status,
             "phone": db_lead.phone,
-            "created_at": db_lead.created_at.isoformat() if db_lead.created_at else None,
+            "created_at": (
+                db_lead.created_at.isoformat() if db_lead.created_at else None
+            ),
         },
+        notification_flags,
     )
     return db_lead
 
 
 # ---------- Orders ----------
-@router.post("/orders/requisites-upload", response_model=OrderRequisitesUploadResponse, status_code=201)
+@router.post(
+    "/orders/requisites-upload",
+    response_model=OrderRequisitesUploadResponse,
+    status_code=201,
+)
 async def upload_order_requisites_file(
     request: Request,
     file: UploadFile = File(...),
@@ -701,9 +964,11 @@ async def upload_order_requisites_file(
     if not content:
         raise HTTPException(status_code=400, detail="Файл пуст")
     if len(content) > ORDER_REQUISITES_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Размер файла не должен превышать 10 МБ")
+        raise HTTPException(
+            status_code=400, detail="Размер файла не должен превышать 10 МБ"
+        )
 
-    content_type = ((getattr(file, "content_type", "") or "").strip().lower())
+    content_type = (getattr(file, "content_type", "") or "").strip().lower()
     allowed_content_types = ORDER_REQUISITES_ALLOWED_EXTENSIONS[extension]
     if content_type and content_type not in allowed_content_types:
         raise HTTPException(status_code=400, detail="Недопустимый тип файла")
@@ -742,16 +1007,26 @@ def _validate_order_payload(order_data: OrderCreate) -> None:
         raise HTTPException(status_code=400, detail="Consent is required")
 
     if order_data.source == "checkout" and len(order_data.items) == 0:
-        raise HTTPException(status_code=400, detail="Checkout order must contain at least one item")
+        raise HTTPException(
+            status_code=400, detail="Checkout order must contain at least one item"
+        )
 
     if order_data.payment_method == "invoice" and not order_data.legal_entity_inn:
-        raise HTTPException(status_code=400, detail="Legal entity INN is required for invoice payment")
+        raise HTTPException(
+            status_code=400, detail="Legal entity INN is required for invoice payment"
+        )
 
-    if bool(order_data.invoice_requisites_file_url) != bool(order_data.invoice_requisites_file_name):
-        raise HTTPException(status_code=400, detail="Invoice requisites file metadata is incomplete")
+    if bool(order_data.invoice_requisites_file_url) != bool(
+        order_data.invoice_requisites_file_name
+    ):
+        raise HTTPException(
+            status_code=400, detail="Invoice requisites file metadata is incomplete"
+        )
 
 
-def _prepare_order_payload(order_data: OrderCreate) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _prepare_order_payload(
+    order_data: OrderCreate,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     order_payload = order_data.model_dump()
     items_payload = order_payload.pop("items", [])
     order_payload["consent_version"] = order_data.consent_version or "v1.0"
@@ -765,14 +1040,20 @@ def _prepare_order_payload(order_data: OrderCreate) -> tuple[dict[str, Any], lis
         order_payload["invoice_requisites_file_url"] = None
         order_payload["invoice_requisites_file_name"] = None
     elif order_data.invoice_requisites_file_url:
-        file_path = _resolve_invoice_requisites_path(order_data.invoice_requisites_file_url)
+        file_path = _resolve_invoice_requisites_path(
+            order_data.invoice_requisites_file_url
+        )
         if not file_path.is_file():
-            raise HTTPException(status_code=400, detail="Файл реквизитов не найден или недоступен")
+            raise HTTPException(
+                status_code=400, detail="Файл реквизитов не найден или недоступен"
+            )
 
     return order_payload, items_payload
 
 
-async def _resolve_order_item_product_id(raw_item: dict[str, Any], db: AsyncSession) -> Optional[int]:
+async def _resolve_order_item_product_id(
+    raw_item: dict[str, Any], db: AsyncSession
+) -> Optional[int]:
     product_id_raw = raw_item.get("product_id")
     if product_id_raw is None:
         return None
@@ -782,11 +1063,15 @@ async def _resolve_order_item_product_id(raw_item: dict[str, Any], db: AsyncSess
     except (TypeError, ValueError):
         return None
 
-    exists_result = await db.execute(select(Product.id).where(Product.id == candidate_id))
+    exists_result = await db.execute(
+        select(Product.id).where(Product.id == candidate_id)
+    )
     return candidate_id if exists_result.scalar_one_or_none() is not None else None
 
 
-def _build_order_item(order_id: int, raw_item: dict[str, Any], product_id: Optional[int]) -> OrderItem:
+def _build_order_item(
+    order_id: int, raw_item: dict[str, Any], product_id: Optional[int]
+) -> OrderItem:
     quantity = max(int(raw_item.get("quantity") or 1), 1)
     unit_price = _to_float(raw_item.get("unit_price"))
     line_total = _to_float(raw_item.get("line_total"))
@@ -845,7 +1130,9 @@ async def create_order(
             "consent_given": db_order.consent_given,
             "consent_version": db_order.consent_version,
             "consent_text": db_order.consent_text,
-            "consent_at": db_order.consent_at.isoformat() if db_order.consent_at else None,
+            "consent_at": (
+                db_order.consent_at.isoformat() if db_order.consent_at else None
+            ),
         },
         ip_address=db_order.ip_address,
     )
@@ -857,7 +1144,8 @@ async def create_order(
     )
     created_order = order_result.scalar_one()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "order.created",
         {
             "id": created_order.id,
@@ -866,8 +1154,13 @@ async def create_order(
             "status": created_order.status,
             "customer_phone": created_order.customer_phone,
             "items_count": len(created_order.items),
-            "created_at": created_order.created_at.isoformat() if created_order.created_at else None,
+            "created_at": (
+                created_order.created_at.isoformat()
+                if created_order.created_at
+                else None
+            ),
         },
+        notification_flags,
     )
     return created_order
 
@@ -882,7 +1175,9 @@ async def get_order_history(
     try:
         normalized_phone = normalize_phone(phone)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Phone must be a valid RU number") from exc
+        raise HTTPException(
+            status_code=400, detail="Phone must be a valid RU number"
+        ) from exc
 
     result = await db.execute(
         select(Order)
@@ -892,6 +1187,7 @@ async def get_order_history(
         .limit(limit)
     )
     return result.scalars().all()
+
 
 # ---------- Service Requests ----------
 @router.get("/service-catalog", response_model=List[ServiceCatalogItemResponse])
@@ -904,7 +1200,9 @@ async def get_service_catalog(
     if vehicle_type is not None:
         normalized_vehicle_type = vehicle_type.strip().lower()
         if normalized_vehicle_type not in {"passenger", "truck"}:
-            raise HTTPException(status_code=400, detail="vehicle_type must be 'passenger' or 'truck'")
+            raise HTTPException(
+                status_code=400, detail="vehicle_type must be 'passenger' or 'truck'"
+            )
 
     query = select(ServiceCatalogItem).where(ServiceCatalogItem.is_active.is_(True))
     if normalized_vehicle_type is not None:
@@ -914,17 +1212,55 @@ async def get_service_catalog(
                 ServiceCatalogItem.vehicle_type == "both",
             )
         )
-    query = query.order_by(ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc())
+    query = query.order_by(
+        ServiceCatalogItem.sort_order.asc(), ServiceCatalogItem.id.asc()
+    )
 
     result = await db.execute(query)
-    return result.scalars().all()
+    items = result.scalars().all()
+    prepayment_enabled = await _is_service_prepayment_enabled(db)
+    if prepayment_enabled:
+        return items
+
+    required_fields = {
+        "id",
+        "name",
+        "vehicle_type",
+        "duration_minutes",
+        "price",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at",
+    }
+    if not all(all(hasattr(item, field) for field in required_fields) for item in items):
+        return items
+
+    return [
+        {
+            "id": item.id,
+            "name": item.name,
+            "vehicle_type": item.vehicle_type,
+            "duration_minutes": item.duration_minutes,
+            "price": item.price,
+            "prepayment_required": False,
+            "prepayment_amount": None,
+            "sort_order": item.sort_order,
+            "is_active": item.is_active,
+            "created_at": item.created_at,
+            "updated_at": item.updated_at,
+        }
+        for item in items
+    ]
 
 
-@router.post("/service-requests", response_model=ServiceRequestResponse, status_code=201)
+@router.post(
+    "/service-requests", response_model=ServiceRequestResponse, status_code=201
+)
 async def create_service_request(
     request_data: ServiceRequestCreate,
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new service request (repair appointment)"""
     await _enforce_form_rate_limit(request, "service_requests")
@@ -933,7 +1269,9 @@ async def create_service_request(
         raise HTTPException(status_code=400, detail="Consent is required")
 
     service_request_data = request_data.model_dump()
-    if service_request_data.get("requested_product_sku") or service_request_data.get("requested_product_name"):
+    if service_request_data.get("requested_product_sku") or service_request_data.get(
+        "requested_product_name"
+    ):
         service_request_data["install_with_part"] = True
     service_request_data["consent_version"] = request_data.consent_version or "v1.0"
     service_request_data["consent_text"] = (
@@ -941,6 +1279,34 @@ async def create_service_request(
         or "Согласие на обработку персональных данных в соответствии с политикой конфиденциальности"
     )
     service_request_data["consent_at"] = _utcnow()
+
+    payment_settings = await _get_service_payment_settings(db)
+    payment_required = False
+    payment_amount: Optional[float] = None
+    if payment_settings["prepayment_enabled"] and payment_settings["payment_flow_enabled"]:
+        matched_item = await _resolve_service_catalog_item_for_request(
+            db,
+            service_type=request_data.service_type,
+            vehicle_type=request_data.vehicle_type,
+        )
+        if (
+            matched_item is not None
+            and bool(getattr(matched_item, "prepayment_required", False))
+            and isinstance(getattr(matched_item, "prepayment_amount", None), (float, int))
+            and float(matched_item.prepayment_amount) > 0
+        ):
+            payment_required = True
+            payment_amount = float(matched_item.prepayment_amount)
+
+    service_request_data["payment_required"] = payment_required
+    service_request_data["payment_status"] = "pending" if payment_required else "not_required"
+    service_request_data["payment_amount"] = payment_amount
+    service_request_data["payment_currency"] = payment_settings["default_currency"]
+    service_request_data["payment_provider"] = payment_settings["provider_name"] or None
+    service_request_data["payment_error"] = None
+    service_request_data["payment_updated_at"] = _utcnow() if payment_required else None
+    if not payment_required:
+        service_request_data["payment_reference"] = None
 
     db_request = ServiceRequest(
         **service_request_data,
@@ -961,19 +1327,28 @@ async def create_service_request(
             "consent_given": db_request.consent_given,
             "consent_version": db_request.consent_version,
             "consent_text": db_request.consent_text,
-            "consent_at": db_request.consent_at.isoformat() if db_request.consent_at else None,
+            "consent_at": (
+                db_request.consent_at.isoformat() if db_request.consent_at else None
+            ),
             "phone": db_request.phone,
             "status": db_request.status,
             "install_with_part": db_request.install_with_part,
             "requested_product_sku": db_request.requested_product_sku,
             "requested_product_name": db_request.requested_product_name,
+            "payment_required": db_request.payment_required,
+            "payment_status": db_request.payment_status,
+            "payment_amount": db_request.payment_amount,
+            "payment_currency": db_request.payment_currency,
+            "payment_provider": db_request.payment_provider,
+            "payment_reference": db_request.payment_reference,
         },
         ip_address=db_request.ip_address,
     )
     db.add(audit)
     await db.commit()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "service_request.created",
         {
             "id": db_request.id,
@@ -986,11 +1361,161 @@ async def create_service_request(
             "requested_product_sku": db_request.requested_product_sku,
             "requested_product_name": db_request.requested_product_name,
             "estimated_bundle_total": db_request.estimated_bundle_total,
-            "created_at": db_request.created_at.isoformat() if db_request.created_at else None,
+            "payment_required": db_request.payment_required,
+            "payment_status": db_request.payment_status,
+            "payment_amount": db_request.payment_amount,
+            "payment_currency": db_request.payment_currency,
+            "payment_provider": db_request.payment_provider,
+            "payment_reference": db_request.payment_reference,
+            "created_at": (
+                db_request.created_at.isoformat() if db_request.created_at else None
+            ),
         },
+        notification_flags,
     )
 
     return db_request
+
+
+def _resolve_payment_webhook_status(payload: PaymentWebhookPayload) -> str:
+    if payload.status:
+        return payload.status.strip().lower()
+    event = (payload.event or "").strip().lower()
+    if event.endswith("succeeded") or event.endswith("paid"):
+        return "paid"
+    if event.endswith("failed"):
+        return "failed"
+    if event.endswith("refunded"):
+        return "refunded"
+    return "pending"
+
+
+@router.post("/payments/webhook", response_model=dict)
+async def apply_payment_webhook(
+    payload: PaymentWebhookPayload,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    payment_settings = await _get_service_payment_settings(db)
+    if not payment_settings["payment_flow_enabled"]:
+        raise HTTPException(status_code=409, detail="Payment flow is disabled.")
+
+    webhook_token = (os.getenv("PAYMENTS_WEBHOOK_TOKEN") or "").strip()
+    if webhook_token:
+        provided_token = _extract_payments_webhook_token(request)
+        if not provided_token or not secrets.compare_digest(provided_token, webhook_token):
+            raise HTTPException(status_code=403, detail="Invalid payments webhook token")
+
+    resolved_status = _resolve_payment_webhook_status(payload)
+
+    if payload.entity_type == "service_request":
+        result = await db.execute(
+            select(ServiceRequest).where(ServiceRequest.id == payload.entity_id)
+        )
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            raise HTTPException(status_code=404, detail="Service request not found")
+    elif payload.entity_type == "order":
+        result = await db.execute(select(Order).where(Order.id == payload.entity_id))
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported entity_type")
+
+    current_status = (getattr(entity, "payment_status", "") or "not_required").strip().lower()
+    if not _is_payment_transition_allowed(current_status, resolved_status):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Invalid payment status transition: {current_status} -> {resolved_status}",
+        )
+
+    now = _utcnow()
+    old_values = {
+        "payment_status": current_status,
+        "payment_reference": getattr(entity, "payment_reference", None),
+        "payment_amount": getattr(entity, "payment_amount", None),
+        "payment_currency": getattr(entity, "payment_currency", None),
+        "payment_provider": getattr(entity, "payment_provider", None),
+    }
+
+    entity.payment_required = resolved_status != "not_required" or bool(
+        getattr(entity, "payment_required", False)
+    )
+    entity.payment_status = resolved_status
+    if payload.amount is not None:
+        entity.payment_amount = float(payload.amount)
+    entity.payment_currency = _normalize_payment_currency(
+        payload.currency,
+        default=(getattr(entity, "payment_currency", None) or "RUB"),
+    )
+    if payload.provider:
+        entity.payment_provider = payload.provider
+    elif not getattr(entity, "payment_provider", None):
+        entity.payment_provider = payment_settings["provider_name"] or None
+    if payload.payment_reference:
+        entity.payment_reference = payload.payment_reference
+    if resolved_status == "failed":
+        entity.payment_error = payload.error or "Payment failed"
+    else:
+        entity.payment_error = None
+    entity.payment_updated_at = now
+    entity.updated_at = now
+
+    await db.commit()
+    await db.refresh(entity)
+
+    audit = AuditLog(
+        action="apply_payment_webhook",
+        entity_type=payload.entity_type,
+        entity_id=payload.entity_id,
+        old_values=old_values,
+        new_values={
+            "payment_status": entity.payment_status,
+            "payment_reference": entity.payment_reference,
+            "payment_amount": entity.payment_amount,
+            "payment_currency": entity.payment_currency,
+            "payment_provider": entity.payment_provider,
+            "payment_error": entity.payment_error,
+            "event": payload.event,
+        },
+        ip_address=_extract_client_ip(request),
+    )
+    db.add(audit)
+    await db.commit()
+
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
+        "payment.status_changed",
+        {
+            "entity_type": payload.entity_type,
+            "entity_id": payload.entity_id,
+            "payment_status": entity.payment_status,
+            "payment_reference": entity.payment_reference,
+            "payment_amount": entity.payment_amount,
+            "payment_currency": entity.payment_currency,
+            "payment_provider": entity.payment_provider,
+            "event": payload.event,
+            "updated_at": (
+                entity.payment_updated_at.isoformat()
+                if entity.payment_updated_at
+                else None
+            ),
+        },
+        notification_flags,
+    )
+
+    return {
+        "status": "ok",
+        "entity_type": payload.entity_type,
+        "entity_id": payload.entity_id,
+        "payment_status": entity.payment_status,
+        "payment_reference": entity.payment_reference,
+        "payment_updated_at": (
+            entity.payment_updated_at.isoformat() if entity.payment_updated_at else None
+        ),
+    }
+
 
 # ---------- VIN Requests ----------
 @router.post("/vin-requests", response_model=VinRequestResponse, status_code=201)
@@ -1035,14 +1560,17 @@ async def create_vin_request(
             "consent_given": db_request.consent_given,
             "consent_version": db_request.consent_version,
             "consent_text": db_request.consent_text,
-            "consent_at": db_request.consent_at.isoformat() if db_request.consent_at else None,
+            "consent_at": (
+                db_request.consent_at.isoformat() if db_request.consent_at else None
+            ),
         },
         ip_address=db_request.ip_address,
     )
     db.add(audit)
     await db.commit()
 
-    notify_event(
+    notification_flags = await _get_notification_flags(db)
+    _notify_with_flags(
         "vin_request.created",
         {
             "id": db_request.id,
@@ -1050,11 +1578,15 @@ async def create_vin_request(
             "status": db_request.status,
             "vin": db_request.vin,
             "phone": db_request.phone,
-            "created_at": db_request.created_at.isoformat() if db_request.created_at else None,
+            "created_at": (
+                db_request.created_at.isoformat() if db_request.created_at else None
+            ),
         },
+        notification_flags,
     )
 
     return db_request
+
 
 # ---------- Public Content ----------
 @router.get("/content", response_model=List[dict])

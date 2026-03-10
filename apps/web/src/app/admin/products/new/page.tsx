@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
 
 type Category = {
   id: number;
@@ -27,19 +31,19 @@ export default function NewProductPage() {
         const payload = await fetchJsonWithTimeout<Category[]>(
           withApiBase(apiBaseUrl, "/api/admin/categories"),
           {},
-          12000
+          12000,
         );
         setCategories(payload);
       } catch (loadError) {
-        if (loadError instanceof ApiRequestError && (loadError.status === 401 || loadError.status === 403)) {
-          router.push("/admin/login");
+        if (redirectIfAdminUnauthorized(loadError, router)) {
           return;
         }
-        if (loadError instanceof ApiRequestError) {
-          setError(loadError.traceId ? `${loadError.message}. Код: ${loadError.traceId}` : loadError.message);
-        } else {
-          setError("Не удалось загрузить категории. Обновите страницу.");
-        }
+        setError(
+          toAdminErrorMessage(
+            loadError,
+            "Не удалось загрузить категории. Обновите страницу.",
+          ),
+        );
       } finally {
         setCategoriesLoading(false);
       }
@@ -59,16 +63,23 @@ export default function NewProductPage() {
     const priceRaw = String(formData.get("price") || "").trim();
     const parsedPrice = priceRaw ? parseFloat(priceRaw) : null;
     const normalizedPrice =
-      parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
+      parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0
+        ? parsedPrice
+        : null;
     const discountLabel = String(formData.get("discount_label") || "").trim();
     const analogsRaw = String(formData.get("analogs") || "").trim();
     const analogs = analogsRaw
-      ? analogsRaw.split(",").map((item) => item.trim()).filter(Boolean)
+      ? analogsRaw
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
       : [];
 
     const compatMake = String(formData.get("compat_make") || "").trim();
     const compatModel = String(formData.get("compat_model") || "").trim();
-    const compatYearFromRaw = String(formData.get("compat_year_from") || "").trim();
+    const compatYearFromRaw = String(
+      formData.get("compat_year_from") || "",
+    ).trim();
     const compatYearToRaw = String(formData.get("compat_year_to") || "").trim();
     const compatEngine = String(formData.get("compat_engine") || "").trim();
 
@@ -78,15 +89,24 @@ export default function NewProductPage() {
             {
               make: compatMake,
               model: compatModel,
-              year_from: compatYearFromRaw ? parseInt(compatYearFromRaw, 10) : undefined,
-              year_to: compatYearToRaw ? parseInt(compatYearToRaw, 10) : undefined,
+              year_from: compatYearFromRaw
+                ? parseInt(compatYearFromRaw, 10)
+                : undefined,
+              year_to: compatYearToRaw
+                ? parseInt(compatYearToRaw, 10)
+                : undefined,
               engine: compatEngine || undefined,
             },
           ]
         : [];
 
     const attributes: Record<string, unknown> = {};
-    if (!priceOnRequest && oldPrice !== null && Number.isFinite(oldPrice) && oldPrice > 0) {
+    if (
+      !priceOnRequest &&
+      oldPrice !== null &&
+      Number.isFinite(oldPrice) &&
+      oldPrice > 0
+    ) {
       attributes.old_price = oldPrice;
     }
     if (discountLabel) {
@@ -111,12 +131,12 @@ export default function NewProductPage() {
       is_active: formData.get("is_active") === "on",
       attributes,
       images: [],
-      compatibilities
+      compatibilities,
     };
 
     try {
       const apiBaseUrl = getClientApiBaseUrl();
-      
+
       const createdProduct = await fetchJsonWithTimeout<{ id: number }>(
         withApiBase(apiBaseUrl, "/api/admin/products"),
         {
@@ -126,7 +146,7 @@ export default function NewProductPage() {
           },
           body: JSON.stringify(data),
         },
-        12000
+        12000,
       );
       if (selectedImage) {
         const uploadData = new FormData();
@@ -138,10 +158,13 @@ export default function NewProductPage() {
             method: "POST",
             body: uploadData,
           },
-          12000
+          12000,
         );
         await fetchJsonWithTimeout<{ id: number }>(
-          withApiBase(apiBaseUrl, `/api/admin/products/${createdProduct.id}/images`),
+          withApiBase(
+            apiBaseUrl,
+            `/api/admin/products/${createdProduct.id}/images`,
+          ),
           {
             method: "POST",
             headers: {
@@ -153,22 +176,17 @@ export default function NewProductPage() {
               is_main: true,
             }),
           },
-          12000
+          12000,
         );
       }
 
       router.push("/admin/products");
       router.refresh();
     } catch (err) {
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(err, router)) {
         return;
       }
-      if (err instanceof ApiRequestError) {
-        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
-      } else {
-        setError("Не удалось создать товар");
-      }
+      setError(toAdminErrorMessage(err, "Не удалось создать товар"));
     } finally {
       setIsSubmitting(false);
     }
@@ -177,10 +195,7 @@ export default function NewProductPage() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link
-          href="/admin/products"
-          className="text-[#1F3B73] hover:underline"
-        >
+        <Link href="/admin/products" className="text-[#1F3B73] hover:underline">
           ← Назад к товарам
         </Link>
         <h1 className="text-2xl font-bold text-[#1F3B73]">Новый товар</h1>
@@ -188,7 +203,11 @@ export default function NewProductPage() {
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
@@ -242,7 +261,11 @@ export default function NewProductPage() {
               disabled={categoriesLoading}
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none"
             >
-              <option value="">{categoriesLoading ? "Загрузка категорий..." : "Выберите категорию"}</option>
+              <option value="">
+                {categoriesLoading
+                  ? "Загрузка категорий..."
+                  : "Выберите категорию"}
+              </option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -284,7 +307,11 @@ export default function NewProductPage() {
               step="0.01"
               min="0"
               disabled={priceOnRequest}
-              placeholder={priceOnRequest ? "Будет отображаться «Цена по запросу»" : undefined}
+              placeholder={
+                priceOnRequest
+                  ? "Будет отображаться «Цена по запросу»"
+                  : undefined
+              }
               className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 focus:border-[#1F3B73] focus:outline-none disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
             />
           </div>
@@ -341,7 +368,9 @@ export default function NewProductPage() {
         </div>
 
         <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-          <p className="text-sm font-medium text-neutral-700">Совместимость (1 позиция, опционально)</p>
+          <p className="text-sm font-medium text-neutral-700">
+            Совместимость (1 позиция, опционально)
+          </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <input
               type="text"
@@ -384,7 +413,9 @@ export default function NewProductPage() {
             type="file"
             name="product_image"
             accept=".jpg,.jpeg,.png,.gif,.svg,.webp,image/*"
-            onChange={(event) => setSelectedImage(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              setSelectedImage(event.target.files?.[0] ?? null)
+            }
             className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 file:mr-4 file:rounded-xl file:border-0 file:bg-[#1F3B73] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#162c57] focus:border-[#1F3B73] focus:outline-none"
           />
           <p className="mt-1 text-xs text-neutral-500">

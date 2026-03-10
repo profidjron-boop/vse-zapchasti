@@ -116,7 +116,10 @@ select:focus-visible {
 }
 
 :where(a, button)[class*="border-neutral-200"][class*="text-neutral-700"]:hover,
-:where(a, button)[class*="border-neutral-200"][class*="text-neutral-700"]:focus-visible {
+:where(
+    a,
+    button
+  )[class*="border-neutral-200"][class*="text-neutral-700"]:focus-visible {
   border-color: rgb(31 59 115 / 18%);
   color: #1f3b73;
   background-color: #f8fafc;

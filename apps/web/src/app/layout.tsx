@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://127.0.0.1:3000";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://127.0.0.1:3000";
 
 export const metadata: Metadata = {
   title: "Все запчасти | Автозапчасти и автосервис в Красноярске",
-  description: "Оригинальные запчасти и профессиональный ремонт легковых и грузовых автомобилей в Красноярске. Подбор по VIN, запись на сервис.",
+  description:
+    "Оригинальные запчасти и профессиональный ремонт легковых и грузовых автомобилей в Красноярске. Подбор по VIN, запись на сервис.",
   metadataBase: new URL(siteUrl),
   openGraph: {
     title: "Все запчасти",
@@ -34,9 +36,7 @@ export default function RootLayout({
         >
           Перейти к основному содержимому
         </a>
-        <div id="main-content">
-          {children}
-        </div>
+        <div id="main-content">{children}</div>
       </body>
     </html>
   );

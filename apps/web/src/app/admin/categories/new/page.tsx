@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
-import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
+import { fetchJsonWithTimeout } from "@/lib/fetch-json";
+import {
+  redirectIfAdminUnauthorized,
+  toAdminErrorMessage,
+} from "@/components/admin/api-error";
 
 export default function NewCategoryPage() {
   const router = useRouter();
@@ -17,27 +21,83 @@ export default function NewCategoryPage() {
   // Функция для транслитерации русского текста в латиницу
   function transliterate(text: string): string {
     const ru = {
-      'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
-      'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
-      'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-      'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '',
-      'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-      'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
-      'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
-      'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
-      'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch', 'Ъ': '',
-      'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
+      а: "a",
+      б: "b",
+      в: "v",
+      г: "g",
+      д: "d",
+      е: "e",
+      ё: "yo",
+      ж: "zh",
+      з: "z",
+      и: "i",
+      й: "y",
+      к: "k",
+      л: "l",
+      м: "m",
+      н: "n",
+      о: "o",
+      п: "p",
+      р: "r",
+      с: "s",
+      т: "t",
+      у: "u",
+      ф: "f",
+      х: "h",
+      ц: "ts",
+      ч: "ch",
+      ш: "sh",
+      щ: "sch",
+      ъ: "",
+      ы: "y",
+      ь: "",
+      э: "e",
+      ю: "yu",
+      я: "ya",
+      А: "A",
+      Б: "B",
+      В: "V",
+      Г: "G",
+      Д: "D",
+      Е: "E",
+      Ё: "Yo",
+      Ж: "Zh",
+      З: "Z",
+      И: "I",
+      Й: "Y",
+      К: "K",
+      Л: "L",
+      М: "M",
+      Н: "N",
+      О: "O",
+      П: "P",
+      Р: "R",
+      С: "S",
+      Т: "T",
+      У: "U",
+      Ф: "F",
+      Х: "H",
+      Ц: "Ts",
+      Ч: "Ch",
+      Ш: "Sh",
+      Щ: "Sch",
+      Ъ: "",
+      Ы: "Y",
+      Ь: "",
+      Э: "E",
+      Ю: "Yu",
+      Я: "Ya",
     };
-    
+
     return text
-      .split('')
-      .map(char => ru[char as keyof typeof ru] || char)
-      .join('')
+      .split("")
+      .map((char) => ru[char as keyof typeof ru] || char)
+      .join("")
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
   }
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +114,7 @@ export default function NewCategoryPage() {
   };
 
   const handleSlugBlur = () => {
-    if (slug.trim() === '') {
+    if (slug.trim() === "") {
       setManualSlug(false);
       setSlug(transliterate(name));
     }
@@ -69,7 +129,9 @@ export default function NewCategoryPage() {
     const data = {
       name: name,
       slug: slug || transliterate(name),
-      parent_id: formData.get("parent_id") ? parseInt(formData.get("parent_id") as string) : null,
+      parent_id: formData.get("parent_id")
+        ? parseInt(formData.get("parent_id") as string)
+        : null,
       sort_order: parseInt(formData.get("sort_order") as string) || 0,
       is_active: formData.get("is_active") === "on",
     };
@@ -85,21 +147,18 @@ export default function NewCategoryPage() {
           },
           body: JSON.stringify(data),
         },
-        12000
+        12000,
       );
 
       router.push("/admin/categories");
       router.refresh();
     } catch (err) {
-      if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-        router.push("/admin/login");
+      if (redirectIfAdminUnauthorized(err, router)) {
         return;
       }
-      if (err instanceof ApiRequestError) {
-        setError(err.traceId ? `${err.message}. Код: ${err.traceId}` : err.message);
-      } else {
-        setError("Не удалось создать категорию. Попробуйте позже.");
-      }
+      setError(
+        toAdminErrorMessage(err, "Не удалось создать категорию. Попробуйте позже."),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -119,7 +178,11 @@ export default function NewCategoryPage() {
 
       <div className="mb-6 min-h-[4.5rem]">
         {error ? (
-          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600"
+          >
             {error}
           </div>
         ) : null}
@@ -142,7 +205,8 @@ export default function NewCategoryPage() {
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Slug (часть URL) {manualSlug ? '(изменён вручную)' : '(автоматически из названия)'}
+            Slug (часть URL){" "}
+            {manualSlug ? "(изменён вручную)" : "(автоматически из названия)"}
           </label>
           <input
             type="text"
