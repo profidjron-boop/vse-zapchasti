@@ -27,3 +27,15 @@ build/
 *.bak
 *.swp
 backups/
+
+# Test / QA artifacts
+apps/web/test-results/
+apps/api/.hypothesis/
+
+# Temporary docs / generated artifacts
+docs/customer-go-live-pack-*.html
+
+# AI/prompt/session artifacts (must stay outside release repo)
+docs/master-prompts/
+docs/chat-*
+docs/deep-checklist-run-*

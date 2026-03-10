@@ -56,7 +56,7 @@
 ## 8) Где обновить после заполнения
 1. `docs/project-handoff-2026-03-09.md` (разделы 3.1-3.4 и 9).
 2. `docs/project-state.md` (риски/evidence после успешного strict handoff gate).
-3. При необходимости `docs/chat-context.md` (последний статус handoff metadata gate).
+3. При необходимости `docs/project-state.md` (последний статус handoff metadata gate и release evidence).
 
 ## 9) Минимум, что еще нужно от заказчика (без этого не закрыть handoff)
 1. Фактические домены, DNS-регистратор и провайдер DNS.
