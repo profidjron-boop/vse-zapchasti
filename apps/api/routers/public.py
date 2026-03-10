@@ -121,6 +121,27 @@ REDIS_RATE_LIMIT_URL = (
 PUBLIC_PRODUCTS_READ_MODE = (
     os.getenv("PUBLIC_PRODUCTS_READ_MODE", "snapshot").strip().lower()
 )
+PUBLIC_PRODUCTS_SNAPSHOT_CACHE_TTL_SECONDS = _env_positive_int(
+    "PUBLIC_PRODUCTS_SNAPSHOT_CACHE_TTL_SECONDS", 300
+)
+PUBLIC_CONTENT_CACHE_TTL_SECONDS = _env_positive_int(
+    "PUBLIC_CONTENT_CACHE_TTL_SECONDS", 15
+)
+PUBLIC_CATEGORIES_CACHE_TTL_SECONDS = _env_positive_int(
+    "PUBLIC_CATEGORIES_CACHE_TTL_SECONDS", 15
+)
+_snapshot_cache_lock = Lock()
+_snapshot_cache_checked_at = 0.0
+_snapshot_cache_has_snapshot = False
+_snapshot_cache_products: Optional[list[dict[str, Any]]] = None
+_snapshot_cache_default_active_products: Optional[list[dict[str, Any]]] = None
+_public_content_cache_lock = Lock()
+_public_content_cache_checked_at = 0.0
+_public_content_cache_items: Optional[list[dict[str, Optional[str]]]] = None
+_categories_cache_lock = Lock()
+_categories_cache: dict[tuple[Optional[int], bool], tuple[float, list[dict[str, Any]]]] = (
+    {}
+)
 FEATURE_NOTIFICATIONS_ENABLED_KEY = "feature_notifications_enabled"
 FEATURE_NOTIFICATIONS_EMAIL_ENABLED_KEY = "feature_notifications_email_enabled"
 FEATURE_NOTIFICATIONS_SMS_ENABLED_KEY = "feature_notifications_sms_enabled"
@@ -548,8 +569,23 @@ def _normalize_snapshot_product(raw_product: Any) -> Optional[dict[str, Any]]:
 async def _load_latest_products_snapshot(
     db: AsyncSession,
 ) -> Optional[list[dict[str, Any]]]:
+    global _snapshot_cache_checked_at
+    global _snapshot_cache_has_snapshot
+    global _snapshot_cache_products
+    global _snapshot_cache_default_active_products
+
     if PUBLIC_PRODUCTS_READ_MODE != "snapshot":
         return None
+
+    now = time.time()
+    with _snapshot_cache_lock:
+        if (
+            now - _snapshot_cache_checked_at
+            <= PUBLIC_PRODUCTS_SNAPSHOT_CACHE_TTL_SECONDS
+        ):
+            if _snapshot_cache_has_snapshot:
+                return _snapshot_cache_products or []
+            return None
 
     run_result = await db.execute(
         select(ImportRun)
@@ -559,6 +595,11 @@ async def _load_latest_products_snapshot(
     )
     run = run_result.scalar_one_or_none()
     if not run or not isinstance(run.snapshot_data, list):
+        with _snapshot_cache_lock:
+            _snapshot_cache_checked_at = now
+            _snapshot_cache_has_snapshot = False
+            _snapshot_cache_products = None
+            _snapshot_cache_default_active_products = None
         return None
 
     products: list[dict[str, Any]] = []
@@ -566,6 +607,17 @@ async def _load_latest_products_snapshot(
         normalized = _normalize_snapshot_product(raw_product)
         if normalized is not None:
             products.append(normalized)
+
+    default_active_products = [
+        product for product in products if product.get("is_active", False)
+    ]
+    default_active_products.sort(key=lambda product: _to_int(product.get("id"), 0))
+
+    with _snapshot_cache_lock:
+        _snapshot_cache_checked_at = now
+        _snapshot_cache_has_snapshot = True
+        _snapshot_cache_products = products
+        _snapshot_cache_default_active_products = default_active_products
 
     return products
 
@@ -710,6 +762,15 @@ async def get_categories(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all categories, optionally filtered by parent"""
+    cache_key = (parent_id, active_only)
+    now = time.time()
+    with _categories_cache_lock:
+        cached = _categories_cache.get(cache_key)
+    if cached is not None:
+        checked_at, payload = cached
+        if now - checked_at <= PUBLIC_CATEGORIES_CACHE_TTL_SECONDS:
+            return payload
+
     query = select(Category)
     if parent_id is not None:
         query = query.where(Category.parent_id == parent_id)
@@ -718,7 +779,23 @@ async def get_categories(
     query = query.order_by(Category.sort_order)
 
     result = await db.execute(query)
-    return result.scalars().all()
+    categories = result.scalars().all()
+    payload = [
+        {
+            "id": category.id,
+            "name": category.name,
+            "slug": category.slug,
+            "parent_id": category.parent_id,
+            "sort_order": category.sort_order,
+            "is_active": category.is_active,
+            "created_at": category.created_at,
+            "updated_at": category.updated_at,
+        }
+        for category in categories
+    ]
+    with _categories_cache_lock:
+        _categories_cache[cache_key] = (now, payload)
+    return payload
 
 
 @router.get("/categories/{slug}", response_model=CategoryResponse)
@@ -751,6 +828,21 @@ async def get_products(
     """Get products with filters and search"""
     snapshot_products = await _load_latest_products_snapshot(db)
     if snapshot_products is not None:
+        if (
+            category_id is None
+            and not search
+            and not brand
+            and not in_stock_only
+            and not vehicle_make
+            and not vehicle_model
+            and vehicle_year is None
+            and not vehicle_engine
+        ):
+            with _snapshot_cache_lock:
+                default_active_products = _snapshot_cache_default_active_products
+            if default_active_products is not None:
+                return default_active_products[offset : offset + limit]
+
         filtered = _apply_snapshot_filters(
             snapshot_products,
             category_id=category_id,
@@ -1592,7 +1684,22 @@ async def create_vin_request(
 @router.get("/content", response_model=List[dict])
 async def get_public_content(db: AsyncSession = Depends(get_db)):
     """Get all public content (for frontend)"""
+    global _public_content_cache_checked_at
+    global _public_content_cache_items
+
+    now = time.time()
+    with _public_content_cache_lock:
+        if (
+            _public_content_cache_items is not None
+            and now - _public_content_cache_checked_at <= PUBLIC_CONTENT_CACHE_TTL_SECONDS
+        ):
+            return _public_content_cache_items
+
     query = select(SiteContent).order_by(SiteContent.key)
     result = await db.execute(query)
     content = result.scalars().all()
-    return [{"key": c.key, "value": c.value} for c in content]
+    payload = [{"key": c.key, "value": c.value} for c in content]
+    with _public_content_cache_lock:
+        _public_content_cache_checked_at = now
+        _public_content_cache_items = payload
+    return payload
