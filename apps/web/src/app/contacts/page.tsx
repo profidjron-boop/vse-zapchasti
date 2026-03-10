@@ -91,7 +91,7 @@ export default function ContactsPage() {
 
   const contactAddress = contentValue(
     "contacts_address",
-    "660000, г. Красноярск, пр. Металлургов, 2В",
+    "г. Ваш город, ул. Примерная, 1",
   );
   const scheduleWeekdays = contentValue(
     "contacts_schedule_weekdays",
@@ -103,44 +103,44 @@ export default function ContactsPage() {
   );
   const scheduleSunday = contentValue("contacts_schedule_sunday", "Выходной");
 
-  const phoneParts = contentValue("contacts_phone_parts", "+7 (391) 258-95-00");
+  const phoneParts = contentValue("contacts_phone_parts", "+7 (900) 000-00-00");
   const phoneService = contentValue(
     "contacts_phone_service",
-    "+7 (391) 258-95-01",
+    "+7 (900) 000-00-01",
   );
-  const phoneMain = contentValue("contacts_phone_main", "+7 (391) 258-95-00");
+  const phoneMain = contentValue("contacts_phone_main", "+7 (900) 000-00-00");
 
-  const emailInfo = contentValue("contacts_email_info", "info@vsezapchasti.ru");
+  const emailInfo = contentValue("contacts_email_info", "info@example-auto.ru");
   const emailService = contentValue(
     "contacts_email_service",
-    "service@vsezapchasti.ru",
+    "service@example-auto.ru",
   );
   const emailPrivacy = contentValue(
     "contacts_email_privacy",
-    "privacy@vsezapchasti.ru",
+    "privacy@example-auto.ru",
   );
 
   const legalName = contentValue(
     "contacts_legal_name",
-    "ИП Иванов Иван Иванович",
+    "ООО «Пример Авто»",
   );
-  const legalInn = contentValue("contacts_inn", "246500123456");
-  const legalOgrnip = contentValue("contacts_ogrnip", "321246800123456");
+  const legalInn = contentValue("contacts_inn", "0000000000");
+  const legalOgrnip = contentValue("contacts_ogrnip", "0000000000000");
   const legalAddress = contentValue(
     "contacts_legal_address",
-    "660000, г. Красноярск, ул. Ленина, 1",
+    "г. Ваш город, ул. Примерная, 1",
   );
   const legalBankAccount = contentValue(
     "contacts_bank_account",
-    "40802810900001234567",
+    "40702810000000000000",
   );
   const legalBankName = contentValue(
     "contacts_bank_name",
-    "ПАО Сбербанк г. Красноярск",
+    "Банк-партнер (пример)",
   );
-  const legalBik = contentValue("contacts_bank_bik", "040407123");
+  const legalBik = contentValue("contacts_bank_bik", "000000000");
 
-  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const brandName = contentValue("site_brand_name", "АвтоПлатформа");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
@@ -155,16 +155,16 @@ export default function ContactsPage() {
   );
   const footerText = contentValue(
     "site_footer_text",
-    "Все запчасти · Красноярск · NO CDN",
+    "АвтоПлатформа · Ваш город · NO CDN",
   );
 
   const mapYandexUrl = contentValue(
     "contacts_map_yandex_url",
-    "https://yandex.ru/maps/?text=%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D1%8F%D1%80%D1%81%D0%BA%2C%20%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%2C%202%D0%92",
+    "https://yandex.ru/maps",
   );
   const map2gisUrl = contentValue(
     "contacts_map_2gis_url",
-    "https://2gis.ru/krasnoyarsk/search/%D0%BF%D1%80.%20%D0%9C%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D1%83%D1%80%D0%B3%D0%BE%D0%B2%202%D0%92",
+    "https://2gis.ru",
   );
 
   async function handleCallbackSubmit(event: FormEvent<HTMLFormElement>) {
@@ -233,19 +233,19 @@ export default function ContactsPage() {
     {
       title: "Отдел запчастей",
       value: phoneParts,
-      href: toTelHref(phoneParts, "tel:+73912589500"),
+      href: toTelHref(phoneParts, "tel:+79000000000"),
       description: "Подбор, наличие, статусы и уточнение заказов.",
     },
     {
       title: "Автосервис",
       value: phoneService,
-      href: toTelHref(phoneService, "tel:+73912589501"),
+      href: toTelHref(phoneService, "tel:+79000000001"),
       description: "Запись на диагностику, ТО и ремонт.",
     },
     {
       title: "Единая линия",
       value: phoneMain,
-      href: toTelHref(phoneMain, "tel:+73912589500"),
+      href: toTelHref(phoneMain, "tel:+79000000000"),
       description: "Общий номер для консультации и распределения запросов.",
     },
   ];
@@ -279,7 +279,7 @@ export default function ContactsPage() {
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
               Приезжайте, звоните или отправляйте заявку онлайн. Работаем в
-              Красноярске, принимаем обращения по каталогу и сервису.
+              вашем городе, принимаем обращения по каталогу и сервису.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {[
@@ -297,7 +297,7 @@ export default function ContactsPage() {
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
-                href={toTelHref(phoneMain, "tel:+73912589500")}
+                href={toTelHref(phoneMain, "tel:+79000000000")}
                 className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#1F3B73] transition-colors hover:bg-[#EEF3FF]"
               >
                 Позвонить сейчас
@@ -323,8 +323,9 @@ export default function ContactsPage() {
                 {contactAddress}
               </p>
               <p className="mt-3 text-sm leading-7 text-neutral-600">
-                Вход с торца здания, вывеска «Все запчасти». Пункт выдачи и
-                приемка в сервис находятся по этому же адресу.
+                Адрес и маршрут настраиваются при внедрении под объект
+                заказчика. Пункт выдачи и приёмка сервиса могут быть по одному
+                адресу.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <a
@@ -554,8 +555,8 @@ export default function ContactsPage() {
             <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
               <div className="relative h-56">
                 <Image
-                  src="/images/parts-store.jpg"
-                  alt="Точка обслуживания Все запчасти"
+                  src="/images/neutral-contacts.svg"
+                  alt="Нейтральная иллюстрация контактной точки"
                   fill
                   className="object-cover"
                 />

@@ -1,0 +1,22 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17335F"/>
+      <stop offset="1" stop-color="#345E9D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <circle cx="1400" cy="180" r="180" fill="#FFFFFF" fill-opacity="0.07"/>
+  <circle cx="260" cy="840" r="230" fill="#FFFFFF" fill-opacity="0.06"/>
+  <rect x="150" y="170" width="1300" height="660" rx="46" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.2"/>
+  <rect x="250" y="290" width="520" height="420" rx="30" fill="#FFFFFF" fill-opacity="0.16" stroke="#FFFFFF" stroke-opacity="0.24"/>
+  <rect x="830" y="290" width="520" height="120" rx="22" fill="#FFFFFF" fill-opacity="0.14" stroke="#FFFFFF" stroke-opacity="0.22"/>
+  <rect x="830" y="440" width="520" height="120" rx="22" fill="#FFFFFF" fill-opacity="0.14" stroke="#FFFFFF" stroke-opacity="0.22"/>
+  <rect x="830" y="590" width="520" height="120" rx="22" fill="#FFFFFF" fill-opacity="0.14" stroke="#FFFFFF" stroke-opacity="0.22"/>
+  <text x="250" y="138" fill="#FFD4A3" font-family="Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="6">
+    DEMO IMAGE
+  </text>
+  <text x="250" y="228" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="74" font-weight="700">
+    Нейтральные контакты
+  </text>
+</svg>

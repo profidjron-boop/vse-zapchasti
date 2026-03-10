@@ -10,9 +10,9 @@ import {
 } from "@/lib/public-site-content";
 
 export const metadata: Metadata = {
-  title: "О компании | Все запчасти",
+  title: "О проекте | АвтоПлатформа",
   description:
-    "О компании «Все запчасти»: поставка запчастей и сервис коммерческого транспорта в Красноярске.",
+    "Нейтральная страница о проекте для продажи готового решения каталога и сервиса.",
 };
 
 export default async function AboutPage() {
@@ -22,13 +22,13 @@ export default async function AboutPage() {
     getPublicContentValue(
       contentMap,
       "about_hero_title",
-      "О компании «Все запчасти»",
+      "О проекте",
     );
   const heroSubtitle =
     getPublicContentValue(
       contentMap,
       "about_hero_subtitle",
-      "Поставляем запчасти и обслуживаем коммерческий транспорт в Красноярске",
+      "Готовая платформа для каталога, заявок и сервисной записи под бренд заказчика",
     );
 
   const storyTitle = getPublicContentValue(
@@ -40,7 +40,7 @@ export default async function AboutPage() {
     getPublicContentValue(
       contentMap,
       "about_story_text",
-      "<p>«Все запчасти» — команда, которая объединяет поставку автозапчастей и сервис в одном контуре. Мы работаем с коммерческим транспортом, помогаем подобрать детали по артикулу, OEM и VIN, и сопровождаем клиента до закрытия заявки.</p>",
+      "<p>Это универсальное решение для запуска интернет-витрины автозапчастей и сервисного направления. Проект адаптируется под бренд заказчика, каталог и бизнес-процессы без изменения базовой архитектуры.</p>",
     );
 
   const valuesTitle = getPublicContentValue(
@@ -110,8 +110,8 @@ export default async function AboutPage() {
           <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
             <div className="relative h-full min-h-[22rem]">
               <Image
-                src="/images/service-workshop.jpg"
-                alt="Рабочая зона компании Все запчасти"
+                src="/images/neutral-service.svg"
+                alt="Нейтральная иллюстрация проекта"
                 fill
                 className="object-cover"
               />

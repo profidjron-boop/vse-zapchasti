@@ -108,8 +108,8 @@ Recommended prep on server:
   - `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
   - `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000`
 - `prod` правило:
-  - использовать публичный URL API (например, `https://api.vsezapchasti.ru`)
-  - использовать публичный URL web (например, `https://vsezapchasti.ru`)
+  - использовать публичный URL API (например, `https://api.example-auto.ru`)
+  - использовать публичный URL web (например, `https://example-auto.ru`)
   - не использовать `localhost` в production-окружении
 
 ## High-level steps (без команд; конкретика появится после появления compose/infra)

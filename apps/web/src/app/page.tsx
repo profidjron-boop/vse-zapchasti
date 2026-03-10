@@ -69,7 +69,7 @@ export default async function Page() {
 
   const heroTitle = contentValue(
     "home_hero_title",
-    "Все запчасти и автосервис в одном месте",
+    "Готовое решение для каталога и сервиса",
   );
   const heroSubtitle = contentValue(
     "home_hero_subtitle",
@@ -97,7 +97,7 @@ export default async function Page() {
   );
   const homeContactsAddress = contentValue(
     "home_contacts_address",
-    "г. Красноярск, пр. Металлургов, 2В",
+    "г. Ваш город, ул. Примерная, 1",
   );
   const homeContactsSchedule = contentValue(
     "home_contacts_schedule",
@@ -105,7 +105,7 @@ export default async function Page() {
   );
   const homeContactsPhone = contentValue(
     "home_contacts_phone",
-    "+7 (391) 258-95-00",
+    "+7 (900) 000-00-00",
   );
   const footerText = contentValue(
     "site_footer_text",
@@ -186,7 +186,7 @@ export default async function Page() {
         <div className="mx-auto grid max-w-[92rem] gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)] lg:items-start lg:py-16">
           <div className="rounded-[2rem] bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_65%,#10264B_100%)] p-8 text-white shadow-[0_32px_80px_rgba(31,59,115,0.18)] lg:p-10">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-              Parts · Service · Krasnoyarsk
+              Parts · Service · Template
             </div>
             <h1 className="mt-6 max-w-2xl text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
               {heroTitle}
@@ -392,8 +392,8 @@ export default async function Page() {
             <div className="mt-8 grid gap-4 lg:grid-cols-2">
               <div className="overflow-hidden rounded-[1.75rem] border border-neutral-200">
                 <Image
-                  src="/images/parts-store.jpg"
-                  alt="Магазин автозапчастей"
+                  src="/images/neutral-catalog.svg"
+                  alt="Нейтральная иллюстрация каталога"
                   width={1200}
                   height={900}
                   className="h-64 w-full object-cover"
@@ -428,8 +428,8 @@ export default async function Page() {
           <div className="space-y-4">
             <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
               <Image
-                src="/images/service-workshop.jpg"
-                alt="Рабочая зона автосервиса"
+                src="/images/neutral-service.svg"
+                alt="Нейтральная иллюстрация сервиса"
                 width={1400}
                 height={1000}
                 className="h-56 w-full object-cover"

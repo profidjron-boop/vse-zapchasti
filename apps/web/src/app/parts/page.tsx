@@ -12,7 +12,7 @@ import {
 } from "@/lib/public-site-content";
 
 export const metadata: Metadata = {
-  title: "Каталог запчастей | Все запчасти",
+  title: "Каталог запчастей | АвтоПлатформа",
   description:
     "Каталог запчастей: поиск по артикулу, OEM и названию, подбор по авто и VIN-заявка.",
 };

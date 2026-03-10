@@ -335,7 +335,7 @@ export default function ServicePage() {
     return value && value.trim() ? value : fallback;
   };
 
-  const brandName = contentValue("site_brand_name", "Все запчасти");
+  const brandName = contentValue("site_brand_name", "АвтоПлатформа");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
@@ -350,11 +350,11 @@ export default function ServicePage() {
   );
   const footerText = contentValue(
     "site_footer_text",
-    "Все запчасти · Красноярск · NO CDN",
+    "АвтоПлатформа · Ваш город · NO CDN",
   );
   const heroTitle = contentValue(
     "service_hero_title",
-    "Автосервис в Красноярске",
+    "Сервисное обслуживание",
   );
   const heroSubtitle = contentValue(
     "service_hero_subtitle",

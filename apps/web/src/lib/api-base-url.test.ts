@@ -5,9 +5,9 @@ import { getServerApiBaseUrl, withApiBase } from "./api-base-url";
 describe("api-base-url", () => {
   it("uses API_BASE_URL when provided", () => {
     const previous = process.env.API_BASE_URL;
-    process.env.API_BASE_URL = "https://api.vsezapchasti.ru/";
+    process.env.API_BASE_URL = "https://api.example-auto.ru/";
 
-    expect(getServerApiBaseUrl()).toBe("https://api.vsezapchasti.ru");
+    expect(getServerApiBaseUrl()).toBe("https://api.example-auto.ru");
 
     process.env.API_BASE_URL = previous;
   });
@@ -26,11 +26,11 @@ describe("api-base-url", () => {
   });
 
   it("joins base url and path safely", () => {
-    expect(withApiBase("https://api.vsezapchasti.ru", "/api/health")).toBe(
-      "https://api.vsezapchasti.ru/api/health",
+    expect(withApiBase("https://api.example-auto.ru", "/api/health")).toBe(
+      "https://api.example-auto.ru/api/health",
     );
     expect(
-      withApiBase("https://api.vsezapchasti.ru", "api/public/content"),
-    ).toBe("https://api.vsezapchasti.ru/api/public/content");
+      withApiBase("https://api.example-auto.ru", "api/public/content"),
+    ).toBe("https://api.example-auto.ru/api/public/content");
   });
 });

@@ -183,7 +183,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Все запчасти API",
+    title="АвтоПлатформа API",
     description="API for auto parts store and service",
     version="0.1.0",
     lifespan=lifespan,
@@ -430,7 +430,7 @@ async def api_ready_check():
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint"""
-    return {"name": "Все запчасти API", "version": "0.1.0", "docs": "/docs"}
+    return {"name": "АвтоПлатформа API", "version": "0.1.0", "docs": "/docs"}
 
 
 @app.get("/metrics", tags=["monitoring"])

@@ -1,0 +1,28 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F2A52"/>
+      <stop offset="1" stop-color="#1F3B73"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="480" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <circle cx="260" cy="180" r="180" fill="#FFFFFF" fill-opacity="0.06"/>
+  <circle cx="1410" cy="850" r="220" fill="#FFFFFF" fill-opacity="0.05"/>
+  <rect x="140" y="180" width="1320" height="640" rx="42" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.16"/>
+  <rect x="220" y="270" width="410" height="210" rx="26" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.18"/>
+  <rect x="220" y="520" width="410" height="210" rx="26" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.18"/>
+  <rect x="670" y="270" width="350" height="120" rx="20" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.2"/>
+  <rect x="670" y="415" width="350" height="120" rx="20" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.2"/>
+  <rect x="670" y="560" width="350" height="120" rx="20" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.2"/>
+  <rect x="1060" y="270" width="320" height="410" rx="30" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.2"/>
+  <text x="220" y="135" fill="#FFB166" font-family="Arial, sans-serif" font-size="40" font-weight="700" letter-spacing="6">
+    DEMO IMAGE
+  </text>
+  <text x="220" y="188" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="78" font-weight="700">
+    Нейтральный каталог
+  </text>
+</svg>

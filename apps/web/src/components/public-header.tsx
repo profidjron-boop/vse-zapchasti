@@ -113,7 +113,7 @@ function renderNavLabel(key: PublicNavKey, label: string, cartCount: number) {
 }
 
 export function PublicHeader({
-  brandName = "Все запчасти",
+  brandName = "АвтоПлатформа",
   activeKey,
   labels,
   showActions = true,
@@ -152,7 +152,7 @@ export function PublicHeader({
             авто
           </p>
           <div className="hidden items-center gap-3 md:flex">
-            <span>Красноярск</span>
+            <span>Ваш город</span>
             <span
               className="h-1 w-1 rounded-full bg-neutral-300"
               aria-hidden="true"
