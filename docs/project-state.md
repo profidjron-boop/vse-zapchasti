@@ -1,7 +1,7 @@
 # Project State — vse-zapchasti
 
-Версия: v1.1
-Дата: 2026-03-10
+Версия: v1.2
+Дата: 2026-03-11
 Ответственный: Сергей (CTO)
 
 ## 1) Project Identity
@@ -11,8 +11,8 @@
 - Stage: pre-prod release candidate
 - Status: active
 - Owner: Сергей
-- Current date: 2026-03-10
-- Last updated: 2026-03-10 15:48 (Asia/Krasnoyarsk)
+- Current date: 2026-03-11
+- Last updated: 2026-03-11 16:32 (Asia/Krasnoyarsk)
 
 ## 2) Source Of Truth Now
 - Current governing artifact: repo truth + requirements v1.1 + handoff pack + release evidence
@@ -79,6 +79,9 @@
   - `SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/runtime-audit-local.sh`
   - `bash scripts/ci-local.sh --mode main`
   - `RELEASE_REQUIRE_HANDOFF_METADATA=1 RELEASE_REQUIRE_ADMIN_SMOKE=1 SMOKE_ADMIN_BOOTSTRAP=1 SMOKE_ADMIN_EMAIL=smoke-admin@vsezapchasti.ru SMOKE_ADMIN_PASSWORD=... bash scripts/release-check.sh --skip-write-smoke`
+  - `API_PORT=8010 WEB_PORT=3010 API_BASE_URL=http://127.0.0.1:8010 WEB_BASE_URL=http://127.0.0.1:3010 bash scripts/runtime-audit-local.sh`
+  - `API_PORT=8010 WEB_PORT=3010 API_BASE_URL=http://127.0.0.1:8010 WEB_BASE_URL=http://127.0.0.1:3010 bash scripts/release-check.sh --skip-write-smoke`
+  - `API_PORT=8010 WEB_PORT=3010 API_BASE_URL=http://127.0.0.1:8010 WEB_BASE_URL=http://127.0.0.1:3010 bash scripts/release-check.sh`
 - What passed:
   - verify-all green
   - runtime-audit-local green (включая admin endpoints)
@@ -88,14 +91,18 @@
   - smoke read/write green
   - strict metadata gate green
   - mandatory admin smoke green
+  - release-check default теперь требует admin smoke credentials/token
 - What failed or remains unverified:
   - none in automated release scope
 - Evidence:
   - strict release-check (metadata + admin smoke): `✅ RELEASE CHECK GREEN` (2026-03-10 15:47–15:48)
   - runtime-audit-local (with admin credentials): `✅ all checks passed` (2026-03-10 15:42)
   - ci-local main: `✅ RELEASE CHECK GREEN` (2026-03-10 15:42–15:44)
-  - latest backup artifact: `backups/postgres/release_20260310_154701.dump`
-  - coverage: `70.70%`, tests: `86 passed`
+  - runtime-audit-local (alt ports 3010/8010): `✅ all checks passed` (2026-03-11 16:27–16:28)
+  - release-check read-only (alt ports 3010/8010): `✅ RELEASE CHECK GREEN` (2026-03-11 16:28–16:29)
+  - release-check read+write (alt ports 3010/8010): `✅ RELEASE CHECK GREEN` (2026-03-11 16:29–16:31)
+  - latest backup artifact: `backups/postgres/release_20260311_162959.dump`
+  - coverage: `68.13%`, tests: `101 passed`
 
 ## 9) Release / Operational Signals
 - Prod-impacting flow: public leads/orders/service + admin management routes
