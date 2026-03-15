@@ -11,7 +11,7 @@
 
 ## 1) Что сдаётся
 Краткое описание:
-- Реализован и проверен production-oriented контур web+api для магазина запчастей и записи на сервис.
+- Реализован и проверен production-oriented local pre-prod контур web+api для магазина запчастей и записи на сервис.
 - Закрыты audit findings `F-01..F-08` (см. `docs/audit-closure-2026-03-09.md`).
 - Подтверждён полный release path: verify + audits + backup + restore-check + smoke read/write/admin.
 
@@ -23,7 +23,7 @@
 
 Профиль сложности: M
 Release commit / tag: `38e739f` (release-ready working tree, rc-local-20260310)
-Дата последнего production deploy: 2026-03-10 15:48 (Asia/Krasnoyarsk, local pre-prod release-check)
+Дата последнего local pre-prod deploy/check: 2026-03-10 15:48 (Asia/Krasnoyarsk, release-check)
 
 ## 2) Для клиента: как это работает
 ### 2.1 Что получил клиент
@@ -51,8 +51,8 @@ Release commit / tag: `38e739f` (release-ready working tree, rc-local-20260310)
 ### 3.1 Серверы и хостинг
 | Название | Адрес / IP | Роль | Провайдер | Доступ |
 |---|---|---|---|---|
-| production web/api host | `127.0.0.1:3000` / `127.0.0.1:8000` (local pre-prod) | web+api runtime | local docker compose | shell user `greka` + docker group |
-| production postgres host | `127.0.0.1:5433` (service `postgres`) | DB | local docker compose | shell user `greka` + docker group |
+| local pre-prod web/api host | `127.0.0.1:3000` / `127.0.0.1:8000` (local pre-prod) | web+api runtime | local docker compose | shell user `greka` + docker group |
+| local pre-prod postgres host | `127.0.0.1:5433` (service `postgres`) | DB | local docker compose | shell user `greka` + docker group |
 
 ### 3.2 Домены и DNS
 | Домен | Регистратор | Где DNS | TTL важных записей |
@@ -64,7 +64,7 @@ Release commit / tag: `38e739f` (release-ready working tree, rc-local-20260310)
 |---|---|---|---|---|
 | Админка приложения | `http://127.0.0.1:3000/admin/login` | email + password | Сергей (greka) | роли `admin/manager/service_manager` |
 | API admin auth | `http://127.0.0.1:8000/api/admin/auth/token` | OAuth2 password | Сергей (greka) | для скриптов/интеграций |
-| База данных prod | `postgresql+psycopg://...@127.0.0.1:5433/vsez` | `DATABASE_URL` env | Сергей (greka) | креды хранятся только в env |
+| База данных local pre-prod | `postgresql+psycopg://...@127.0.0.1:5433/vsez` | `DATABASE_URL` env | Сергей (greka) | креды хранятся только в env |
 | CI/CD | `.github/workflows/*` | GitHub access + local fallback `scripts/ci-local.sh` | Сергей (CTO) | release-check workflow активен |
 | Backup storage | `backups/postgres/*` | файловый доступ | Сергей (greka) | sha256 артефакты создаются |
 | Домены / DNS | `localhost` / `127.0.0.1` | local hosts mapping | Сергей (greka) | для текущего pre-prod контура |
@@ -168,7 +168,7 @@ Rollback: `docs/release-rollback-runbook.md`
 
 ## 9) Release evidence
 - Release commit / tag: `38e739f` (`rc-local-20260310`).
-- Дата deploy: 2026-03-10 15:48 (Asia/Krasnoyarsk, local pre-prod).
+- Дата local pre-prod deploy/check: 2026-03-10 15:48 (Asia/Krasnoyarsk, release-check).
 - Backup artifact: `backups/postgres/release_20260310_154701.dump`.
 - Smoke result: `✅ all checks passed` (read + mandatory admin checks, 2026-03-10 15:47–15:48, `RELEASE_REQUIRE_ADMIN_SMOKE=1`) и `✅ write smoke green` (2026-03-10 15:43–15:44, `scripts/ci-local.sh --mode main`).
 - Migration result: `alembic current -> 9c7e5a4b2d11 (head)`.
