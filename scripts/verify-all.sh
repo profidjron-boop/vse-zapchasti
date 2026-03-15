@@ -144,7 +144,7 @@ current_revisions="$(
 )"
 
 head_revisions="$(
-  cd apps/api && UV_CACHE_DIR=./.uv-cache ./.venv/bin/uv run alembic heads \
+  cd apps/api && UV_CACHE_DIR=./.uv-cache "$(if [ -x ./.venv/bin/uv ]; then printf %s ./.venv/bin/uv; elif command -v uv >/dev/null 2>&1; then command -v uv; else printf %s uv; fi)" run alembic heads \
     | awk '/^[0-9a-f]+ / {print $1}' \
     | sort -u \
     | tr '\n' ' ' \
