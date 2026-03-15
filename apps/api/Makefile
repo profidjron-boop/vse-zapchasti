@@ -1,6 +1,6 @@
 .PHONY: lint test test-cov migrate migrate-check
 
-UV := ./.venv/bin/uv
+UV := $(shell if [ -x ./.venv/bin/uv ]; then printf '%s' ./.venv/bin/uv; elif command -v uv >/dev/null 2>&1; then command -v uv; else printf '%s' uv; fi)
 DATABASE_URL ?= postgresql+psycopg://vsez:vsez_dev_password_change_me@localhost:5433/vsez
 export UV_CACHE_DIR := ./.uv-cache
 
