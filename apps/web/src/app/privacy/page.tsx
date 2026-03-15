@@ -66,7 +66,7 @@ export default async function PrivacyPage() {
                 "Мы собираем только данные, необходимые для обработки заявки и обратной связи.",
                 "Факт согласия фиксируется вместе с версией политики и техническими метаданными.",
                 "Персональные данные не используются для сторонних маркетинговых целей без отдельного основания.",
-                "Запрос на удаление, уточнение или отзыв согласия можно направить на privacy@example-auto.ru.",
+                "Запрос на удаление, уточнение или отзыв согласия можно направить на privacy@vsezapchasti.ru.",
               ].map((item) => (
                 <div
                   key={item}
@@ -95,7 +95,7 @@ export default async function PrivacyPage() {
                 </h2>
                 <p className="mt-3 leading-7">
                   Оператор: ООО «Пример Авто» (ИНН 0000000000, ОГРН
-                  0000000000000), сайт: example-auto.ru. Политика действует в
+                  0000000000000), сайт: vsezapchasti.ru. Политика действует в
                   соответствии с Федеральным законом от 27.07.2006 №152-ФЗ «О
                   персональных данных».
                 </p>
@@ -211,7 +211,7 @@ export default async function PrivacyPage() {
                 </h2>
                 <p className="mt-3 leading-7">
                   Для отзыва согласия или реализации прав субъекта направьте
-                  запрос на privacy@example-auto.ru. В запросе укажите ФИО,
+                  запрос на privacy@vsezapchasti.ru. В запросе укажите ФИО,
                   контактный номер и описание требования. Срок ответа — до 30
                   календарных дней.
                 </p>
@@ -222,7 +222,7 @@ export default async function PrivacyPage() {
                   9. Контактная информация оператора
                 </h2>
                 <div className="mt-4 rounded-[1.5rem] border border-neutral-200 bg-neutral-50 p-5 text-sm leading-7 text-neutral-700">
-                  <p>Email: privacy@example-auto.ru</p>
+                  <p>Email: privacy@vsezapchasti.ru</p>
                   <p>Тел.: +7 (900) 000-00-00</p>
                   <p>Адрес: г. Ваш город, ул. Примерная, 1</p>
                 </div>

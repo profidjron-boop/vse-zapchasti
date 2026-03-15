@@ -151,19 +151,19 @@ const PAGE_PRESETS: PagePreset[] = [
         key: "contacts_email_info",
         type: "text",
         description: "Email по общим вопросам",
-        defaultValue: "info@example-auto.ru",
+        defaultValue: "info@vsezapchasti.ru",
       },
       {
         key: "contacts_email_service",
         type: "text",
         description: "Email сервиса",
-        defaultValue: "service@example-auto.ru",
+        defaultValue: "service@vsezapchasti.ru",
       },
       {
         key: "contacts_email_privacy",
         type: "text",
         description: "Email по персональным данным",
-        defaultValue: "privacy@example-auto.ru",
+        defaultValue: "privacy@vsezapchasti.ru",
       },
       {
         key: "contacts_legal_name",

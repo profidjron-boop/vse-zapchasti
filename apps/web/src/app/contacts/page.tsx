@@ -110,14 +110,14 @@ export default function ContactsPage() {
   );
   const phoneMain = contentValue("contacts_phone_main", "+7 (900) 000-00-00");
 
-  const emailInfo = contentValue("contacts_email_info", "info@example-auto.ru");
+  const emailInfo = contentValue("contacts_email_info", "info@vsezapchasti.ru");
   const emailService = contentValue(
     "contacts_email_service",
-    "service@example-auto.ru",
+    "service@vsezapchasti.ru",
   );
   const emailPrivacy = contentValue(
     "contacts_email_privacy",
-    "privacy@example-auto.ru",
+    "privacy@vsezapchasti.ru",
   );
 
   const legalName = contentValue(

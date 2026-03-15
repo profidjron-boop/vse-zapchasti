@@ -91,7 +91,7 @@ export default async function OfferPage() {
                 </h2>
                 <p className="mt-3 leading-7">
                   1.1. Продавец — ООО «Пример Авто», осуществляющее продажу
-                  товаров и услуг через сайт example-auto.ru.
+                  товаров и услуг через сайт vsezapchasti.ru.
                   <br />
                   1.2. Покупатель — физическое или юридическое лицо, оформившее
                   заявку на Сайте.
@@ -237,7 +237,7 @@ export default async function OfferPage() {
                   <p>Банк: Банк-партнер (пример)</p>
                   <p>БИК: 000000000</p>
                   <p>Корр. счет: 30101810000000000000</p>
-                  <p>Email: info@example-auto.ru</p>
+                  <p>Email: info@vsezapchasti.ru</p>
                   <p>Тел.: +7 (900) 000-00-00</p>
                   <p>Адрес: г. Ваш город, ул. Примерная, 1</p>
                 </div>
