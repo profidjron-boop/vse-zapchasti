@@ -18,7 +18,8 @@ logger = logging.getLogger("notifications")
 WEBHOOK_ALLOWED_SCHEMES = {"https"}
 LOCAL_WEBHOOK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+FILE_PATH = Path(__file__).resolve()
+REPO_ROOT = FILE_PATH.parents[2] if len(FILE_PATH.parents) > 2 else FILE_PATH.parent
 DEFAULT_QUEUE_DIR = REPO_ROOT / "var" / "notifications"
 QUEUE_PENDING_DIR = "pending"
 QUEUE_DONE_DIR = "done"

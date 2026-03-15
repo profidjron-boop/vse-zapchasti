@@ -50,7 +50,8 @@ from schemas import (
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 logger = logging.getLogger("api.public")
-REPO_ROOT = Path(__file__).resolve().parents[3]
+FILE_PATH = Path(__file__).resolve()
+REPO_ROOT = FILE_PATH.parents[3] if len(FILE_PATH.parents) > 3 else FILE_PATH.parent.parent
 DEFAULT_UPLOAD_DIR = REPO_ROOT / "apps" / "web" / "public" / "uploads"
 raw_upload_dir = os.getenv("UPLOAD_DIR")
 UPLOAD_DIR = Path(raw_upload_dir).expanduser() if raw_upload_dir else DEFAULT_UPLOAD_DIR

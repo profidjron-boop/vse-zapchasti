@@ -266,7 +266,8 @@ get_service_catalog_user = require_roles("admin")
 get_content_user = require_roles("admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-REPO_ROOT = Path(__file__).resolve().parents[3]
+FILE_PATH = Path(__file__).resolve()
+REPO_ROOT = FILE_PATH.parents[3] if len(FILE_PATH.parents) > 3 else FILE_PATH.parent.parent
 DEFAULT_UPLOAD_DIR = REPO_ROOT / "apps" / "web" / "public" / "uploads"
 raw_upload_dir = os.getenv("UPLOAD_DIR")
 UPLOAD_DIR = Path(raw_upload_dir).expanduser() if raw_upload_dir else DEFAULT_UPLOAD_DIR
@@ -496,9 +497,10 @@ PRODUCT_IMPORT_COLUMN_ALIASES = {
     "вендор-код": "sku",
     "вендор_код": "sku",
     "название": "name",
+    "наименование": "name",
     "product_name": "name",
     "номенклатура": "name",
-    "категория": "category_id",
+    "категория": "category_name",
     "category": "category_id",
     "categoryid": "category_id",
     "category_slug": "category_slug",
@@ -990,7 +992,7 @@ def _split_compatibility_segments(raw: str) -> list[str]:
     normalized = raw.replace("\r", "\n")
     return [
         segment.strip(" ,;")
-        for segment in re.split(r"[;\n]+", normalized)
+        for segment in re.split(r"\s*\|\s*|\n+", normalized)
         if segment.strip(" ,;")
     ]
 
@@ -1038,6 +1040,29 @@ def _extract_make_model(segment: str) -> tuple[Optional[str], Optional[str], lis
 
 
 def _parse_compatibility_segment(segment: str) -> Optional[dict[str, Any]]:
+    semicolon_parts = [part.strip() for part in segment.split(";")]
+    if len(semicolon_parts) >= 5:
+        make = semicolon_parts[0]
+        model = semicolon_parts[1]
+        try:
+            year_from = int(semicolon_parts[2]) if semicolon_parts[2] else None
+        except ValueError:
+            year_from = None
+        try:
+            year_to = int(semicolon_parts[3]) if semicolon_parts[3] else None
+        except ValueError:
+            year_to = None
+        engine = semicolon_parts[4] or None
+
+        if make and model:
+            return {
+                "make": make,
+                "model": model,
+                "year_from": year_from,
+                "year_to": year_to,
+                "engine": engine,
+            }
+
     working_segment, year_from, year_to = _extract_year_range(segment)
     working_segment, engine = _extract_engine_candidate(working_segment)
 
