@@ -46,3 +46,6 @@ apps/web/.env.prod
 
 .run/
 *.pid
+
+# runtime uploads
+apps/web/public/uploads/

@@ -1,0 +1,17 @@
+vse-zapchasti/.git
+vse-zapchasti/.vscode
+vse-zapchasti/**/.venv
+vse-zapchasti/**/node_modules
+vse-zapchasti/**/.next
+vse-zapchasti/**/__pycache__
+vse-zapchasti/**/.pytest_cache
+vse-zapchasti/**/.mypy_cache
+vse-zapchasti/**/.ruff_cache
+vse-zapchasti/**/*.log
+vse-zapchasti/**/*.pid
+vse-zapchasti/**/.env
+vse-zapchasti/**/.env.prod
+vse-zapchasti/**/.env.local
+vse-zapchasti/backups
+vse-zapchasti/var/notifications
+vse-zapchasti/apps/web/public/uploads
