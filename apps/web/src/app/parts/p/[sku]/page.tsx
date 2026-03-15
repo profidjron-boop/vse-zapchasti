@@ -169,14 +169,14 @@ export async function generateMetadata({
   const sku = routeParams.sku?.trim();
   if (!sku) {
     return {
-      title: "Товар | АвтоПлатформа",
+      title: "Товар | Все запчасти",
     };
   }
 
   const { product } = await getProductBySku(sku);
   if (!product) {
     return {
-      title: "Товар не найден | АвтоПлатформа",
+      title: "Товар не найден | Все запчасти",
       description: "Карточка товара недоступна или отсутствует в каталоге.",
     };
   }
@@ -188,13 +188,13 @@ export async function generateMetadata({
   const canonicalPath = `/parts/p/${encodeURIComponent(product.sku)}`;
 
   return {
-    title: `${product.name} | АвтоПлатформа`,
+    title: `${product.name} | Все запчасти`,
     description: baseDescription.slice(0, 160),
     alternates: {
       canonical: canonicalPath,
     },
     openGraph: {
-      title: `${product.name} | АвтоПлатформа`,
+      title: `${product.name} | Все запчасти`,
       description: baseDescription.slice(0, 160),
       type: "website",
       url: canonicalPath,

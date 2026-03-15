@@ -140,7 +140,7 @@ export default function ContactsPage() {
   );
   const legalBik = contentValue("contacts_bank_bik", "000000000");
 
-  const brandName = contentValue("site_brand_name", "АвтоПлатформа");
+  const brandName = contentValue("site_brand_name", "Все запчасти");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
@@ -155,7 +155,7 @@ export default function ContactsPage() {
   );
   const footerText = contentValue(
     "site_footer_text",
-    "АвтоПлатформа · Ваш город · NO CDN",
+    "Все запчасти · Ваш город · NO CDN",
   );
 
   const mapYandexUrl = contentValue(

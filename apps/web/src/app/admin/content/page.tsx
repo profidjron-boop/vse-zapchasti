@@ -565,7 +565,7 @@ const PAGE_PRESETS: PagePreset[] = [
         key: "site_brand_name",
         type: "text",
         description: "Название бренда в хедере",
-        defaultValue: "АвтоПлатформа",
+        defaultValue: "Все запчасти",
       },
       {
         key: "site_nav_parts_label",
@@ -613,7 +613,7 @@ const PAGE_PRESETS: PagePreset[] = [
         key: "site_footer_text",
         type: "text",
         description: "Текст футера",
-        defaultValue: "АвтоПлатформа · Ваш город · NO CDN",
+        defaultValue: "Все запчасти · Ваш город · NO CDN",
       },
       {
         key: "site_legal_privacy_label",

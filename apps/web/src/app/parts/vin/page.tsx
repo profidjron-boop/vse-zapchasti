@@ -71,7 +71,7 @@ export default function VinRequestPage() {
     return value && value.trim() ? value : fallback;
   };
 
-  const brandName = contentValue("site_brand_name", "АвтоПлатформа");
+  const brandName = contentValue("site_brand_name", "Все запчасти");
   const navParts = contentValue("site_nav_parts_label", "Запчасти");
   const navService = contentValue("site_nav_service_label", "Автосервис");
   const navContacts = contentValue("site_nav_contacts_label", "Контакты");
@@ -86,7 +86,7 @@ export default function VinRequestPage() {
   );
   const footerText = contentValue(
     "site_footer_text",
-    "АвтоПлатформа · Ваш город · NO CDN",
+    "Все запчасти · Ваш город · NO CDN",
   );
   const heroTitle = contentValue("vin_hero_title", "VIN-заявка");
   const heroSubtitle = contentValue(

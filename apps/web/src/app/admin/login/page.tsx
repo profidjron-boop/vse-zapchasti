@@ -66,7 +66,7 @@ export default function LoginPage() {
     <div className="min-h-dvh bg-[#F5F7FA] flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[#1F3B73]">АвтоПлатформа</h1>
+          <h1 className="text-3xl font-bold text-[#1F3B73]">Все запчасти</h1>
           <p className="text-neutral-600 mt-2">Вход в админ-панель</p>
         </div>
 

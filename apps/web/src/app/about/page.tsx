@@ -10,7 +10,7 @@ import {
 } from "@/lib/public-site-content";
 
 export const metadata: Metadata = {
-  title: "О проекте | АвтоПлатформа",
+  title: "О проекте | Все запчасти",
   description:
     "Нейтральная страница о проекте для продажи готового решения каталога и сервиса.",
 };

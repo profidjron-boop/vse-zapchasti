@@ -5,16 +5,16 @@ const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://127.0.0.1:3000";
 
 export const metadata: Metadata = {
-  title: "АвтоПлатформа | Готовый сайт запчастей и сервиса",
+  title: "Все запчасти | Автозапчасти и сервис",
   description:
-    "Готовое решение для каталога автозапчастей, заявок и сервисной записи. Нейтральный шаблон под бренд заказчика.",
+    "Интернет-магазин автозапчастей, заявки на подбор и запись в сервис.",
   metadataBase: new URL(siteUrl),
   openGraph: {
-    title: "АвтоПлатформа",
-    description: "Готовое решение каталога запчастей и сервиса",
+    title: "Все запчасти",
+    description: "Автозапчасти, подбор и сервис",
     type: "website",
     locale: "ru_RU",
-    siteName: "АвтоПлатформа",
+    siteName: "Все запчасти",
   },
   robots: {
     index: true,

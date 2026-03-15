@@ -9,8 +9,8 @@ type PublicFooterProps = {
 };
 
 export function PublicFooter({
-  brandName = "АвтоПлатформа",
-  footerText = "АвтоПлатформа · Ваш город · NO CDN",
+  brandName = "Все запчасти",
+  footerText = "Все запчасти · Ваш город · NO CDN",
   contactsLabel = "Контакты",
   privacyLabel = "Политика конфиденциальности",
   offerLabel = "Публичная оферта",

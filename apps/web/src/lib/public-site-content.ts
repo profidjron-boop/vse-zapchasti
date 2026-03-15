@@ -32,8 +32,8 @@ export type PublicSiteContent = {
 const PUBLIC_CONTENT_ENDPOINT = "/api/public/content";
 
 const DEFAULT_PUBLIC_SITE_CONTENT: PublicSiteContent = {
-  brandName: "АвтоПлатформа",
-  footerText: "АвтоПлатформа · Ваш город · NO CDN",
+  brandName: "Все запчасти",
+  footerText: "Все запчасти · Ваш город · NO CDN",
   labels: {
     parts: "Запчасти",
     service: "Автосервис",

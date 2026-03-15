@@ -113,7 +113,7 @@ function renderNavLabel(key: PublicNavKey, label: string, cartCount: number) {
 }
 
 export function PublicHeader({
-  brandName = "АвтоПлатформа",
+  brandName = "Все запчасти",
   activeKey,
   labels,
   showActions = true,

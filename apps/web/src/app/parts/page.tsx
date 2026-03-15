@@ -14,7 +14,7 @@ import {
 import { getCategoryIconPath } from "@/lib/category-icon";
 
 export const metadata: Metadata = {
-  title: "Каталог запчастей | АвтоПлатформа",
+  title: "Каталог запчастей | Все запчасти",
   description:
     "Каталог запчастей: поиск по артикулу, OEM и названию, подбор по авто и VIN-заявка.",
 };

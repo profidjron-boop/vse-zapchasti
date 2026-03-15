@@ -8,7 +8,7 @@ import {
 } from "@/lib/public-site-content";
 
 export const metadata: Metadata = {
-  title: "Публичная оферта | АвтоПлатформа",
+  title: "Публичная оферта | Все запчасти",
   description:
     "Шаблон публичной оферты для проекта каталога и сервисных услуг.",
 };
