@@ -39,3 +39,7 @@ docs/customer-go-live-pack-*.html
 docs/master-prompts/
 docs/chat-*
 docs/deep-checklist-run-*
+
+.env.prod
+apps/api/.env.prod
+apps/web/.env.prod
