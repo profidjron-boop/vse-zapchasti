@@ -30,4 +30,3 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ## Инструменты разработки
 
 Codex (VS Code), Claude, ChatGPT — AI-assisted development без написания кода вручную.
-Проект построен на основе RU Stack Lock v1.7 — собственного инженерного baseline для РФ-проектов.
