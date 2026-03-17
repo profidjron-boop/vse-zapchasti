@@ -28,6 +28,7 @@ export default function LoginPage() {
         withApiBase(apiBaseUrl, "/api/admin/auth/token"),
         {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
           },
