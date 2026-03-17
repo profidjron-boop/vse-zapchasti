@@ -6,17 +6,18 @@ import os
 from time import perf_counter
 import uuid
 
+import bcrypt
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-from sqlalchemy import text
+from sqlalchemy import select, text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from database import AsyncSessionLocal, engine
-from models import Base
+from models import Base, User
 from notifications import process_notification_queue
 from routers import public
 from routers import admin
@@ -63,6 +64,51 @@ NOTIFICATION_QUEUE_BACKGROUND_ENABLED = _env_bool(
 NOTIFICATION_QUEUE_POLL_SECONDS = _env_positive_int(
     "NOTIFICATION_QUEUE_POLL_SECONDS", default=20
 )
+
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "").strip()
+ADMIN_NAME = os.getenv("ADMIN_NAME", "Admin").strip() or "Admin"
+
+
+async def _ensure_admin_user() -> None:
+    if not ADMIN_EMAIL or not ADMIN_PASSWORD:
+        return
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.email == ADMIN_EMAIL))
+        user = result.scalar_one_or_none()
+
+        password_hash = bcrypt.hashpw(
+            ADMIN_PASSWORD.encode("utf-8"),
+            bcrypt.gensalt(),
+        ).decode("utf-8")
+
+        if user is None:
+            user = User(
+                email=ADMIN_EMAIL,
+                password_hash=password_hash,
+                name=ADMIN_NAME,
+                role="admin",
+                is_active=True,
+            )
+            db.add(user)
+        else:
+            user.password_hash = password_hash
+            user.name = ADMIN_NAME
+            user.role = "admin"
+            user.is_active = True
+
+        await db.commit()
+
+        logger.info(
+            json.dumps(
+                {
+                    "event": "admin_user_ensured",
+                    "email": ADMIN_EMAIL,
+                },
+                ensure_ascii=False,
+            )
+        )
 
 
 async def _erp_sync_scheduler_loop(stop_event: asyncio.Event) -> None:
@@ -154,6 +200,9 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             # Explicitly opt-in only (development fallback), production uses Alembic migrations.
             await conn.run_sync(Base.metadata.create_all)
+
+    await _ensure_admin_user()
+
     if ERP_SYNC_BACKGROUND_ENABLED:
         sync_task = asyncio.create_task(_erp_sync_scheduler_loop(stop_event))
     if NOTIFICATION_QUEUE_BACKGROUND_ENABLED:
@@ -212,13 +261,11 @@ def _load_allowed_origins() -> list[str]:
     if origins:
         return origins
 
-    # Local development fallback for loopback hosts.
     return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
 allowed_origins = _load_allowed_origins()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -258,7 +305,6 @@ def _error_response(
                 "message": normalized_message,
                 "trace_id": trace_id,
             },
-            # Backward compatibility for existing frontend handlers.
             "detail": _error_detail_with_trace(normalized_message, trace_id),
         },
         headers={"X-Request-Id": trace_id},
@@ -387,7 +433,6 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# Routers
 app.include_router(public.router)
 app.include_router(admin.router)
 
@@ -403,13 +448,11 @@ async def _is_database_ready() -> bool:
 
 @app.get("/health", tags=["health"])
 async def health_check():
-    """Health check endpoint"""
     return {"ok": True}
 
 
 @app.get("/api/health", tags=["health"])
 async def api_health_check():
-    """API health endpoint with DB check."""
     db_ready = await _is_database_ready()
     if not db_ready:
         return JSONResponse(status_code=503, content={"ok": False, "database": "down"})
@@ -418,7 +461,6 @@ async def api_health_check():
 
 @app.get("/api/ready", tags=["health"])
 async def api_ready_check():
-    """Readiness endpoint for orchestrators."""
     db_ready = await _is_database_ready()
     if not db_ready:
         return JSONResponse(
@@ -429,7 +471,6 @@ async def api_ready_check():
 
 @app.get("/", tags=["root"])
 async def root():
-    """Root endpoint"""
     return {"name": "АвтоПлатформа API", "version": "0.1.0", "docs": "/docs"}
 
 
