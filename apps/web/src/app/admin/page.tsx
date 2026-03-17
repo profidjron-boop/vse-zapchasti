@@ -249,7 +249,7 @@ async function fetchPaginatedCount(
     );
     const payload = await fetchJsonWithTimeout<unknown>(
       withApiBase(apiBaseUrl, pagedEndpoint),
-      {},
+      { credentials: "include" },
       12000,
     );
     if (!Array.isArray(payload)) {
@@ -271,7 +271,7 @@ async function fetchStatusRows<T>(
 ): Promise<T[]> {
   const payload = await fetchJsonWithTimeout<unknown>(
     withApiBase(apiBaseUrl, endpoint),
-    {},
+    { credentials: "include" },
     12000,
   );
   if (!Array.isArray(payload)) {
@@ -323,7 +323,7 @@ export default function AdminDashboard() {
               if (config.mode === "array") {
                 const payload = await fetchJsonWithTimeout<unknown>(
                   withApiBase(apiBaseUrl, config.endpoint),
-                  {},
+                  { credentials: "include" },
                   12000,
                 );
                 if (!Array.isArray(payload)) {
