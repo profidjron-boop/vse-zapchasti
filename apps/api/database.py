@@ -34,8 +34,21 @@ def _env_positive_int(name: str, default: int) -> int:
     return parsed if parsed > 0 else default
 
 
-# Convert postgresql+psycopg to postgresql+asyncpg for async operations
-ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql+psycopg", "postgresql+asyncpg")
+def _make_async_database_url(url: str) -> str:
+    if url.startswith("postgresql+asyncpg://"):
+        return url
+    if url.startswith("postgresql+psycopg2://"):
+        return url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgresql+psycopg://"):
+        return url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
+ASYNC_DATABASE_URL = _make_async_database_url(DATABASE_URL)
 SQLALCHEMY_ECHO = _env_bool("SQLALCHEMY_ECHO", default=False)
 DB_POOL_SIZE = _env_positive_int("DB_POOL_SIZE", default=20)
 DB_MAX_OVERFLOW = _env_positive_int("DB_MAX_OVERFLOW", default=40)
