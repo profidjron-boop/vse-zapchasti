@@ -11,7 +11,7 @@ RUN addgroup -S app && adduser -S -G app -h /app app \
 RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 COPY . .
 
