@@ -182,7 +182,6 @@ async def lifespan(app: FastAPI):
     stop_event = asyncio.Event()
     sync_task: asyncio.Task[None] | None = None
     notifications_task: asyncio.Task[None] | None = None
-    # Startup
     logger.info(
         json.dumps(
             {
@@ -198,7 +197,6 @@ async def lifespan(app: FastAPI):
     )
     if AUTO_CREATE_SCHEMA_ON_START:
         async with engine.begin() as conn:
-            # Explicitly opt-in only (development fallback), production uses Alembic migrations.
             await conn.run_sync(Base.metadata.create_all)
 
     await _ensure_admin_user()
@@ -208,7 +206,6 @@ async def lifespan(app: FastAPI):
     if NOTIFICATION_QUEUE_BACKGROUND_ENABLED:
         notifications_task = asyncio.create_task(_notification_queue_loop(stop_event))
     yield
-    # Shutdown
     stop_event.set()
     if sync_task is not None:
         try:
@@ -239,39 +236,12 @@ app = FastAPI(
 )
 
 
-def _normalize_origin(value: str | None) -> str | None:
-    if not value:
-        return None
-    normalized = value.strip().rstrip("/")
-    if normalized.startswith("http://") or normalized.startswith("https://"):
-        return normalized
-    return None
-
-
-def _load_allowed_origins() -> list[str]:
-    raw = os.getenv("WEB_ORIGIN", "").strip()
-    origins: list[str] = []
-
-    if raw:
-        for item in raw.split(","):
-            normalized = _normalize_origin(item)
-            if normalized and normalized not in origins:
-                origins.append(normalized)
-
-    if origins:
-        return origins
-
-    return ["http://localhost:3000", "http://127.0.0.1:3000"]
-
-
-allowed_origins = _load_allowed_origins()
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
