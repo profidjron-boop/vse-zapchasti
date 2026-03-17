@@ -10,6 +10,8 @@ export class ApiRequestError extends Error {
   }
 }
 
+const ADMIN_ACCESS_TOKEN_KEY = "admin_access_token";
+
 function getCookieValue(name: string): string | null {
   if (typeof document === "undefined") return null;
   const encodedName = `${encodeURIComponent(name)}=`;
@@ -20,6 +22,16 @@ function getCookieValue(name: string): string | null {
     }
   }
   return null;
+}
+
+function getAdminAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = window.localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY);
+    return token && token.trim() ? token.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function isUnsafeHttpMethod(method: string): boolean {
@@ -50,17 +62,30 @@ function extractTraceId(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
 
   const traceIdFromRoot = (payload as { trace_id?: unknown }).trace_id;
-  if (typeof traceIdFromRoot === "string" && traceIdFromRoot.trim())
+  if (typeof traceIdFromRoot === "string" && traceIdFromRoot.trim()) {
     return traceIdFromRoot.trim();
+  }
 
   const errorObj = (payload as { error?: unknown }).error;
   if (errorObj && typeof errorObj === "object") {
     const traceIdFromError = (errorObj as { trace_id?: unknown }).trace_id;
-    if (typeof traceIdFromError === "string" && traceIdFromError.trim())
+    if (typeof traceIdFromError === "string" && traceIdFromError.trim()) {
       return traceIdFromError.trim();
+    }
   }
 
   return null;
+}
+
+function shouldAttachAdminBearer(input: RequestInfo | URL): boolean {
+  const raw =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+  return raw.includes("/api/admin/");
 }
 
 export async function fetchJsonWithTimeoutAndResponse<T>(
@@ -73,6 +98,13 @@ export async function fetchJsonWithTimeoutAndResponse<T>(
   const signal = init.signal ?? controller.signal;
   const method = (init.method || "GET").toUpperCase();
   const headers = new Headers(init.headers || {});
+
+  if (shouldAttachAdminBearer(input) && !headers.has("Authorization")) {
+    const token = getAdminAccessToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
 
   if (isUnsafeHttpMethod(method) && !headers.has("X-CSRF-Token")) {
     const csrfToken = getCookieValue("admin_csrf_token");
@@ -89,6 +121,7 @@ export async function fetchJsonWithTimeoutAndResponse<T>(
       credentials: init.credentials ?? "include",
       signal,
     });
+
     const isJson = (response.headers.get("content-type") || "").includes(
       "application/json",
     );
