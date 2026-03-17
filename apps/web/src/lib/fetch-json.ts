@@ -99,14 +99,18 @@ export async function fetchJsonWithTimeoutAndResponse<T>(
   const method = (init.method || "GET").toUpperCase();
   const headers = new Headers(init.headers || {});
 
-  if (shouldAttachAdminBearer(input) && !headers.has("Authorization")) {
-    const token = getAdminAccessToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+  const isAdminRequest = shouldAttachAdminBearer(input);
+  const adminToken = isAdminRequest ? getAdminAccessToken() : null;
+
+  if (isAdminRequest && adminToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${adminToken}`);
   }
 
-  if (isUnsafeHttpMethod(method) && !headers.has("X-CSRF-Token")) {
+  if (
+    isUnsafeHttpMethod(method) &&
+    !headers.has("X-CSRF-Token") &&
+    (!isAdminRequest || !adminToken)
+  ) {
     const csrfToken = getCookieValue("admin_csrf_token");
     if (csrfToken) {
       headers.set("X-CSRF-Token", csrfToken);
@@ -118,7 +122,7 @@ export async function fetchJsonWithTimeoutAndResponse<T>(
       ...init,
       method,
       headers,
-      credentials: init.credentials ?? "include",
+      credentials: init.credentials ?? (isAdminRequest && adminToken ? "omit" : "include"),
       signal,
     });
 
