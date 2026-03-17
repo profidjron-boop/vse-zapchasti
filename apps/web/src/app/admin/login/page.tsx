@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { getClientApiBaseUrl, withApiBase } from "@/lib/api-base-url";
 import { ApiRequestError, fetchJsonWithTimeout } from "@/lib/fetch-json";
 
+const ADMIN_ACCESS_TOKEN_KEY = "admin_access_token";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -24,7 +26,7 @@ export default function LoginPage() {
       formData.append("password", password);
 
       const apiBaseUrl = getClientApiBaseUrl();
-      await fetchJsonWithTimeout<{ access_token?: string }>(
+      const result = await fetchJsonWithTimeout<{ access_token?: string }>(
         withApiBase(apiBaseUrl, "/api/admin/auth/token"),
         {
           method: "POST",
@@ -36,6 +38,12 @@ export default function LoginPage() {
         },
         10000,
       );
+
+      if (!result?.access_token) {
+        throw new Error("Токен не получен");
+      }
+
+      window.localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, result.access_token);
 
       router.push("/admin");
       router.refresh();
