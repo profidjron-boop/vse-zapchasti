@@ -30,6 +30,7 @@ const NAV_ALERTS_INITIAL: NavAlerts = {
 };
 
 const ADMIN_NAV_SOUND_KEY = "admin_nav_sound_enabled_v1";
+const ADMIN_ACCESS_TOKEN_KEY = "admin_access_token";
 const ADMIN_ALERTS_POLL_MS = 20_000;
 
 function roleLabel(role: UserRole): string {
@@ -435,6 +436,13 @@ export default function AdminLayout({
     } catch {
       // Best effort logout: redirect to login even if API logout failed.
     }
+
+    try {
+      window.localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+    } catch {
+      // Ignore storage access errors.
+    }
+
     router.push("/admin/login");
     router.refresh();
   };
@@ -520,7 +528,6 @@ export default function AdminLayout({
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="flex flex-col gap-4 xl:flex-row xl:gap-8">
-          {/* Sidebar */}
           <nav className="w-full shrink-0 xl:w-64">
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <div className="mb-4 rounded-2xl bg-[linear-gradient(135deg,#1F3B73_0%,#17315E_100%)] px-4 py-4 text-white">
@@ -598,7 +605,6 @@ export default function AdminLayout({
             </div>
           </nav>
 
-          {/* Main content */}
           <main className="flex-1">
             <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
               {children}
